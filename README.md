@@ -65,7 +65,7 @@ Claude Code ──(hooks)──► hooks/send.js ──HTTP POST──► Agent 
 | thinking | `UserPromptSubmit`, between tools | hand on chin, "..." | – |
 | typing | Edit, Write, MultiEdit, NotebookEdit | laptop open, code scrolling | "Editing *file*" |
 | reading | Read, Grep, Glob | glasses on, highlight moves down the page | "Reading *file*" |
-| running | Bash, PowerShell | `>_` on the screen | first ~40 characters of the command |
+| running | Bash, PowerShell | `>_` on the screen | the command itself in a little code box, e.g. `> dotnet test` (up to ~40 characters) |
 | working | any other tool | three dots on the screen | e.g. "Searching the web" |
 | waiting | `Notification`: permission prompt | raises a hand, little hops, worried face | "Waiting for approval" |
 | asking | `Notification`: a question for you | hand half up, question badge | "Question for you" |
@@ -75,6 +75,10 @@ Claude Code ──(hooks)──► hooks/send.js ──HTTP POST──► Agent 
 
 Tool states stay on screen for 1.5 s after the tool finishes so the character does not
 flicker between quick tool calls. A tool that fails gets a worried face for that time.
+
+Above the bubble, a row of small chips lists the last steps of the turn: the files it read
+(page icon) or wrote (pencil) and the commands it ran (dark code box). The step the bubble
+shows right now is not repeated; searches and other tools are not listed.
 
 Drop the buddy higher than ~24 px above the taskbar (the bottom of the screen's work area)
 and it hovers on small boot thrusters; drag it back down and it lands. Turn this off with
@@ -349,7 +353,7 @@ The full format, the list of states and performance tips are in
   | `event`, `ts`, `v` | hook event name, time, payload format version |
   | `session` | session id |
   | `tool`, `id` | tool name, tool-use id (pairs "started" with "finished") |
-  | `detail` | the **file name** (not the path, not the contents), or the **first ~40 characters of a command** with obvious secrets (tokens, passwords, `KEY=value`, `user:password@`) replaced by `***`, or a search pattern (max. 30 characters), or a web host name |
+  | `detail` | the **file name** (not the path, not the contents), or the **command itself, up to ~40 characters** (set-up in front of it such as `cd somewhere &&` or variable assignments is left out, paths are shortened to their last part) with obvious secrets (tokens, passwords, `KEY=value`, `user:password@`) replaced by `***`, or a search pattern (max. 30 characters), or a web host name |
   | `kind`, `source`, `reason` | notification type, why a session started / ended |
   | `agent`, `agentType` | for sub-agents: a short hash of the agent id, and its type (e.g. `Explore`) |
   | `skill` | the name of a skill being used |

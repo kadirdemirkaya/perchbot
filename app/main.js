@@ -986,6 +986,8 @@ function start() {
       mono: Boolean(snap.message && snap.message.mono),
       mood: snap.mood || null,
       skill: snap.skill || null,
+      // Recent files read / written and commands run (the row above the bubble).
+      steps: snap.steps || [],
     };
   }
 

@@ -454,3 +454,61 @@ test('skill book: out with the Skill tool or a slash command, back in at Stop', 
   send('SessionEnd', { reason: 'other' });
   assert.equal(core.snapshot().skill, null);
 });
+
+test('recent steps: files read or written and commands run, newest last, one turn only', () => {
+  const { core, send } = setup();
+  send('UserPromptSubmit');
+  send('PreToolUse', { tool: 'Read', id: 'r1', detail: 'core.js' });
+  send('PreToolUse', { tool: 'Grep', id: 'g1', detail: 'TODO' }); // a search: not a step
+  send('PreToolUse', { tool: 'Edit', id: 'e1', detail: 'main.js' });
+  send('PreToolUse', { tool: 'Edit', id: 'e2', detail: 'main.js' }); // the same again: once
+  send('PreToolUse', { tool: 'Bash', id: 'b1', detail: 'npm test' });
+  send('PreToolUse', { tool: 'PowerShell', id: 'p1', detail: 'dotnet build' });
+  assert.deepEqual(core.snapshot().steps, [
+    { kind: 'read', text: 'core.js' },
+    { kind: 'write', text: 'main.js' },
+    { kind: 'run', text: 'npm test' },
+    { kind: 'run', text: 'dotnet build' },
+  ]);
+  send('PreToolUse', { tool: 'Write', id: 'w1', detail: 'notes.md' });
+  assert.equal(core.snapshot().steps.length, 4, 'only the last few');
+  assert.deepEqual(core.snapshot().steps.at(-1), { kind: 'write', text: 'notes.md' });
+  // A sub-agent's steps are its own (its tooltip), not the main character's.
+  send('PreToolUse', { tool: 'Read', id: 'x1', detail: 'agent.js', agent: 'abcdef1234', agentType: 'Explore' });
+  assert.ok(!core.snapshot().steps.some((s) => s.text === 'agent.js'));
+  send('UserPromptSubmit');
+  assert.deepEqual(core.snapshot().steps, [], 'a new turn starts empty');
+});
+
+test('chat facts: the turn, its tools, helpers, skill, what it waits for, when it finished', () => {
+  const clock = new FakeClock();
+  let now = 50000;
+  const core = new BuddyCore({ clock, now: () => now });
+  const send = (event, extra = {}) => core.handle({ v: 1, event, session: 'A', ts: now, ...extra });
+  send('SessionStart');
+  assert.equal(core.facts().turn, null);
+  assert.equal(core.facts().turnActive, false);
+  send('UserPromptSubmit');
+  now += 4000;
+  send('PreToolUse', { tool: 'Read', id: 'r1', detail: 'a.js' });
+  send('PreToolUse', { tool: 'Skill', id: 's1', skill: 'pdf' });
+  send('SubagentStart', { agent: 'abcdef1234', agentType: 'Explore' });
+  let f = core.facts(now + 1000);
+  assert.equal(f.turnActive, true);
+  assert.equal(f.turn.startedAt, 50000);
+  assert.equal(f.turn.tools, 2);
+  assert.deepEqual(f.turn.last, { tool: 'Skill', detail: null });
+  assert.deepEqual(f.agents, ['Explore']);
+  assert.equal(f.skill, 'pdf');
+  assert.equal(f.waiting, null);
+  send('Notification', { kind: 'permission_prompt' });
+  assert.equal(core.facts().waiting, 'permission_prompt');
+  now += 2000;
+  send('Stop');
+  f = core.facts();
+  assert.equal(f.turnActive, false);
+  assert.equal(f.lastDoneAt, now);
+  assert.equal(f.turn.endedAt, now);
+  assert.equal(f.waiting, null, 'done: waiting for nothing');
+  assert.equal(f.sessions, 1);
+});

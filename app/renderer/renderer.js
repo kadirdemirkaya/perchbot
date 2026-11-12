@@ -42,6 +42,7 @@
   const holder = document.getElementById('character');
   const bubble = document.getElementById('bubble');
   const bubbleText = document.getElementById('bubble-text');
+  const trail = document.getElementById('trail');
   const fx = document.getElementById('fx');
   const menuEl = document.getElementById('menu');
   const tooltip = document.getElementById('tooltip');
@@ -339,12 +340,66 @@
     const text = settings.quiet ? '' : quipText || view.text;
     if (!text) {
       bubble.classList.remove('show');
+      renderTrail();
       return;
     }
     bubbleText.textContent = text;
     bubble.classList.toggle('mono', Boolean(view.mono) && !quipText);
     positionBubble();
     bubble.classList.add('show');
+    renderTrail();
+  }
+
+  // ---------------------------------------------------------------- recent steps
+
+  /**
+   * A row of small chips above the bubble: the last files read or written and
+   * the last commands run in this turn (core.steps), while it works and when it
+   * is done. The step the bubble shows right now is not repeated.
+   */
+  const TRAIL_STATES = new Set(['typing', 'reading', 'running', 'working', 'thinking', 'waiting', 'asking', 'done']);
+  const TRAIL_MAX = 2;
+  const STEP_ICONS = { read: 'i-step-read', write: 'i-step-write', run: 'i-step-run' };
+  let trailKey = '';
+
+  function trailSteps() {
+    if (settings.quiet || quipText || !TRAIL_STATES.has(view.state)) return [];
+    const steps = (Array.isArray(view.steps) ? view.steps : []).filter((s) => s && STEP_ICONS[s.kind] && typeof s.text === 'string');
+    const newest = steps[steps.length - 1];
+    const shownNow = newest && view.text && view.text.includes(newest.text) ? 1 : 0;
+    return steps.slice(0, steps.length - shownNow).slice(-TRAIL_MAX);
+  }
+
+  function renderTrail() {
+    const list = trailSteps();
+    const key = list.map((s) => `${s.kind}:${s.text}`).join('\n');
+    if (key !== trailKey) {
+      trailKey = key;
+      trace(`trail: ${list.length} step(s)`);
+      trail.replaceChildren(
+        ...list.map((step, index) => {
+          const chip = document.createElement('div');
+          chip.className = `trail-chip ${step.kind}${index < list.length - 1 ? ' older' : ''}`;
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          svg.setAttribute('aria-hidden', 'true');
+          const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+          use.setAttribute('href', `#${STEP_ICONS[step.kind]}`);
+          svg.appendChild(use);
+          const label = document.createElement('span');
+          label.textContent = step.text;
+          chip.append(svg, label);
+          return chip;
+        }),
+      );
+    }
+    trail.classList.toggle('show', list.length > 0);
+    if (!list.length) return;
+    // Above the bubble (or where it would be), above the skill tag.
+    const head = headPoint();
+    const lift = skillTag.classList.contains('show') ? skillTag.offsetHeight + 4 : 0;
+    let bottom = SLOT_HEIGHT - head.top + 10 + lift;
+    if (bubble.classList.contains('show')) bottom += bubble.offsetHeight + 4;
+    trail.style.bottom = `${Math.round(bottom)}px`;
   }
 
   /** The point above the character's head (bubbleAnchor), in slot coordinates. */

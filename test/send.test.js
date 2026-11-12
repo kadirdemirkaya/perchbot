@@ -105,6 +105,28 @@ test('commands are cut to 40 characters, first line only', () => {
   assert.equal(send.summarizeCommand(null), undefined);
 });
 
+test('commands: the set-up in front is left out and paths shrink to their last part', () => {
+  const core = (c) => send.summarizeCommand(c);
+  assert.equal(core('cd "C:\\Users\\someone\\projects\\shop" && dotnet test'), 'dotnet test');
+  assert.equal(core('cd /home/someone/app && npm install && npm test'), 'npm install && npm test');
+  assert.equal(core('Set-Location C:\\work\\app; npm run build'), 'npm run build');
+  assert.equal(core("$env:NODE_ENV = 'test'; $th = 'x'; npm test"), 'npm test');
+  assert.equal(core('NODE_ENV=test DEBUG=1 npx vitest run'), 'npx vitest run');
+  assert.equal(core('export CI=1 && pnpm lint'), 'pnpm lint');
+  assert.equal(core('& "C:\\Program Files\\dotnet\\dotnet.exe" build'), 'dotnet build');
+  assert.equal(core('C:\\tools\\gh.exe pr list'), 'gh pr list');
+  assert.equal(core('cat /home/someone/notes/todo.txt'), 'cat todo.txt');
+  assert.equal(core('type C:\\Users\\someone\\secret\\plan.md'), 'type plan.md');
+  assert.equal(core('cd C:\\Users\\someone\\private-project'), 'cd', 'only a cd: no path');
+  // Secrets are still masked, and nothing of a path in front survives.
+  const masked = core('cd /home/someone/x && curl -H "Authorization: Bearer abc123def" https://api.example.com');
+  assert.ok(masked.startsWith('curl'), masked);
+  assert.ok(!masked.includes('abc123def') && !masked.includes('someone'), masked);
+  // Separators inside quotes do not confuse it.
+  assert.equal(core('node -e "a(); b()"'), 'node -e "a(); b()"');
+  assert.equal(core('git status'), 'git status');
+});
+
 test('secrets in commands are masked before shortening', () => {
   const cases = [
     ['curl -H "Authorization: Bearer abc.def.ghi" x', 'abc.def'],

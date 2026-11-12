@@ -35,7 +35,7 @@
  */
 
 const { EventEmitter } = require('node:events');
-const { stateForTool, bubbleForTool, isFileTool, TOOL_STATES } = require('./tools');
+const { stateForTool, bubbleForTool, stepForTool, isFileTool, TOOL_STATES } = require('./tools');
 const { AgentRegistry } = require('./agents');
 const { LivenessWatch } = require('./liveness');
 
@@ -83,6 +83,10 @@ const OTHER_NOTIFICATION = { state: 'standby', key: 'notice', sticky: false };
 const SILENT_NOTIFICATIONS = new Set(['auth_success']);
 
 const RESTART_REASONS = new Set(['clear', 'resume']);
+/** Recent steps (files read or written, commands run) shown in a row above the bubble. */
+const STEP_LIMIT = 4;
+/** States in which a notification is on screen (what it waits for: facts().waiting). */
+const NOTICE_STATES = new Set(['waiting', 'asking', 'standby']);
 const FINISHED_ID_LIMIT = 256;
 /** Ended sessions remembered, so a late event from one does not bring it back. */
 const ENDED_ID_LIMIT = 64;
@@ -118,6 +122,18 @@ class BuddyCore extends EventEmitter {
     this.seenAccounts = new Set();
     /** Sessions that ended (SessionEnd, or their process is gone), most recent last. */
     this.ended = new Set();
+    this.now = options.now || Date.now;
+    /** The main sessions' latest steps: [{ kind: 'read' | 'write' | 'run', text }], oldest first. */
+    this.steps = [];
+    /**
+     * The latest turn of a main session, for the chat (facts()):
+     * { session, startedAt, tools, last: { tool, detail } | null, endedAt }.
+     */
+    this.turn = null;
+    /** When the last turn ended (Stop), or null. */
+    this.lastDoneAt = null;
+    /** The latest notification: { kind } (notification_type, may be undefined). */
+    this.lastNotice = null;
     /** Second safety net: the Claude Code process of a session died without SessionEnd. */
     this.liveness = options.liveness
       ? new LivenessWatch({
@@ -158,6 +174,32 @@ class BuddyCore extends EventEmitter {
       message: this.view.message,
       mood: this.view.mood || null,
       skill: this.skill ? this.skill.name : null,
+      steps: this.steps.slice(),
+    };
+  }
+
+  /**
+   * What the chat (app/chat.js) may answer from: only what the hook events
+   * already said, kept in memory. Nothing is collected for it.
+   * @param {number} [now]
+   */
+  facts(now = this.now()) {
+    const state = this.view.state;
+    const turn = this.turn;
+    return {
+      now,
+      state,
+      message: this.view.message,
+      turnActive: this.anyTurnActive(),
+      turn: turn ? { startedAt: turn.startedAt, tools: turn.tools, last: turn.last, endedAt: turn.endedAt } : null,
+      agents: this.crew
+        .list()
+        .filter((a) => a.status === 'active')
+        .map((a) => a.type || null),
+      skill: this.skill ? this.skill.name : null,
+      waiting: NOTICE_STATES.has(state) && this.lastNotice ? this.lastNotice.kind || 'other' : null,
+      lastDoneAt: this.lastDoneAt,
+      sessions: this.sessions.size,
     };
   }
 
@@ -257,6 +299,9 @@ class BuddyCore extends EventEmitter {
         session.turnActive = true;
         session.inflight.clear();
         session.anonymous = 0;
+        // A new turn: the row of recent steps starts empty.
+        this.turn = { session: owner, startedAt: evt.ts || this.now(), tools: 0, last: null, endedAt: null };
+        this.steps = [];
         this.show('thinking', null, 0, owner);
         break;
 
@@ -274,6 +319,8 @@ class BuddyCore extends EventEmitter {
         session.turnActive = true;
         if (evt.id) session.inflight.add(evt.id);
         else session.anonymous += 1;
+        this.countTool(owner, evt);
+        this.addStep(stepForTool(evt.tool, evt.detail));
         this.show(stateForTool(evt.tool), bubbleForTool(evt.tool, evt.detail), 0, owner);
         break;
 
@@ -296,6 +343,7 @@ class BuddyCore extends EventEmitter {
       case 'Notification': {
         if (stale || SILENT_NOTIFICATIONS.has(evt.kind)) return;
         const shown = NOTIFICATIONS[evt.kind] || OTHER_NOTIFICATION;
+        this.lastNotice = { kind: evt.kind };
         this.show(shown.state, { key: shown.key }, shown.sticky ? 0 : this.timings.idlePromptMs, owner);
         break;
       }
@@ -305,6 +353,8 @@ class BuddyCore extends EventEmitter {
         session.inflight.clear();
         session.anonymous = 0;
         session.stopTs = Math.max(session.stopTs, evt.ts || 0);
+        this.lastDoneAt = evt.ts || this.now();
+        if (this.turn && this.turn.session === owner) this.turn.endedAt = this.lastDoneAt;
         // The turn is over: the book goes back into the pocket. Sub-agents carry on.
         if (this.skill && this.skill.session === owner) this.skill = null;
         this.show('done', { key: 'done' }, this.timings.doneMs, owner);
@@ -405,6 +455,22 @@ class BuddyCore extends EventEmitter {
   }
 
   // ---------------------------------------------------------------- internals
+
+  /** One more tool in this session's turn (a turn starts here if its prompt was not seen). */
+  countTool(owner, evt) {
+    if (!this.turn || this.turn.session !== owner || this.turn.endedAt) {
+      this.turn = { session: owner, startedAt: evt.ts || this.now(), tools: 0, last: null, endedAt: null };
+    }
+    this.turn.tools += 1;
+    this.turn.last = { tool: evt.tool, detail: evt.detail || null };
+  }
+
+  addStep(step) {
+    if (!step) return;
+    const last = this.steps[this.steps.length - 1];
+    if (last && last.kind === step.kind && last.text === step.text) return;
+    this.steps = [...this.steps, step].slice(-STEP_LIMIT);
+  }
 
   touch(id, account = null) {
     let session = this.sessions.get(id);

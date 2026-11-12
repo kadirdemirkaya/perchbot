@@ -77,4 +77,19 @@ function bubbleForTool(tool, detail) {
   return { key: 'working' };
 }
 
-module.exports = { stateForTool, bubbleForTool, isFileTool, TOOL_STATES, STATE_BY_TOOL, FILE_TOOLS };
+/** Tools whose detail is the command they run (shortened by the hook). */
+const COMMAND_TOOLS = new Set(['Bash', 'PowerShell']);
+
+/**
+ * A step worth listing in the little row above the bubble: a file read, a file
+ * written, a command run. Searches, web pages and other tools are not listed.
+ * @returns {{ kind: 'read' | 'write' | 'run', text: string } | null}
+ */
+function stepForTool(tool, detail) {
+  if (typeof detail !== 'string' || !detail) return null;
+  if (FILE_TOOLS.has(tool)) return { kind: stateForTool(tool) === 'typing' ? 'write' : 'read', text: detail };
+  if (COMMAND_TOOLS.has(tool)) return { kind: 'run', text: detail };
+  return null;
+}
+
+module.exports = { stateForTool, bubbleForTool, stepForTool, isFileTool, TOOL_STATES, STATE_BY_TOOL, FILE_TOOLS, COMMAND_TOOLS };

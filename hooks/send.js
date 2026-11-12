@@ -176,12 +176,69 @@ function fileLabel(filePath) {
   return name.slice(0, FILE_MAX - tail.length - 1) + '\u2026' + tail;
 }
 
-/** First line of a command, secrets masked, at most COMMAND_MAX characters. */
+// Leading parts of a command line that only prepare the real command: changing
+// directory, setting variables. They are left out, so "cd C:\long\path && npm test"
+// becomes "npm test" (and the path never leaves the hook).
+const SETUP_PARTS = [
+  /^(cd|chdir|pushd|popd|set-location|sl)(\s|$)/i,
+  /^\$env:[\w]+\s*=/i,
+  /^\$[\w]+\s*=/,
+  /^(export|set|setx)\s+\w+=/i,
+  /^\w+=("[^"]*"|'[^']*'|\S*)$/,
+];
+// A token that is an absolute or home path: shown as its last part only.
+const PATH_TOKEN = /^(["']?)((?:[A-Za-z]:[\\/]|\\\\|~[\\/]|\/(?:home|Users|root|mnt|tmp|var|etc|opt|srv|c|d)\/)[^"']*)\1$/;
+
+function lastPart(text) {
+  return text.split(/[\\/]/).filter(Boolean).pop() || text;
+}
+
+/**
+ * The command itself, without the set-up in front of it: "cd x && FOO=1 npm test"
+ * -> "npm test", "& 'C:\tools\dotnet.exe' test" -> "dotnet test". Paths become
+ * their last part. Only ever removes text.
+ */
+function commandCore(line) {
+  const parts = line.split(/\s*(?:&&|\|\||;)\s*/).filter(Boolean);
+  let i = 0;
+  while (i < parts.length - 1 && SETUP_PARTS.some((re) => re.test(parts[i]))) i += 1;
+  const allSetup = SETUP_PARTS.some((re) => re.test(parts[i] || ''));
+  let rest = line;
+  if (i > 0) {
+    // Cut the original line after the separator that ends the last set-up part.
+    let at = 0;
+    for (let k = 0; k < i; k += 1) {
+      at = line.indexOf(parts[k], at) + parts[k].length;
+      const sep = /^\s*(?:&&|\|\||;)\s*/.exec(line.slice(at));
+      if (sep) at += sep[0].length;
+    }
+    rest = line.slice(at);
+  }
+  rest = rest.replace(/^&\s+/, '').replace(/^(\w+=("[^"]*"|'[^']*'|\S+)\s+)+/, '');
+  // Words, quoted parts kept together ("C:\Program Files\x.exe" is one).
+  const tokens = rest.match(/"[^"]*"?|'[^']*'?|\S+/g) || [];
+  const out = tokens.map((token, index) => {
+    const path = PATH_TOKEN.exec(token);
+    let word = path ? lastPart(path[2]) : token;
+    if (index === 0) {
+      word = word.replace(/^["']|["']$/g, '');
+      if (word.includes('/') || word.includes('\\')) word = lastPart(word);
+      word = word.replace(/\.(exe|cmd|bat|com)$/i, '');
+    }
+    return word;
+  });
+  // Only set-up ("cd somewhere"): say so, without the path.
+  if (allSetup && i === parts.length - 1) return out[0];
+  return out.join(' ').trim();
+}
+
+/** The command itself (see commandCore), first line, secrets masked, at most COMMAND_MAX characters. */
 function summarizeCommand(command) {
   if (typeof command !== 'string') return undefined;
   const lines = command.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   if (!lines.length) return undefined;
-  let line = maskSecrets(cleanString(lines[0]).replace(/\s+/g, ' ').trim());
+  let line = commandCore(maskSecrets(cleanString(lines[0]).replace(/\s+/g, ' ').trim()));
+  if (!line) return undefined;
   if (lines.length > 1) line += ' \u2026';
   return shorten(line, COMMAND_MAX);
 }
@@ -715,6 +772,7 @@ module.exports = {
   allowlisted,
   buildPayload,
   summarizeCommand,
+  commandCore,
   summarizePattern,
   maskSecrets,
   fileLabel,
