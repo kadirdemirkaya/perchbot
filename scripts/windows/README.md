@@ -20,6 +20,11 @@ you want the test overlay's files somewhere else, for example in the git-ignored
 `.test-artifacts/` folder of the repo. Start the test overlay with `-X`/`-Y` above the
 taskbar to see the hovering pose, or without them for the corner (on the ground).
 
+The test overlay starts with **fun mode off** (no idle plays, trips or mischief), so the
+screenshots and the click-through test are repeatable. Add `-Fun` to try fun mode. Set
+`$env:AGENT_BUDDY_DEMO` to `duel`, `trips`, `plays` or `cheers` before starting it to have
+that part play by itself.
+
 If PowerShell refuses to run scripts, use
 `powershell -NoProfile -ExecutionPolicy Bypass -File <script>`.
 
