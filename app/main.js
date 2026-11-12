@@ -13,6 +13,8 @@
  *   the mouse whenever the cursor is outside the window.
  * - No network access: http(s)/ws(s) requests are blocked, the page is served
  *   from a private buddy:// scheme with a strict CSP.
+ * - Sub-agents ("minis") stand next to the character. The window grows towards
+ *   the inner side for them, so the character itself never moves.
  */
 
 const fs = require('node:fs');
@@ -57,6 +59,8 @@ const WATCHDOG_MS = 100;
 const TILT_SPEED = 14;
 /** The tilt settles back to 0 when the cursor rests this long during a drag. */
 const TILT_SETTLE_MS = 140;
+/** Agent hashes from the hook (see validate.js); the page sends them back when a mini has left. */
+const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
 
 const CSP = [
   "default-src 'none'",
@@ -126,6 +130,8 @@ function start() {
   let paused = false;
   /** Hovering with sole thrusters: { airborne, boost (being dragged), tilt (-1..1) }. */
   let flight = { airborne: false, boost: false, tilt: 0 };
+  /** Sub-agents from the core (AgentRegistry.list()), in arrival order. */
+  let crew = [];
 
   // ------------------------------------------------------------------ events
 
@@ -144,6 +150,20 @@ function start() {
     log.info(`state ${snap.state}`);
     log.devOnly(`bubble: ${bubbleText(snap) || '(none)'}`);
     sendView();
+  });
+
+  core.on('crew', (list) => {
+    crew = list;
+    log.devOnly(`crew: ${list.map((a) => `${a.type}:${a.status}`).join(', ') || '(none)'}`);
+    // Grow (or shrink) the window first, so a new mini has room when it appears.
+    // (Before the window exists there is nothing to resize; screen is not ready yet.)
+    if (pageLayout && !drag) {
+      const next = computePlacement();
+      if (next.page.sideWidth !== pageLayout.sideWidth || next.page.crew.capacity !== pageLayout.crew.capacity) {
+        placeWindow();
+      }
+    }
+    sendCrew();
   });
 
   core.on('quit', (reason) => {
@@ -184,6 +204,11 @@ function start() {
 
   ipcMain.on('buddy:menu', (event, id) => {
     if (fromPage(event) && MENU_IDS.has(id)) onMenu(id);
+  });
+
+  // A mini finished its exit scene: forget the agent (the window may shrink).
+  ipcMain.on('buddy:crew-left', (event, id) => {
+    if (fromPage(event) && typeof id === 'string' && AGENT_ID_RE.test(id)) core.crew.release(id);
   });
 
   if (initialEvent) dispatch(initialEvent, 'launch');
@@ -333,11 +358,19 @@ function start() {
     return { id: p.id, workArea: p.workArea };
   }
 
-  /** Recompute anchor, side and bounds from settings and the current displays. */
+  /**
+   * Recompute anchor, side and bounds from settings, the current displays and
+   * the crew: the side column is as wide as the minis that fit need.
+   */
   function computePlacement() {
     const resolved = placement.resolveAnchor(settings, displays(), primaryDisplay(), scale());
     const side = placement.sideFor(resolved.anchor, resolved.workArea);
-    return { anchor: resolved.anchor, ...placement.windowLayout(resolved.anchor, side, scale()) };
+    const capacity =
+      character && character.mini ? placement.crewCapacity(resolved.anchor, side, resolved.workArea, scale()) : 0;
+    const sideWidth = Math.max(placement.SIDE_WIDTH, placement.crewWidth(Math.min(crew.length, capacity), side));
+    const layout = placement.windowLayout(resolved.anchor, side, scale(), sideWidth);
+    layout.page.crew = placement.crewGeometry(side, capacity);
+    return { anchor: resolved.anchor, ...layout };
   }
 
   function createWindow() {
@@ -481,7 +514,7 @@ function start() {
     if (phase === 'move') {
       const cursor = screen.getCursorScreenPoint();
       drag.live = { x: drag.anchor.x + cursor.x - drag.cursor.x, y: drag.anchor.y + cursor.y - drag.cursor.y };
-      win.setBounds(placement.windowLayout(drag.live, drag.side, scale()).bounds);
+      win.setBounds(placement.windowLayout(drag.live, drag.side, scale(), pageLayout.sideWidth).bounds);
       // Flames lean against the direction of travel; smoothed, and settle when the cursor rests.
       const speed = Math.max(-1, Math.min(1, (cursor.x - drag.lastX) / TILT_SPEED));
       drag.lastX = cursor.x;
@@ -531,6 +564,7 @@ function start() {
       text: bubbleText(snap),
       mono: Boolean(snap.message && snap.message.mono),
       mood: snap.mood || null,
+      skill: snap.skill || null,
     };
   }
 
@@ -546,11 +580,18 @@ function start() {
       confetti: character.confetti,
       bubbleAnchor: character.bubbleAnchor,
       lookAnchor: character.lookAnchor,
+      mini: character.mini
+        ? {
+            svgUrl: `${base}/${encodeURIComponent(character.mini.svg)}`,
+            cssUrl: `${base}/${encodeURIComponent(character.mini.css)}`,
+            tints: character.mini.tints,
+          }
+        : null,
     };
   }
 
   function rendererSettings() {
-    return { quiet: settings.quiet, eyeTracking: settings.eyeTracking };
+    return { quiet: settings.quiet, eyeTracking: settings.eyeTracking, strings: pageStrings() };
   }
 
   function canSend() {
@@ -566,9 +607,19 @@ function start() {
       layout: pageLayout,
       menu: buildMenuItems(settings),
       flight,
+      crew,
       paused,
       dev: isDev,
     });
+  }
+
+  /** Text the page shows itself (badges); placeholders are filled in there. */
+  function pageStrings() {
+    return { helpers: translate(settings.language, 'page', 'helpers', { count: '{count}' }) };
+  }
+
+  function sendCrew() {
+    if (canSend()) win.webContents.send('buddy:crew', crew);
   }
 
   function sendView() {
@@ -658,6 +709,7 @@ function start() {
     setCharacter: (id) =>
       updateSettings({ character: id }, () => {
         reloadCharacters();
+        placeWindow();
         sendInit();
       }),
     setLanguage: (language) => updateSettings({ language }, sendView),

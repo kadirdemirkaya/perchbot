@@ -20,6 +20,7 @@
       rb-brow-*  expression              (pivot: brow centre)
       rb-arm-*   shoulder;  rb-forearm-*  elbow
       rb-laptop  open in front / tucked under the arm;  rb-lid  hinge
+      rb-book    skill book: out of the pocket while a skill is in use;  rb-book-page  turns
     Elements marked data-nohit never count as "the character" for the mouse.
   -->
   <defs>
@@ -183,6 +184,16 @@
             <circle cx="58" cy="148" r="6.8" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.6"/>
           </g>
           <circle cx="58" cy="112" r="7" fill="#4FD6B4" stroke="#2A2650" stroke-width="2.6"/>
+        </g>
+
+        <!-- skill book: comes out of the pocket, held open in front of the chest -->
+        <g class="rb-book" data-nohit="">
+          <path d="M65 113 Q74 109 84 112.5 V136 Q74 132.5 65 136.5 Z" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.4" stroke-linejoin="round"/>
+          <path d="M84 112.5 Q94 109 103 113 V136.5 Q94 132.5 84 136 Z" fill="#FFFFFF" stroke="#2A2650" stroke-width="2.4" stroke-linejoin="round"/>
+          <path d="M69 118 Q74 116.2 80 117.4 M69 122.5 Q74 120.7 80 121.9 M69 127 Q73 125.5 77 126.2 M88 117.4 Q94 116.2 99 118 M88 121.9 Q94 120.7 99 122.5" fill="none" stroke="#B3A8F7" stroke-width="1.7" stroke-linecap="round"/>
+          <path class="rb-book-page" d="M84 112.5 Q94 109 103 113 V136.5 Q94 132.5 84 136 Z" fill="#FFF6E8" stroke="#2A2650" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M63.5 135.5 Q74 131 84 134.8 Q94 131 104.5 135.5 L104.5 138.5 Q94 134 84 137.8 Q74 134 63.5 138.5 Z" fill="#4FD6B4" stroke="#2A2650" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M84 112.5 V137.6" stroke="#2A2650" stroke-width="1.6"/>
         </g>
 
         <!-- laptop: open in front of the robot, or closed and tucked under its arm -->

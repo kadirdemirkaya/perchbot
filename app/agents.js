@@ -8,8 +8,9 @@
  *
  *   SubagentStart / first tool event   -> 'active'
  *   tool events (PreToolUse)           -> current tool and file name
+ *   PreToolUse of the Skill tool       -> skill name (the mini opens its book until it finishes)
  *   SubagentStop                       -> 'done'   (the mini reports back, then leaves)
- *   no event for idleMs (10 min)       -> 'gone'   (the mini fades quietly)
+ *   no event for idleMs (30 min)       -> 'gone'   (the mini fades quietly)
  *   its session ended                  -> 'gone'
  *   release(id) from the renderer      -> removed (exit scene finished)
  *   releaseMs after done / gone        -> removed anyway (safety net)
@@ -18,7 +19,7 @@
  *  - A repeated SubagentStart for a known agent is ignored.
  *  - A SubagentStop for an agent that was never seen is ignored.
  *  - The main turn's Stop does not end agents: background agents outlive it.
- *  - Only the agent type, the current tool and a FILE name are kept. Task
+ *  - Only the agent type, the current tool, a FILE name and a skill name are kept. Task
  *    descriptions and prompts never reach the overlay in the first place.
  *
  * Emits 'change' with list() whenever something visible changed.
@@ -27,8 +28,11 @@
 const { EventEmitter } = require('node:events');
 
 const DEFAULTS = Object.freeze({
-  /** A mini without any event for this long fades (SubagentStop never came). */
-  idleMs: 10 * 60 * 1000,
+  /**
+   * A mini without any event for this long fades (SubagentStop never came).
+   * Long: a single tool call of a sub-agent can run for many minutes.
+   */
+  idleMs: 30 * 60 * 1000,
   /** Remove done / gone agents after this long even if the renderer never confirms. */
   releaseMs: 20 * 1000,
   /** Keep at most this many agents in memory (oldest finished ones go first). */
@@ -45,9 +49,9 @@ class AgentRegistry extends EventEmitter {
     this.disposed = false;
   }
 
-  /** @returns {Array<{ id: string, type: string, tool: string|null, file: string|null, status: string }>} */
+  /** @returns {Array<{ id: string, type: string, tool: string|null, file: string|null, skill: string|null, status: string }>} */
   list() {
-    return [...this.agents.values()].map(({ id, type, tool, file, status }) => ({ id, type, tool, file, status }));
+    return [...this.agents.values()].map(({ id, type, tool, file, skill, status }) => ({ id, type, tool, file, skill, status }));
   }
 
   get activeCount() {
@@ -63,7 +67,7 @@ class AgentRegistry extends EventEmitter {
   }
 
   /** A tool event from inside an agent. Unknown agents are added (the overlay may have started late). */
-  activity({ agent, agentType, session, tool = null, file = null, started = false }) {
+  activity({ agent, agentType, session, tool = null, file = null, skill = null, started = false }) {
     if (this.disposed || !agent) return;
     let info = this.agents.get(agent);
     let changed = false;
@@ -84,6 +88,10 @@ class AgentRegistry extends EventEmitter {
     if (started && (info.tool !== tool || info.file !== file)) {
       info.tool = tool;
       info.file = file;
+      changed = true;
+    }
+    if (started && tool === 'Skill' && skill && info.skill !== skill) {
+      info.skill = skill;
       changed = true;
     }
     if (changed) this.changed();
@@ -131,6 +139,7 @@ class AgentRegistry extends EventEmitter {
       session: session || null,
       tool: null,
       file: null,
+      skill: null,
       status: 'active',
       idleTimer: null,
       releaseTimer: null,
@@ -146,6 +155,7 @@ class AgentRegistry extends EventEmitter {
     info.status = status;
     info.tool = null;
     info.file = null;
+    info.skill = null;
     info.releaseTimer = this.clock.setTimeout(() => {
       info.releaseTimer = null;
       if (this.agents.get(info.id) === info) {
@@ -197,6 +207,7 @@ class AgentRegistry extends EventEmitter {
  * @property {string|null} session
  * @property {string|null} tool  current tool
  * @property {string|null} file  current file name (file tools only)
+ * @property {string|null} skill  the skill it opened, until it finishes
  * @property {'active'|'done'|'gone'} status
  */
 

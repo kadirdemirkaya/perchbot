@@ -56,5 +56,8 @@
     "backToCorner": "Köşeye geri dön",
     "moreSettings": "Diğer ayarlar…",
     "quit": "Şimdi kapat"
+  },
+  "page": {
+    "helpers": "{count} yardımcı"
   }
 }

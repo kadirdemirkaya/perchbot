@@ -3,8 +3,9 @@ param(
   [string]$TestHome = (Join-Path $env:TEMP 'agent-buddy-test-home')
 )
 # CPU per state for the ISOLATED test overlay (start-test-overlay.ps1), measured
-# on its own process tree only. Takes about 2.5 minutes (idle has to wait a
-# minute to reach the resting state). Keep the cursor away from the test
+# on its own process tree only, plus four sub-agent helpers at work and the
+# skill book. Takes about 3 minutes (idle has to wait a minute to reach the
+# resting state). Keep the cursor away from the test
 # overlay, or check <TestHome>\dev.log for [ui] lines during the run.
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
@@ -43,5 +44,19 @@ CpuOf 15 'typing'
 Hook @{ session_id = $s; hook_event_name = 'Notification'; notification_type = 'permission_prompt' }
 Start-Sleep -Seconds 4      # after the three attention hops
 CpuOf 12 'waiting'
+Hook @{ session_id = $s; hook_event_name = 'PreToolUse'; tool_name = 'Skill'; tool_use_id = 'c2'; tool_input = @{ skill = 'code-review' } }
+Start-Sleep -Seconds 2
+CpuOf 10 'skill book'
+$agents = 1..4 | ForEach-Object { "cpu-agent-$_" }
+foreach ($a in $agents) { Hook @{ session_id = $s; hook_event_name = 'SubagentStart'; agent_id = $a; agent_type = 'Explore' } }
+$tools = @('Read', 'Edit', 'Grep', 'Bash')
+for ($i = 0; $i -lt 4; $i++) {
+  Hook @{ session_id = $s; hook_event_name = 'PreToolUse'; agent_id = $agents[$i]; agent_type = 'Explore'; tool_name = $tools[$i]; tool_use_id = "s$i"; tool_input = @{ file_path = 'C:\p\a.ts'; pattern = 'x'; command = 'ls' } }
+}
+Start-Sleep -Seconds 8      # arrivals and the briefing are over
+CpuOf 20 '4 helpers working'
+foreach ($a in $agents) { Hook @{ session_id = $s; hook_event_name = 'SubagentStop'; agent_id = $a; agent_type = 'Explore' } }
+Start-Sleep -Seconds 1
+CpuOf 12 'helpers reporting'
 Hook @{ session_id = $s; hook_event_name = 'Stop' }
 "(the test overlay is still running; stop it with Stop-Process -Id $MainPid)"

@@ -62,6 +62,7 @@ whose license is unclear.
 | `blink` | no | `true` (default) lets the app set `data-blink` for 150 ms every few seconds |
 | `confetti` | no | `true` (default) shows the app's confetti on "done" |
 | `states` | no | Maps each app state to the value written into `data-state`. Missing entries use the state name. Lets two states share one animation |
+| `mini` | no | `{ "svg", "css", "tints" }`: a small helper drawn once per sub-agent (see [Sub-agent helpers](#sub-agent-helpers)). Without it the app shows a "N helpers" badge instead |
 
 ### States
 
@@ -120,6 +121,33 @@ Use whatever you like; ignore the rest.
 | `data-fly` | `hover` while the character is placed above the ground (hover mode "auto"), `boost` while it is dragged through the air |
 | `data-land` | present for ~0.9 s when it comes back to the ground |
 | `--fly-tilt` | while flying: -1 to 1, the drag direction (positive = moving right); 0 at rest |
+| `data-skill` | `open` while a skill is in use (show a book, a scroll, ...), `stow` for ~0.8 s when it is put away. The app draws the tag with the skill name itself |
+| `data-brief`, `data-receive` | present for ~1.7 s when a helper is briefed / reports back. The value (`left` / `right`) is the side the helper stands on |
+
+### Sub-agent helpers
+
+Add `"mini": { "svg": "mini.svg", "css": "mini.css", "tints": 5 }` to `character.json`
+to give every sub-agent a small helper. The app draws the mini SVG at 132 px (two thirds
+of the main box), walks it around, mirrors it to face the other way and positions it; your
+CSS only animates its body. The feet should stand on y = 182 of the 200 × 200 box, centred
+at x ≈ 88, like Robo's.
+
+The app wraps each copy in `<div class="buddy-mini">` and sets:
+
+| Attribute | Meaning |
+|---|---|
+| `data-phase` | `arrive` (drops in), `brief`, `walk`, `work` (laptop open), `chat`, `look` (looks around), `held` (picked up by the user), `land`, `done`, `report`, `leave` |
+| `data-tint` | `0` … `tints - 1`: which colour variant to wear; neighbours always differ |
+| `data-fly` | thrusters on (dropping in, flying off, hopping over others, or the whole buddy hovers) |
+| `data-hop` | while walking: hopping over the helpers in the way |
+| `data-talk` | in a chat, while this one is talking |
+| `data-give` | present for ~0.7 s while it hands over a note |
+| `data-skill` | `open` while its agent uses a skill |
+| `data-boop` | ~0.5 s after a click |
+| `data-rest` | the main character is resting (or the screen is locked): stop every animation |
+
+Use classes to recolour shapes per tint (Robo's kids use `--rbm-body` and friends, see
+`mini.css`). Mark props, shadows and flames `data-nohit`, as for the main character.
 
 ### Hovering
 

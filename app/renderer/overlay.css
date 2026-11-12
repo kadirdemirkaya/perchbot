@@ -3,9 +3,11 @@
  * confetti, fade-out. Character-specific animation lives in
  * characters/<id>/<file>.css.
  *
- * The character slot is 220 x 270 CSS px; the hover menu column (--side) sits
- * on the side facing the middle of the screen. The window zoom factor handles
- * the small / medium / large sizes.
+ * The character slot is 220 x 270 CSS px; the hover menu column and the
+ * sub-agent minis sit on the side facing the middle of the screen. The slot
+ * is pinned to the OUTER edge of the page, so the window can grow towards the
+ * inner side (more minis) without the character moving. The window zoom
+ * factor handles the small / medium / large sizes.
  *
  * Hit testing: everything is pointer-events: none except the character's
  * painted SVG shapes and the buttons of an OPEN menu. The page uses
@@ -44,7 +46,7 @@ body {
 
 .stage {
   position: relative;
-  width: calc(220px + var(--side));
+  width: 100%;
   height: 270px;
 }
 
@@ -57,7 +59,8 @@ body {
 }
 
 .stage.side-left .slot {
-  left: var(--side);
+  left: auto;
+  right: 0;
 }
 
 /* ---------------------------------------------------------------- character */
@@ -162,7 +165,7 @@ body {
 }
 
 .stage.side-left .menu {
-  left: 0;
+  right: 220px;
 }
 
 .stage.side-right .menu {
@@ -241,6 +244,181 @@ body {
   opacity: 1;
 }
 
+/* ---------------------------------------------------------------- skill tag */
+
+/* "the book is open": a small label with the skill name above the head. */
+.skill-tag {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 150px;
+  box-sizing: border-box;
+  padding: 2px 7px 2px 5px;
+  border: 2px solid var(--ink);
+  border-radius: 9px;
+  background: #fff6e8;
+  color: var(--ink);
+  font: 700 10px/1.25 system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(4px) scale(0.9);
+  transition:
+    opacity 160ms ease,
+    transform 200ms cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.skill-tag.show {
+  opacity: 1;
+  transform: none;
+}
+
+.skill-tag span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skill-tag svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: #7462d6;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------------------------------------------------------------- sub-agent minis */
+
+/* A zero-size anchor at the slot edge; minis are placed outwards from it. */
+.actors {
+  position: absolute;
+  bottom: var(--char-bottom);
+  width: 0;
+  height: 0;
+  --mini-size: 132px;
+}
+
+.stage.side-left .actors {
+  right: 220px;
+  --dir: -1;
+}
+
+.stage.side-right .actors {
+  left: 220px;
+  --dir: 1;
+}
+
+/* Feet on the same line as the main character's (y = 182 of 200 in both drawings). */
+.buddy-mini {
+  position: absolute;
+  bottom: calc(18px - var(--mini-size) * 0.09);
+  left: calc(var(--mini-size) * -0.44);
+  width: var(--mini-size);
+  height: var(--mini-size);
+  transform: translateX(calc(var(--dir) * var(--off, 0px))) translateY(calc(var(--lift, 0px) * -1));
+  transition:
+    transform var(--walk, 0ms) linear,
+    opacity 200ms ease;
+}
+
+.buddy-mini > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  transform-origin: 44% 50%;
+}
+
+/* The artwork faces right; the app mirrors it to face the other way. */
+.buddy-mini[data-flip] > svg {
+  transform: scaleX(-1);
+}
+
+/* Painted shapes are the mini: hover shows who it is, press and drag moves it. */
+.buddy-mini > svg * {
+  pointer-events: visiblePainted;
+  cursor: grab;
+}
+
+.buddy-mini[data-phase='held'] > svg * {
+  cursor: grabbing;
+}
+
+.buddy-mini [data-nohit],
+.buddy-mini [data-nohit] * {
+  pointer-events: none;
+}
+
+/* The open hover menu wins over the minis standing under it. */
+.actors.menu-open .buddy-mini[data-near] {
+  opacity: 0.3;
+}
+
+.mini-tag {
+  left: 44%;
+  top: -12px;
+  max-width: 110px;
+  font-size: 9px;
+  translate: -50% 0;
+}
+
+.buddy-mini[data-skill='open'] .mini-tag {
+  opacity: 1;
+  transform: none;
+}
+
+/* Talking in a chat: three dots in a small speech bubble. */
+.mini-dots {
+  position: absolute;
+  left: 44%;
+  top: -6px;
+  display: flex;
+  gap: 3px;
+  padding: 4px 6px;
+  border: 2px solid var(--ink);
+  border-radius: 9px;
+  background: var(--paper);
+  translate: -50% 0;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.mini-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.buddy-mini[data-talk] .mini-dots {
+  opacity: 1;
+}
+
+/* "+N" (more agents than fit) or "N helpers" (character without minis). */
+.crew-badge {
+  position: absolute;
+  bottom: 150px;
+  left: 0;
+  padding: 2px 7px;
+  border: 2px solid var(--ink);
+  border-radius: 9px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 700 10px/1.25 system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  white-space: nowrap;
+  transform: translateX(calc(var(--dir) * var(--off, 0px) - 50%));
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.crew-badge.show {
+  opacity: 1;
+}
+
 /* ---------------------------------------------------------------- confetti */
 
 .fx {
@@ -296,7 +474,9 @@ html[data-paused] *::after {
 @media (prefers-reduced-motion: reduce) {
   .bubble,
   .menu-button,
-  .tooltip {
+  .tooltip,
+  .skill-tag,
+  .buddy-mini {
     transition: none;
   }
   .stage.leaving {

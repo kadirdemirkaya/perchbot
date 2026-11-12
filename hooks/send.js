@@ -409,6 +409,10 @@ function launchOverlay(payload) {
  *  - session_id / agent_id as 8-character salted hashes, so events can be
  *    correlated without recording the ids. The salt is the content of the
  *    flag file; deleting that file makes the hashes meaningless.
+ *  - for UserPromptExpansion only: the expansion_type VALUE (an identifier such
+ *    as "slash_command", lowercase letters and "_" only), so a test can tell
+ *    whether the overlay would show it. Never the command, its arguments or
+ *    the prompt.
  */
 function schemaRecord(input, salt, env = process.env) {
   const configDir = env.CLAUDE_CONFIG_DIR ? path.resolve(env.CLAUDE_CONFIG_DIR) : null;
@@ -430,6 +434,12 @@ function schemaRecord(input, salt, env = process.env) {
     tool_response_type: kind(input.tool_response),
     session: hash(input.session_id),
     agent: hash(input.agent_id),
+    expansion_type:
+      input.hook_event_name === 'UserPromptExpansion' &&
+      typeof input.expansion_type === 'string' &&
+      WORD_RE.test(input.expansion_type)
+        ? input.expansion_type
+        : undefined,
     // Booleans only: is CLAUDE_CONFIG_DIR visible to the hook, and does the
     // transcript live under it? (No paths are recorded.)
     env_config_dir: Boolean(configDir),

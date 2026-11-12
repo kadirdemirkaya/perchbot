@@ -298,7 +298,7 @@ test('sub-agent events go to the crew and never change the main character', () =
   send('PreToolUse', { tool: 'Read', id: 's1', detail: 'main.js', agent: 'abc123def0', agentType: 'Explore' });
   send('PreToolUse', { tool: 'Bash', id: 's2', detail: 'rm -rf build', agent: 'abc123def0', agentType: 'Explore' });
   assert.equal(core.state, 'working', 'main robot unaffected');
-  assert.deepEqual(core.crewList(), [{ id: 'abc123def0', type: 'Explore', tool: 'Bash', file: null, status: 'active' }]);
+  assert.deepEqual(core.crewList(), [{ id: 'abc123def0', type: 'Explore', tool: 'Bash', file: null, skill: null, status: 'active' }]);
   assert.ok(!JSON.stringify(crews).includes('rm -rf'), 'commands never reach a mini');
   send('Stop');
   assert.equal(core.crewList()[0].status, 'active', 'the main turn ending does not end the agent');

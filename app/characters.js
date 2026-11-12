@@ -62,19 +62,8 @@ function loadCharacter(dir, id) {
   if (!manifest || typeof manifest !== 'object') return { error: `${id}: character.json must be an object` };
 
   for (const field of ['svg', 'css']) {
-    const file = manifest[field];
-    if (typeof file !== 'string' || !FILE_RE.test(file) || file.includes('..')) {
-      return { error: `${id}: "${field}" must be a plain file name inside the character folder` };
-    }
-    let stat;
-    try {
-      stat = fs.statSync(path.join(dir, file));
-    } catch {
-      return { error: `${id}: ${field} file "${file}" not found` };
-    }
-    if (!stat.isFile() || stat.size > MAX_ASSET_BYTES) {
-      return { error: `${id}: ${field} file "${file}" must be a file under ${MAX_ASSET_BYTES / 1024} KB` };
-    }
+    const problem = assetProblem(dir, manifest[field], field);
+    if (problem) return { error: `${id}: ${problem}` };
   }
 
   const states = {};
@@ -106,8 +95,38 @@ function loadCharacter(dir, id) {
       confetti: manifest.confetti !== false,
       bubbleAnchor: { x: fraction(anchor.x, 0.5), y: fraction(anchor.y, 0.1) },
       lookAnchor: { x: fraction(eyes.x, 0.5), y: fraction(eyes.y, 0.35) },
+      mini: loadMini(dir, manifest.mini),
     },
   };
+}
+
+/** Why a manifest file entry is unusable, or null when it is fine. */
+function assetProblem(dir, file, field) {
+  if (typeof file !== 'string' || !FILE_RE.test(file) || file.includes('..')) {
+    return `"${field}" must be a plain file name inside the character folder`;
+  }
+  let stat;
+  try {
+    stat = fs.statSync(path.join(dir, file));
+  } catch {
+    return `${field} file "${file}" not found`;
+  }
+  if (!stat.isFile() || stat.size > MAX_ASSET_BYTES) {
+    return `${field} file "${file}" must be a file under ${MAX_ASSET_BYTES / 1024} KB`;
+  }
+  return null;
+}
+
+/**
+ * Optional "mini": { "svg", "css", "tints" } drawn once per sub-agent. A
+ * character without a (valid) mini shows a small "N helpers" badge instead.
+ * tints: how many colour variants the CSS defines for data-tint (0..tints-1).
+ */
+function loadMini(dir, mini) {
+  if (!mini || typeof mini !== 'object') return null;
+  if (assetProblem(dir, mini.svg, 'mini.svg') || assetProblem(dir, mini.css, 'mini.css')) return null;
+  const tints = Number.isInteger(mini.tints) && mini.tints >= 1 && mini.tints <= 12 ? mini.tints : 1;
+  return { svg: mini.svg, css: mini.css, tints };
 }
 
 /**

@@ -413,6 +413,29 @@ test('schema probe writes only while the flag file exists', async () => {
   assert.ok(!lines[0].includes('Explore') && !lines[0].includes('xyz') && !lines[0].includes('abc"'), lines[0]);
 });
 
+test('schema probe: the expansion type of a slash command, and no other value', () => {
+  const rec = send.schemaRecord(
+    {
+      hook_event_name: 'UserPromptExpansion',
+      session_id: 'sess-1',
+      expansion_type: 'slash_command',
+      command_name: '/secret-cmd',
+      command_args: 'LEAK-ARGS',
+      prompt: 'LEAK-PROMPT',
+    },
+    'salt',
+    {},
+  );
+  assert.equal(rec.event, 'UserPromptExpansion');
+  assert.equal(rec.expansion_type, 'slash_command');
+  assert.deepEqual(rec.keys, ['command_args', 'command_name', 'expansion_type', 'hook_event_name', 'prompt', 'session_id']);
+  const text = JSON.stringify(rec);
+  for (const leak of ['LEAK-ARGS', 'LEAK-PROMPT', 'secret-cmd', 'sess-1']) assert.ok(!text.includes(leak), leak);
+  // Odd values and other events: nothing.
+  assert.equal(send.schemaRecord({ hook_event_name: 'UserPromptExpansion', expansion_type: 'Rm -rf /' }, 's', {}).expansion_type, undefined);
+  assert.equal(send.schemaRecord({ hook_event_name: 'Stop', expansion_type: 'slash_command' }, 's', {}).expansion_type, undefined);
+});
+
 test('schema probe reports CLAUDE_CONFIG_DIR visibility as booleans only', () => {
   const dir = path.join(os.tmpdir(), '.claude-someone');
   const input = { hook_event_name: 'Stop', transcript_path: path.join(dir, 'projects', 'p', 't.jsonl') };

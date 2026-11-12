@@ -4,22 +4,25 @@
  * Renderer: shows the character, the speech bubble, the hover menu and effects.
  *
  * From the main process:
- *   init       { character, settings, view, layout, menu, paused }
- *   view       { state, cssState, text, mono }   every state change
- *   settings   { quiet, eyeTracking }
+ *   init       { character, settings, view, layout, menu, flight, crew, paused }
+ *   view       { state, cssState, text, mono, mood, skill }   every state change
+ *   settings   { quiet, eyeTracking, strings }
  *   layout     { side, slotLeft, width, height } where the menu column goes
  *   menu-items [{ id, icon, label }]
  *   paused     true while the screen is locked / the system sleeps
  *   released   the main process let go of the mouse (cursor left the window)
  *   flight     { airborne, boost, tilt } hovering above the ground
+ *   crew       [{ id, type, tool, file, skill, status }] sub-agents (crew-view.js draws them)
  *
- * To the main process (window.buddy): ready(), capture(bool), drag(phase), menu(id).
+ * To the main process (window.buddy): ready(), capture(bool), drag(phase), menu(id),
+ * crewLeft(id).
  *
  * Attributes this page sets on the character wrapper (the character's CSS
  * may use any of them; see characters/README.md):
  *   data-state  data-blink  data-hover  data-greet  data-boop  data-rest
  *   data-mood ("worried")  data-tap ("down" | "up")  data-sway ("a" | "b")
  *   data-fly ("hover" | "boost")  data-land
+ *   data-skill ("open" | "stow")  data-brief / data-receive ("left" | "right": where the mini stands)
  *   --look-x / --look-y (-1..1)  --type-line (0..7)  --fly-tilt (-1..1)
  *
  * The character SVG is inlined after removing scripts, event handlers and
@@ -37,6 +40,9 @@
   const fx = document.getElementById('fx');
   const menuEl = document.getElementById('menu');
   const tooltip = document.getElementById('tooltip');
+  const actors = document.getElementById('actors');
+  const skillTag = document.getElementById('skill-tag');
+  const skillName = document.getElementById('skill-name');
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   const CONFETTI_COLORS = ['#FFC857', '#FF8FA3', '#7EE0D2', '#8AB6FF', '#B49CFF', '#9BE564'];
@@ -52,6 +58,9 @@
   const CODE_LINES = 8;
   const TAPS_PER_LINE = 3;
   const BUSY = new Set(['typing', 'reading', 'running', 'working', 'thinking', 'waiting', 'asking']);
+  const STOW_MS = 800;
+  const BRIEF_MS = 1700;
+  const RECEIVE_MS = 1600;
 
   let character = null;
   let settings = { quiet: false, eyeTracking: true };
@@ -141,7 +150,23 @@
     else document.head.appendChild(link);
     holder.replaceChildren(svg);
     scheduleBlink();
+    try {
+      await crew.setCharacter(next.mini || null);
+    } catch (err) {
+      console.error(`Agent Buddy: mini artwork: ${err.message}`);
+      await crew.setCharacter(null);
+    }
   }
+
+  // ---------------------------------------------------------------- crew view (sub-agents)
+
+  const crew = window.BuddyCrewView.createCrewView({
+    actors,
+    sanitizeSvg,
+    onCue: (name) => onCrewCue(name),
+    onRelease: (id) => window.buddy.crewLeft(id),
+    trace,
+  });
 
   // ---------------------------------------------------------------- view
 
@@ -151,6 +176,7 @@
     holder.dataset.state = next.cssState || next.state;
     flag('mood', next.mood === 'worried' ? 'worried' : null);
     stage.classList.toggle('leaving', next.state === 'goodbye');
+    applySkill(next.skill || null);
     renderBubble();
 
     // Every event wakes the character; idle starts the rest countdown again.
@@ -176,16 +202,50 @@
     bubble.classList.add('show');
   }
 
-  /** Centre the bubble over the character's anchor point, clamped to the slot. */
-  function positionBubble() {
+  /** The point above the character's head (bubbleAnchor), in slot coordinates. */
+  function headPoint() {
     const anchor = (character && character.bubbleAnchor) || { x: 0.5, y: 0.1 };
-    const anchorX = CHAR_LEFT + anchor.x * CHAR_SIZE;
-    const anchorTop = SLOT_HEIGHT - CHAR_BOTTOM - CHAR_SIZE + anchor.y * CHAR_SIZE;
+    return { x: CHAR_LEFT + anchor.x * CHAR_SIZE, top: SLOT_HEIGHT - CHAR_BOTTOM - CHAR_SIZE + anchor.y * CHAR_SIZE };
+  }
+
+  /** Centre the bubble over the character's anchor point, clamped to the slot. Above the skill tag, if any. */
+  function positionBubble() {
+    const head = headPoint();
     const width = bubble.offsetWidth;
-    const left = Math.max(6, Math.min(SLOT_WIDTH - width - 6, anchorX - width / 2));
+    const left = Math.max(6, Math.min(SLOT_WIDTH - width - 6, head.x - width / 2));
+    const lift = skillTag.classList.contains('show') ? skillTag.offsetHeight + 4 : 0;
     bubble.style.left = `${Math.round(left)}px`;
-    bubble.style.bottom = `${Math.round(SLOT_HEIGHT - anchorTop + 10)}px`;
-    bubble.style.setProperty('--tail-x', `${Math.round(Math.max(14, Math.min(width - 14, anchorX - left)))}px`);
+    bubble.style.bottom = `${Math.round(SLOT_HEIGHT - head.top + 10 + lift)}px`;
+    bubble.style.setProperty('--tail-x', `${Math.round(Math.max(14, Math.min(width - 14, head.x - left)))}px`);
+  }
+
+  // ---------------------------------------------------------------- skill book
+
+  /**
+   * A skill is in use: the book comes out of the pocket (data-skill="open")
+   * and a tag with the skill name sits above the head. When it is put away,
+   * data-skill="stow" plays for a moment so the character can tuck it in.
+   */
+  let skill = null;
+  function applySkill(name) {
+    if (name === skill) return;
+    skill = name;
+    if (name) {
+      cancel('stow');
+      flag('skill', 'open');
+      skillName.textContent = name;
+      skillTag.classList.add('show');
+      const head = headPoint();
+      const width = skillTag.offsetWidth;
+      skillTag.style.left = `${Math.round(Math.max(4, Math.min(SLOT_WIDTH - width - 4, head.x - width / 2)))}px`;
+      skillTag.style.bottom = `${Math.round(SLOT_HEIGHT - head.top + 6)}px`;
+      trace(`skill: open (${name.length} chars)`);
+    } else {
+      skillTag.classList.remove('show');
+      flag('skill', 'stow');
+      later('stow', STOW_MS, () => flag('skill', null));
+      trace('skill: stow');
+    }
   }
 
   function applyLayout(next) {
@@ -193,6 +253,7 @@
     layout = next;
     stage.classList.toggle('side-left', next.side === 'left');
     stage.classList.toggle('side-right', next.side !== 'left');
+    crew.setLayout(next);
   }
 
   // ---------------------------------------------------------------- mouse: hit testing and capture
@@ -206,19 +267,27 @@
     onChange: (open) => {
       trace(`menu ${open ? 'open' : 'closed'}`);
       menuEl.classList.toggle('open', open);
+      crew.setMenuOpen(open);
       if (!open) hideTooltip();
     },
   });
 
-  /** 'character' | 'menu' | null for the element under the pointer. */
+  /**
+   * 'character' | 'menu' | 'mini' | null for the element under the pointer.
+   * All three take the mouse (a mini can be picked up and moved); everything
+   * else lets clicks through to the window below.
+   */
   function zoneOf(el) {
     if (!el || !(el instanceof Element)) return null;
     if (el.closest('.menu.open .menu-button')) return 'menu';
     if (holder.contains(el) && el !== holder && el.closest('svg') && el.tagName.toLowerCase() !== 'svg') {
       return 'character';
     }
+    if (actors.contains(el) && el.closest('.buddy-mini svg') && el.tagName.toLowerCase() !== 'svg') return 'mini';
     return null;
   }
+
+  const takesMouse = (z) => z === 'character' || z === 'menu' || z === 'mini';
 
   let lastPointer = null;
   let zone = null;
@@ -228,9 +297,14 @@
   function onPointerMove(clientX, clientY) {
     lastPointer = { x: clientX, y: clientY };
     // Synchronous on purpose: releasing the mouse must not wait for a frame.
-    const next = drag ? 'character' : zoneOf(document.elementFromPoint(clientX, clientY));
-    capture.pointer(next !== null);
+    const holding = crew.isPressing();
+    const el = drag || holding ? null : document.elementFromPoint(clientX, clientY);
+    const next = drag ? 'character' : holding ? 'mini' : zoneOf(el);
+    capture.pointer(takesMouse(next));
     setZone(next);
+    if (next === 'mini' && !crew.isHolding()) {
+      if (el) showMiniTooltip(el);
+    } else if (miniTip) hideTooltip();
     if (next && Date.now() - lastActivity > 1000) {
       lastActivity = Date.now();
       rest.activity();
@@ -266,6 +340,7 @@
   window.buddy.onReleased(() => {
     capture.released();
     if (drag) endDrag(false);
+    if (crew.isPressing()) crew.endDrag();
     setZone(null);
     resetLook();
   });
@@ -323,12 +398,40 @@
     if (wasDrag) window.buddy.drag(completed ? 'end' : 'cancel');
     else if (completed) boop();
     const under = e ? zoneOf(document.elementFromPoint(e.clientX, e.clientY)) : null;
-    capture.endDrag(under !== null);
+    capture.endDrag(takesMouse(under));
     setZone(under);
   }
 
   holder.addEventListener('pointerup', (e) => drag && endDrag(true, e));
   holder.addEventListener('pointercancel', (e) => drag && endDrag(false, e));
+
+  // Minis: press and drag to move one; a click without moving is a boop.
+  let miniPointer = null;
+  actors.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || zoneOf(e.target) !== 'mini' || !crew.startDrag(e.target, e.clientX, e.clientY)) return;
+    rest.activity();
+    hideTooltip();
+    miniPointer = { id: e.pointerId, el: e.target.closest('.buddy-mini') };
+    miniPointer.el.setPointerCapture(e.pointerId);
+    capture.startDrag();
+  });
+
+  actors.addEventListener('pointermove', (e) => {
+    if (miniPointer && e.pointerId === miniPointer.id) crew.dragMove(e.clientX, e.clientY);
+  });
+
+  function endMiniDrag(e) {
+    if (!miniPointer || e.pointerId !== miniPointer.id) return;
+    if (miniPointer.el.hasPointerCapture(e.pointerId)) miniPointer.el.releasePointerCapture(e.pointerId);
+    miniPointer = null;
+    crew.endDrag();
+    const under = zoneOf(document.elementFromPoint(e.clientX, e.clientY));
+    capture.endDrag(takesMouse(under));
+    setZone(under);
+  }
+
+  actors.addEventListener('pointerup', endMiniDrag);
+  actors.addEventListener('pointercancel', endMiniDrag);
 
   // ---------------------------------------------------------------- hover menu
 
@@ -371,6 +474,27 @@
 
   function hideTooltip() {
     tooltip.classList.remove('show');
+    miniTip = null;
+  }
+
+  /** Above a mini's head: "Explore · Read · main.js". */
+  let miniTip = null;
+  function showMiniTooltip(el) {
+    const hit = crew.labelAt(el);
+    if (!hit || !hit.text) {
+      hideTooltip();
+      return;
+    }
+    if (miniTip === hit.el && tooltip.textContent === hit.text) return;
+    miniTip = hit.el;
+    tooltip.textContent = hit.text;
+    tooltip.classList.add('show');
+    const rect = hit.el.getBoundingClientRect();
+    const width = tooltip.offsetWidth;
+    const maxLeft = document.documentElement.clientWidth - width - 2;
+    const left = Math.max(2, Math.min(maxLeft, rect.left + rect.width * 0.44 - width / 2));
+    tooltip.style.left = `${Math.round(left)}px`;
+    tooltip.style.top = `${Math.round(Math.max(2, rect.top - tooltip.offsetHeight + 4))}px`;
   }
 
   // ---------------------------------------------------------------- eyes
@@ -471,6 +595,7 @@
     onChange: (resting) => {
       trace(resting ? 'resting' : 'awake');
       flag('rest', resting ? true : null);
+      crew.setRest(resting || paused);
       if (!resting) swayAntenna();
     },
   });
@@ -523,6 +648,7 @@
     flight = { airborne: next.airborne === true, boost: next.boost === true, tilt: Number(next.tilt) || 0 };
     if (flight.airborne !== wasAirborne) trace(`flight: ${flight.airborne ? 'hover' : 'ground'}`);
     flag('fly', flight.airborne ? (flight.boost ? 'boost' : 'hover') : null);
+    crew.setHover(flight.airborne);
     holder.style.setProperty('--fly-tilt', Math.max(-1, Math.min(1, flight.tilt)).toFixed(2));
     if (flight.airborne) {
       cancel('land');
@@ -539,6 +665,7 @@
     paused = Boolean(value);
     if (paused) root.dataset.paused = '1';
     else delete root.dataset.paused;
+    crew.setRest(paused || rest.resting);
     if (paused) {
       hover.closeNow();
       setZone(null);
@@ -551,11 +678,31 @@
     updateTyping();
   }
 
+  // ---------------------------------------------------------------- crew (sub-agents)
+
+  /**
+   * Cues from the crew for the main character: it explains the task to a new
+   * mini ("brief") and takes the note of one that reports back ("receive").
+   */
+  function onCrewCue(name) {
+    if (!motionAllowed()) return;
+    const towards = layout.side === 'right' ? 'right' : 'left';
+    // A mini came over for a word: the main character talks back like in a briefing.
+    if (name === 'brief' || name === 'talk') {
+      flag('brief', towards, true);
+      later('brief', BRIEF_MS, () => flag('brief', null));
+    } else if (name === 'receive') {
+      flag('receive', towards, true);
+      later('receive', RECEIVE_MS, () => flag('receive', null));
+    }
+  }
+
   // ---------------------------------------------------------------- wiring
 
   window.buddy.onInit(async (data) => {
     dev = data.dev === true;
     settings = { ...settings, ...(data.settings || {}) };
+    crew.setStrings(settings.strings);
     applyLayout(data.layout);
     renderMenu(data.menu);
     setPaused(data.paused);
@@ -566,6 +713,7 @@
       console.error(`Agent Buddy: ${err.message}`);
     }
     applyView(data.view || view);
+    crew.setAgents(data.crew);
   });
 
   window.buddy.onView((next) => applyView(next));
@@ -573,8 +721,14 @@
   window.buddy.onMenuItems((items) => renderMenu(items));
   window.buddy.onPaused((value) => setPaused(value));
   window.buddy.onFlight((next) => applyFlight(next));
+  window.buddy.onCrew((list) => {
+    // Sub-agents at work keep the main character awake.
+    rest.activity();
+    crew.setAgents(list);
+  });
   window.buddy.onSettings((next) => {
     settings = { ...settings, ...next };
+    crew.setStrings(settings.strings);
     if (!settings.eyeTracking) resetLook();
     renderBubble();
   });

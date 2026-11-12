@@ -1,90 +1,114 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" class="rbm" role="img" aria-label="A small helper robot with a hard hat">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" class="rbm" role="img" aria-label="A little helper robot">
   <!--
-    "Robo's helper": the mini robot shown for each sub-agent.
+    "Robo's kids": the little robot shown for each sub-agent.
     Original artwork drawn for this project. License: MIT (same as the repo).
-    Same family as Robo, told apart at a glance: drawn at about 60% of Robo's
-    size, palette inverted (mint body, lilac accents) and a yellow hard hat.
-    See characters/robot/DESIGN.md.
+    A child of Robo: a big round head, big eyes, a short spring antenna with a
+    round bulb, a small body and stubby legs. Drawn at two thirds of Robo's
+    size. Each kid wears its own colour: shapes with an rbm-c-* class take
+    their colour from mini.css (data-tint), the fill attributes are the
+    default (mint) kid. See characters/robot/DESIGN.md.
 
     Rig (pivots in mini.css):
       rbm-figure   walk bob, hops, report jump   (pivot: feet)
       rbm-leg-*    walking steps, tuck in flight (pivot: hip);  rbm-flame-*  sole thrusters
-      rbm-head     nod, tilt                     (pivot: neck)
-      rbm-arm      far arm: salute when reporting (pivot: shoulder)
+      rbm-head     nod, tilt, talk               (pivot: neck)
+      rbm-arm      far arm: salute, holds the skill book (pivot: shoulder)
       rbm-arm-front, rbm-forearm-front  types on the laptop
       rbm-laptop   open in front while working; rbm-lid hinge
+      rbm-book     skill book (hidden unless the app sets data-skill)
+      rbm-note     the note it hands over (report, chat)
+    Elements marked data-nohit never count as "the character" for the mouse.
   -->
   <defs>
     <clipPath id="rbm-screen-clip">
       <rect x="134" y="108" width="40" height="28" rx="2"/>
     </clipPath>
+    <clipPath id="rbm-head-clip">
+      <path d="M58 28 H118 Q138 28 138 50 L134 88 Q133 102 118 102 H58 Q43 102 42 88 L38 50 Q38 28 58 28 Z"/>
+    </clipPath>
   </defs>
 
-  <ellipse class="rbm-shadow" data-nohit="" cx="98" cy="187" rx="44" ry="5" fill="#2A2650" opacity=".16"/>
+  <ellipse class="rbm-shadow" data-nohit="" cx="90" cy="187" rx="40" ry="5" fill="#2A2650" opacity=".16"/>
 
   <g class="rbm-figure">
+    <!-- stubby legs, little boots and their flames -->
     <g class="rbm-leg rbm-leg-l">
       <g class="rbm-flame rbm-flame-l" data-nohit="">
-        <path d="M70 181 Q70.5 189 76.5 197 Q82.5 189 83 181 Z" fill="#FF9A3C"/>
-        <path d="M73 181 Q74 187 76.5 191 Q79 187 80 181 Z" fill="#FFD25A"/>
+        <path d="M71 181 Q71.5 188.5 77 196 Q82.5 188.5 83 181 Z" fill="#FF9A3C"/>
+        <path d="M73.5 181 Q74.5 186.5 77 190.5 Q79.5 186.5 80.5 181 Z" fill="#FFD25A"/>
       </g>
-      <rect x="72" y="148" width="12" height="23" rx="5" fill="#3A8F7C" stroke="#2A2650" stroke-width="3"/>
-      <path d="M65 181 V175 Q65 167 73 167 H80 Q88 167 88 175 V181 Z" fill="#2F6E61" stroke="#2A2650" stroke-width="3" stroke-linejoin="round"/>
-      <rect x="63.5" y="177.5" width="26" height="5" rx="2.5" fill="#8C7BEA" stroke="#2A2650" stroke-width="3"/>
+      <rect class="rbm-c-limb" x="72" y="148" width="11" height="21" rx="5" fill="#3FB597" stroke="#2A2650" stroke-width="3"/>
+      <path class="rbm-c-boot" d="M67 181 V176 Q67 168 74.5 168 H80 Q87.5 168 87.5 176 V181 Z" fill="#2F6E61" stroke="#2A2650" stroke-width="3" stroke-linejoin="round"/>
+      <rect class="rbm-c-accent" x="65.5" y="177.5" width="24" height="5" rx="2.5" fill="#8C7BEA" stroke="#2A2650" stroke-width="3"/>
     </g>
     <g class="rbm-leg rbm-leg-r">
       <g class="rbm-flame rbm-flame-r" data-nohit="">
-        <path d="M94 181 Q94.5 189 100.5 197 Q106.5 189 107 181 Z" fill="#FF9A3C"/>
-        <path d="M97 181 Q98 187 100.5 191 Q103 187 104 181 Z" fill="#FFD25A"/>
+        <path d="M93 181 Q93.5 188.5 99 196 Q104.5 188.5 105 181 Z" fill="#FF9A3C"/>
+        <path d="M95.5 181 Q96.5 186.5 99 190.5 Q101.5 186.5 102.5 181 Z" fill="#FFD25A"/>
       </g>
-      <rect x="92" y="148" width="12" height="23" rx="5" fill="#3A8F7C" stroke="#2A2650" stroke-width="3"/>
-      <path d="M89 181 V175 Q89 167 97 167 H104 Q112 167 112 175 V181 Z" fill="#2F6E61" stroke="#2A2650" stroke-width="3" stroke-linejoin="round"/>
-      <rect x="87.5" y="177.5" width="26" height="5" rx="2.5" fill="#8C7BEA" stroke="#2A2650" stroke-width="3"/>
+      <rect class="rbm-c-limb" x="93" y="148" width="11" height="21" rx="5" fill="#3FB597" stroke="#2A2650" stroke-width="3"/>
+      <path class="rbm-c-boot" d="M89 181 V176 Q89 168 96.5 168 H102 Q109.5 168 109.5 176 V181 Z" fill="#2F6E61" stroke="#2A2650" stroke-width="3" stroke-linejoin="round"/>
+      <rect class="rbm-c-accent" x="87.5" y="177.5" width="24" height="5" rx="2.5" fill="#8C7BEA" stroke="#2A2650" stroke-width="3"/>
     </g>
 
-    <!-- body -->
-    <path d="M71 103 H105 Q113 103 114 111 L116 143 Q117 157 103 157 H73 Q59 157 60 143 L62 111 Q63 103 71 103 Z" fill="#5ED3B3" stroke="#2A2650" stroke-width="3.4" stroke-linejoin="round"/>
-    <path d="M110 112 L112 143 Q112 152 103 153" fill="none" stroke="#3FB597" stroke-width="5" stroke-linecap="round"/>
-    <rect x="76" y="116" width="24" height="20" rx="7" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.6"/>
-    <circle class="rbm-led" cx="88" cy="126" r="4.5" fill="#8C7BEA"/>
+    <!-- small round body with a belly light -->
+    <path class="rbm-c-body" d="M71 104 H105 Q114 104 115 113 L116 139 Q116 153 103 153 H73 Q60 153 60 139 L61 113 Q62 104 71 104 Z" fill="#5ED3B3" stroke="#2A2650" stroke-width="3.4" stroke-linejoin="round"/>
+    <path class="rbm-c-shade-line" d="M110 114 L111 139 Q111 147 103 148.5" fill="none" stroke="#3FB597" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="88" cy="128" r="12" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.6"/>
+    <path class="rbm-led rbm-c-accent" d="M88 134 Q81 129 81.6 125 Q82.3 121.2 85.6 121.6 Q87.3 121.9 88 123.6 Q88.7 121.9 90.4 121.6 Q93.7 121.2 94.4 125 Q95 129 88 134 Z" fill="#8C7BEA" stroke="#2A2650" stroke-width="1.6" stroke-linejoin="round"/>
 
     <g class="rbm-head">
-      <!-- head -->
-      <path d="M64 41 H112 Q127 41 128 55 L125 86 Q124 98 111 98 H65 Q52 98 51 86 L48 55 Q49 41 64 41 Z" fill="#5ED3B3" stroke="#2A2650" stroke-width="3.4" stroke-linejoin="round"/>
-      <rect x="58" y="51" width="60" height="38" rx="13" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.6"/>
+      <!-- short spring antenna with a round bulb -->
+      <path d="M88 30 V26.5 L83.5 24.5 L92.5 22 L83.5 19.5 L88 17.5" fill="none" stroke="#2A2650" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="88" cy="12.5" r="5.6" fill="#FFD25A" stroke="#2A2650" stroke-width="2.4"/>
+      <circle cx="86.4" cy="10.9" r="1.5" fill="#FFF6E8"/>
+
+      <!-- big head: wider at the brow, like its parent, but rounder -->
+      <path class="rbm-c-body" d="M58 28 H118 Q138 28 138 50 L134 88 Q133 102 118 102 H58 Q43 102 42 88 L38 50 Q38 28 58 28 Z" fill="#5ED3B3"/>
+      <g clip-path="url(#rbm-head-clip)">
+        <ellipse class="rbm-c-shade" cx="146" cy="98" rx="36" ry="38" fill="#3FB597"/>
+        <path d="M47 44 Q49 34 60 33.5 H78" fill="none" stroke="#FFFFFF" stroke-opacity=".5" stroke-width="3.4" stroke-linecap="round"/>
+      </g>
+      <path d="M58 28 H118 Q138 28 138 50 L134 88 Q133 102 118 102 H58 Q43 102 42 88 L38 50 Q38 28 58 28 Z" fill="none" stroke="#2A2650" stroke-width="3.4" stroke-linejoin="round"/>
+
+      <!-- face screen -->
+      <rect x="50" y="40" width="76" height="52" rx="19" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.6"/>
       <g class="rbm-face">
-        <g class="rbm-eyes" fill="#2A2650">
-          <ellipse cx="75" cy="69" rx="5.6" ry="7"/>
-          <ellipse cx="101" cy="69" rx="5.6" ry="7"/>
-          <circle cx="77" cy="66.4" r="1.9" fill="#FFFFFF"/>
-          <circle cx="103" cy="66.4" r="1.9" fill="#FFFFFF"/>
+        <g class="rbm-eyes">
+          <ellipse cx="72" cy="65" rx="7.4" ry="9" fill="#2A2650"/>
+          <ellipse cx="104" cy="65" rx="7.4" ry="9" fill="#2A2650"/>
+          <circle cx="74.6" cy="61.4" r="2.6" fill="#FFFFFF"/>
+          <circle cx="106.6" cy="61.4" r="2.6" fill="#FFFFFF"/>
+          <circle cx="69.6" cy="69" r="1.2" fill="#FFFFFF"/>
+          <circle cx="101.6" cy="69" r="1.2" fill="#FFFFFF"/>
         </g>
         <g class="rbm-eyes-happy" fill="none" stroke="#2A2650" stroke-width="3.6" stroke-linecap="round">
-          <path d="M69.5 71 Q75 63 80.5 71"/>
-          <path d="M95.5 71 Q101 63 106.5 71"/>
+          <path d="M65 68 Q72 58.5 79 68"/>
+          <path d="M97 68 Q104 58.5 111 68"/>
         </g>
-        <path class="rbm-mouth" d="M83 80.5 Q88 85 93 80.5" fill="none" stroke="#2A2650" stroke-width="3" stroke-linecap="round"/>
-        <path class="rbm-mouth-grin" d="M81.5 79 Q88 89 94.5 79 Z" fill="#2A2650" stroke="#2A2650" stroke-width="1.8" stroke-linejoin="round"/>
-        <ellipse cx="65.5" cy="81" rx="4.2" ry="2.8" fill="#FF9DB0" opacity=".85"/>
-        <ellipse cx="110.5" cy="81" rx="4.2" ry="2.8" fill="#FF9DB0" opacity=".85"/>
+        <path class="rbm-mouth" d="M84 80 Q88 83.8 92 80" fill="none" stroke="#2A2650" stroke-width="2.8" stroke-linecap="round"/>
+        <path class="rbm-mouth-grin" d="M82 78.5 Q88 88.5 94 78.5 Z" fill="#2A2650" stroke="#2A2650" stroke-width="1.8" stroke-linejoin="round"/>
+        <ellipse class="rbm-mouth-talk" cx="88" cy="81" rx="3.2" ry="3.6" fill="#2A2650"/>
+        <ellipse cx="59.5" cy="79" rx="4.4" ry="2.8" fill="#FF9DB0" opacity=".85"/>
+        <ellipse cx="116.5" cy="79" rx="4.4" ry="2.8" fill="#FF9DB0" opacity=".85"/>
       </g>
-      <circle cx="49" cy="70" r="7.5" fill="#8C7BEA" stroke="#2A2650" stroke-width="3"/>
-      <circle cx="127" cy="70" r="7.5" fill="#8C7BEA" stroke="#2A2650" stroke-width="3"/>
-
-      <!-- hard hat with a tiny spring antenna poking out -->
-      <path d="M88 25 V21.5 L84 19.5 L92 17 L84 14.5 L88 12.5" fill="none" stroke="#2A2650" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="88" cy="10.5" r="4.5" fill="#FFD25A" stroke="#2A2650" stroke-width="2.6"/>
-      <path d="M57 44 Q57 22 88 22 Q119 22 119 44 Z" fill="#FFD25A" stroke="#2A2650" stroke-width="3.2" stroke-linejoin="round"/>
-      <path d="M83 23 V43 M93 23 V43" stroke="#E6B53E" stroke-width="3"/>
-      <rect x="48" y="41" width="80" height="7" rx="3.5" fill="#FFD25A" stroke="#2A2650" stroke-width="3"/>
-      <rect x="80.5" y="30" width="15" height="9" rx="3" fill="#8C7BEA" stroke="#2A2650" stroke-width="2"/>
+      <!-- round ear knobs -->
+      <circle class="rbm-c-accent" cx="38" cy="66" r="7" fill="#8C7BEA" stroke="#2A2650" stroke-width="3"/>
+      <circle class="rbm-c-accent" cx="138" cy="66" r="7" fill="#8C7BEA" stroke="#2A2650" stroke-width="3"/>
     </g>
 
-    <!-- far arm: salutes when reporting back -->
+    <!-- far arm: salutes when reporting, holds the skill book -->
     <g class="rbm-arm">
-      <rect x="52" y="106" width="12" height="40" rx="6" fill="#3FB597" stroke="#2A2650" stroke-width="3"/>
-      <circle cx="58" cy="148" r="7" fill="#FFF6E8" stroke="#2A2650" stroke-width="3"/>
-      <circle cx="58" cy="112" r="7.5" fill="#8C7BEA" stroke="#2A2650" stroke-width="3"/>
+      <rect class="rbm-c-limb" x="53" y="106" width="10" height="34" rx="5" fill="#3FB597" stroke="#2A2650" stroke-width="3"/>
+      <circle cx="58" cy="142" r="6.4" fill="#FFF6E8" stroke="#2A2650" stroke-width="3"/>
+      <circle class="rbm-c-accent" cx="58" cy="112" r="6.6" fill="#8C7BEA" stroke="#2A2650" stroke-width="3"/>
+      <!-- skill book, open, held up in front of the belly -->
+      <g class="rbm-book" data-nohit="">
+        <path d="M61 135 Q69 131 77 134 V151 Q69 148 61 152 Z" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.4" stroke-linejoin="round"/>
+        <path d="M77 134 Q85 131 93 135 V152 Q85 148 77 151 Z" fill="#FFFFFF" stroke="#2A2650" stroke-width="2.4" stroke-linejoin="round"/>
+        <path d="M64.5 139 Q69 137.4 73.5 138.6 M64.5 143.5 Q69 141.9 73.5 143.1 M80.5 138.6 Q85 137.4 89.5 139 M80.5 143.1 Q85 141.9 89.5 143.5" fill="none" stroke="#B3A8F7" stroke-width="1.6" stroke-linecap="round"/>
+        <path d="M60 151.5 Q69 147.2 77 150.6 Q85 147.2 94 151.5 L94 154 Q85 150 77 153.4 Q69 150 60 154 Z" fill="#4FD6B4" stroke="#2A2650" stroke-width="2" stroke-linejoin="round"/>
+      </g>
     </g>
 
     <!-- laptop -->
@@ -112,13 +136,19 @@
 
     <!-- near arm: types -->
     <g class="rbm-arm-front">
-      <rect x="112" y="106" width="12" height="26" rx="6" fill="#3FB597" stroke="#2A2650" stroke-width="3"/>
+      <rect class="rbm-c-limb" x="113" y="106" width="10" height="24" rx="5" fill="#3FB597" stroke="#2A2650" stroke-width="3"/>
       <g class="rbm-forearm-front">
-        <rect x="112" y="124" width="12" height="23" rx="6" fill="#3FB597" stroke="#2A2650" stroke-width="3"/>
-        <circle cx="118" cy="128" r="4" fill="#3FB597"/>
-        <circle cx="118" cy="148" r="7" fill="#FFF6E8" stroke="#2A2650" stroke-width="3"/>
+        <rect class="rbm-c-limb" x="113" y="124" width="10" height="19" rx="5" fill="#3FB597" stroke="#2A2650" stroke-width="3"/>
+        <circle class="rbm-c-limb" cx="118" cy="128" r="3.6" fill="#3FB597"/>
+        <circle cx="118" cy="144" r="6.4" fill="#FFF6E8" stroke="#2A2650" stroke-width="3"/>
+        <!-- the note it hands over: a folded page -->
+        <g class="rbm-note" data-nohit="">
+          <path d="M121 133 H135 L139 137 V153 H121 Z" fill="#FFFFFF" stroke="#2A2650" stroke-width="2.2" stroke-linejoin="round"/>
+          <path d="M135 133 V137 H139" fill="none" stroke="#2A2650" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M124.5 141 H134.5 M124.5 145 H134.5 M124.5 149 H131" stroke="#B3A8F7" stroke-width="1.6" stroke-linecap="round"/>
+        </g>
       </g>
-      <circle cx="118" cy="112" r="7.5" fill="#8C7BEA" stroke="#2A2650" stroke-width="3"/>
+      <circle class="rbm-c-accent" cx="118" cy="112" r="6.6" fill="#8C7BEA" stroke="#2A2650" stroke-width="3"/>
     </g>
   </g>
 </svg>

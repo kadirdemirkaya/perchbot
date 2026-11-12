@@ -19,6 +19,9 @@ approval is needed and jumps when the work is done.
   bounce. Its eyes follow the cursor while the cursor is near.
 - Lifelike but light: breathing, random blinks, an irregular typing rhythm, squash-and-stretch
   jumps. After a quiet minute it rests and nothing animates at all.
+- Sub-agents show up as little helper robots, each in its own colour: they get a briefing,
+  work on their own laptops, chat with each other now and then, and report back when done.
+- When a skill is in use, the skill book comes out of the pocket, with its name on a tag.
 - Handles several sessions at once and disappears when the last one ends.
 - Everything stays on your machine. See [Privacy](#privacy).
 - Characters are plug-ins: a folder with an SVG, a CSS file and a JSON manifest.
@@ -67,10 +70,30 @@ Drop the buddy higher than ~24 px above the taskbar (the bottom of the screen's 
 and it hovers on small boot thrusters; drag it back down and it lands. Turn this off with
 **Hover mode → Always stand** in the tray menu.
 
+### Sub-agents and skills
+
+Each sub-agent (`SubagentStart` … `SubagentStop`) gets a little helper robot next to the
+buddy, on the side facing the middle of the screen. The window grows towards that side, so
+the buddy itself never moves.
+
+- **Arrival:** the helper drops in on its thrusters, gets a short briefing from the buddy and
+  walks to its spot (it hops over the others if they are in the way).
+- **Work:** laptop open. The tooltip on a helper shows its type, current tool and file name,
+  nothing else. Now and then a helper gets up: it chats with a neighbour (they pass a note),
+  walks over for a word with the buddy, or strolls around and looks about.
+- **Done:** a happy face, then it walks to the buddy, salutes, hands over its note and flies
+  off. A helper whose session ends, or that has sent no event for 30 minutes, just fades.
+- Up to four helpers are shown when there is room; the rest wait behind a "+N" badge. The
+  main session's `Stop` does not end them: background agents keep working.
+
+When a skill is used (the `Skill` tool, or a slash command you type), the buddy takes the
+skill book out of its pocket and a tag with the skill name appears above its head; at the
+end of the turn the book goes back. Helpers do the same for the skills they use.
+
 ### Using the mouse
 
 The overlay window ignores the mouse, so clicks reach the windows below, except while the
-pointer is over a painted part of the character or over its open menu. A safety check in the
+pointer is over a painted part of the character, a helper, or the open menu. A safety check in the
 main process releases the mouse whenever the cursor is outside the window.
 
 | Do this | It does this |
@@ -80,6 +103,9 @@ main process releases the mouse whenever the cursor is outside the window.
 | Move away | The menu closes after a moment |
 | Click it | A little bounce |
 | Drag it | It follows the cursor; near a bottom corner it snaps there. Any monitor works; if that monitor is unplugged it returns to the primary display's corner |
+| Rest the cursor on a helper | A tooltip: its type, tool and file name |
+| Drag a helper | Pick it up and drop it elsewhere next to the buddy; it lands there and keeps that spot |
+| Click a helper | A little hop |
 | Leave it alone for a minute while idle | It rests: eyes half closed, no animation. Any event or hover wakes it |
 
 The hover menu: show/hide speech bubble, eyes on/off, back to the corner (after a drag),
@@ -252,8 +278,9 @@ The full format, the list of states and performance tips are in
   a random salt). While it exists, the hook appends one line per event to
   `~/.agent-buddy/logs/schema.log` with **field names only, never values**: the event and
   tool name, the names of the input fields, and the session / agent id as 8-character
-  salted hashes so events can be matched up. Delete both files to turn it off; without the
-  salt the hashes mean nothing.
+  salted hashes so events can be matched up. The one value it records is the expansion type
+  of a typed slash command (e.g. `slash_command`), never the command or its arguments.
+  Delete both files to turn it off; without the salt the hashes mean nothing.
 - **On screen:** the bubble shows file names and shortened commands. Use Quiet mode while
   screen sharing.
 - **At install time** `npm install` downloads Electron from the npm registry and Electron's
@@ -335,11 +362,13 @@ agent-buddy/
 ├── app/                 Electron main process, renderer and the pure logic it uses
 │   ├── main.js          window, tray, single instance, private buddy:// scheme
 │   ├── core.js          state machine, session counter, idle safety net
+│   ├── agents.js        sub-agent registry (the helpers)
 │   ├── placement.js     corners, dragging, snapping, monitor fallback
 │   ├── menu-items.js    the hover menu (add features here)
 │   ├── server.js        127.0.0.1 HTTP endpoint
 │   ├── validate.js      event schema
-│   ├── renderer/        overlay page (HTML, CSS, JS); lib/interaction.js is its pure logic
+│   ├── renderer/        overlay page (HTML, CSS, JS); lib/ holds its pure, tested logic
+│   │                    (interaction.js: mouse, menu, rest; crew.js: the helpers' choreography)
 │   └── locales/         en.json, tr.json
 ├── characters/robot/    the default character (SVG + CSS + manifest)
 ├── hooks/send.js        the hook script (Node built-ins only)
@@ -380,5 +409,3 @@ confirm.
 
 "Claude" and "Claude Code" are Anthropic's product names. They are used here only to
 describe compatibility.
-#   p e r c h b o t  
- 

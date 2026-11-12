@@ -21,7 +21,7 @@ test('window layout keeps the slot at the anchor, menu on the inner side', () =>
   const anchor = p.cornerAnchor(primary.workArea, 'bottom-right', 1);
   assert.equal(p.sideFor(anchor, primary.workArea), 'left');
   const { page, bounds } = p.windowLayout(anchor, 'left', 1);
-  assert.deepEqual(page, { width: 284, height: 270, slotLeft: 64, side: 'left' });
+  assert.deepEqual(page, { width: 284, height: 270, slotLeft: 64, side: 'left', sideWidth: 64 });
   assert.deepEqual(bounds, { x: 1920 - 12 - 220 - 64, y: 1152 - 270, width: 284, height: 270 });
   assert.equal(bounds.x + bounds.width, 1920 - 12, 'right edge keeps the margin');
 
@@ -96,4 +96,38 @@ test('hovering: only above the threshold, scaled with size, never in "stand" mod
   // A corner placement is always on the ground.
   const corner = p.cornerAnchor(primary.workArea, 'bottom-right', 1);
   assert.equal(p.isAirborne(p.altitudeOf(corner, displays, primary), 1, 'auto'), false);
+});
+
+test('crew: spots grow outwards from the report point, width covers the outermost mini', () => {
+  assert.equal(p.crewWidth(0, 'left'), 0);
+  assert.equal(p.crewSpot(0, 'left'), p.CREW.report.left + p.CREW.firstGap);
+  assert.equal(p.crewSpot(2, 'right') - p.crewSpot(1, 'right'), p.CREW.spacing);
+  assert.equal(p.crewWidth(1, 'left'), p.crewSpot(0, 'left') + p.CREW.tail);
+  assert.equal(p.crewWidth(9, 'left'), p.crewWidth(p.CREW.max, 'left'), 'never wider than the maximum crew');
+  assert.ok(p.CREW.report.right > p.CREW.report.left, 'the laptop side needs more room');
+  // Minis never stand on each other: a spot is wider than a mini's painted body.
+  assert.ok(p.CREW.spacing >= p.CREW.miniSize * 0.75);
+  const geo = p.crewGeometry('right', 3);
+  assert.deepEqual(geo.spots, [p.crewSpot(0, 'right'), p.crewSpot(1, 'right'), p.crewSpot(2, 'right')]);
+  assert.equal(geo.report, p.CREW.report.right);
+});
+
+test('crew: the window grows inwards and keeps the anchor; capacity follows the free room', () => {
+  const anchor = p.cornerAnchor(primary.workArea, 'bottom-right', 1);
+  const base = p.windowLayout(anchor, 'left', 1);
+  const wide = p.windowLayout(anchor, 'left', 1, p.crewWidth(4, 'left'));
+  assert.equal(wide.bounds.x + wide.bounds.width, base.bounds.x + base.bounds.width, 'right edge (slot side) stays');
+  assert.equal(wide.page.slotLeft, p.crewWidth(4, 'left'));
+  assert.equal(p.crewCapacity(anchor, 'left', primary.workArea, 1), p.CREW.max);
+  // Bottom-left corner, crew on the right: plenty of room as well.
+  const left = p.cornerAnchor(primary.workArea, 'bottom-left', 1.3);
+  assert.equal(p.crewCapacity(left, 'right', primary.workArea, 1.3), p.CREW.max);
+  // Squeezed against the edge of a small screen: only what fits.
+  const small = { x: 0, y: 0, width: 800, height: 600 };
+  const near = { x: 110 + 200, y: 600 };
+  const fit = p.crewCapacity(near, 'left', small, 1);
+  assert.ok(fit < p.CREW.max);
+  assert.ok(p.crewWidth(fit, 'left') <= near.x - 110, 'what is shown fits');
+  assert.ok(p.crewWidth(fit + 1, 'left') > near.x - 110, 'one more would not');
+  assert.equal(p.crewCapacity({ x: 110, y: 600 }, 'left', small, 1), 0, 'no room at all');
 });

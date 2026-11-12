@@ -18,9 +18,9 @@ const statuses = (reg) => reg.list().map((a) => `${a.id}:${a.status}`);
 test('start, tool activity, stop, release', () => {
   const { reg, changes } = setup();
   reg.start({ agent: 'a1', agentType: 'Explore', session: 'S' });
-  assert.deepEqual(reg.list(), [{ id: 'a1', type: 'Explore', tool: null, file: null, status: 'active' }]);
+  assert.deepEqual(reg.list(), [{ id: 'a1', type: 'Explore', tool: null, file: null, skill: null, status: 'active' }]);
   reg.activity({ agent: 'a1', session: 'S', tool: 'Read', file: 'main.js', started: true });
-  assert.deepEqual(reg.list()[0], { id: 'a1', type: 'Explore', tool: 'Read', file: 'main.js', status: 'active' });
+  assert.deepEqual(reg.list()[0], { id: 'a1', type: 'Explore', tool: 'Read', file: 'main.js', skill: null, status: 'active' });
   const before = changes.length;
   reg.activity({ agent: 'a1', session: 'S', tool: 'Read', started: false });
   assert.equal(changes.length, before, 'PostToolUse changes nothing visible');
@@ -48,15 +48,15 @@ test('repeated starts and stops for unseen agents are ignored', () => {
 test('tool events from an unknown agent add it (the overlay started late)', () => {
   const { reg } = setup();
   reg.activity({ agent: 'b2', agentType: 'general-purpose', session: 'S', tool: 'Edit', file: 'a.ts', started: true });
-  assert.deepEqual(reg.list(), [{ id: 'b2', type: 'general-purpose', tool: 'Edit', file: 'a.ts', status: 'active' }]);
+  assert.deepEqual(reg.list(), [{ id: 'b2', type: 'general-purpose', tool: 'Edit', file: 'a.ts', skill: null, status: 'active' }]);
 });
 
-test('an agent without events for 10 minutes fades; activity keeps it alive', () => {
+test('an agent without events for 30 minutes fades; activity keeps it alive', () => {
   const { clock, reg } = setup();
   reg.start({ agent: 'a1', agentType: 'Explore', session: 'S' });
-  clock.tick(9 * 60 * 1000);
+  clock.tick(29 * 60 * 1000);
   reg.activity({ agent: 'a1', tool: 'Grep', started: true });
-  clock.tick(9 * 60 * 1000);
+  clock.tick(29 * 60 * 1000);
   assert.equal(reg.list()[0].status, 'active');
   clock.tick(60 * 1000);
   assert.equal(reg.list()[0].status, 'gone');
@@ -80,4 +80,17 @@ test('arrival order is kept and memory is bounded', () => {
   reg.start({ agent: 'd', session: 'S' });
   assert.deepEqual(statuses(reg), ['a:active', 'c:active', 'd:active'], 'a finished agent is dropped first');
   assert.equal(reg.activeCount, 3);
+});
+
+test('a sub-agent keeps the skill it opened until it finishes', () => {
+  const { reg } = setup();
+  reg.start({ agent: 'k1', agentType: 'Explore', session: 'S' });
+  reg.activity({ agent: 'k1', session: 'S', tool: 'Skill', skill: 'pdf', started: true });
+  assert.equal(reg.list()[0].skill, 'pdf');
+  reg.activity({ agent: 'k1', session: 'S', tool: 'Read', file: 'a.pdf', skill: null, started: true });
+  assert.equal(reg.list()[0].skill, 'pdf', 'the book stays open while it works');
+  reg.activity({ agent: 'k1', session: 'S', tool: 'Read', skill: 'ignored', started: true });
+  assert.equal(reg.list()[0].skill, 'pdf', 'only the Skill tool sets it');
+  reg.stop({ agent: 'k1' });
+  assert.equal(reg.list()[0].skill, null);
 });

@@ -5,7 +5,7 @@
  *
  * The character lives in a fixed-size "slot" (SLOT, CSS px at zoom 1). Next to
  * it, on the side facing the middle of the screen, is room for the hover menu
- * (and, later, helper characters): `side` says which side that is.
+ * and the sub-agent minis (CREW): `side` says which side that is.
  *
  * Positions are stored as an ANCHOR: the bottom-centre of the slot, in screen
  * DIPs. That point stays put when the window grows or shrinks.
@@ -25,6 +25,30 @@ const SNAP_DISTANCE = 48;
 const CORNERS = ['bottom-right', 'bottom-left'];
 /** Higher than this above the ground (DIP at medium size), the character hovers. */
 const HOVER_THRESHOLD = 24;
+
+/**
+ * Sub-agent "minis" stand in a row on the same side as the hover menu.
+ * All values are CSS px at zoom 1, measured OUTWARDS from the slot edge that
+ * faces the crew to a mini's foot centre:
+ *
+ *   [ ... mini 3 | mini 2 | mini 1 | mini 0 |  report point  ][ main slot ]
+ *                                                   ^ briefs and reports happen here
+ *
+ * The report point differs per side because the main character is not
+ * symmetric (its laptop sticks out on the right).
+ */
+const CREW = Object.freeze({
+  max: 4,
+  /** A mini is drawn in a box this big (two thirds of the 200 px character box). */
+  miniSize: 132,
+  report: Object.freeze({ left: 6, right: 26 }),
+  /** From the report point to the first work spot (room for an open laptop). */
+  firstGap: 106,
+  /** Between two work spots. */
+  spacing: 104,
+  /** Behind the outermost mini: its back plus a margin. */
+  tail: 40,
+});
 
 function scaleFor(size) {
   return SCALE[size] || 1;
@@ -71,13 +95,18 @@ function resolveAnchor(settings, displays, primary, scale) {
   return { anchor: cornerAnchor(primary.workArea, settings.corner, scale), workArea: primary.workArea, mode: 'corner' };
 }
 
-/** Page layout (CSS px) and window bounds (DIP) for an anchor and side. */
+/**
+ * Page layout (CSS px) and window bounds (DIP) for an anchor and side.
+ * sideWidth: the column next to the slot (menu, minis); it grows inwards, so
+ * the slot, and with it the anchor, never moves.
+ */
 function windowLayout(anchor, side, scale, sideWidth = SIDE_WIDTH) {
   const page = {
     width: SLOT.width + sideWidth,
     height: SLOT.height,
     slotLeft: side === 'left' ? sideWidth : 0,
     side,
+    sideWidth,
   };
   const bounds = {
     x: Math.round(anchor.x - (page.slotLeft + SLOT.width / 2) * scale),
@@ -166,11 +195,52 @@ function isAirborne(altitude, scale, hoverMode) {
   return hoverMode !== 'stand' && altitude > HOVER_THRESHOLD * scale;
 }
 
+/** Outward offset of work spot `index` (0 = next to the report point). */
+function crewSpot(index, side) {
+  return CREW.report[side === 'right' ? 'right' : 'left'] + CREW.firstGap + index * CREW.spacing;
+}
+
+/** Width of the column needed for `count` minis (0 when there are none). */
+function crewWidth(count, side) {
+  if (!(count > 0)) return 0;
+  return crewSpot(Math.min(count, CREW.max) - 1, side) + CREW.tail;
+}
+
+/**
+ * How many minis fit between the slot and the edge of the work area on the
+ * crew side (0..CREW.max). The rest are shown as "+N".
+ */
+function crewCapacity(anchor, side, workArea, scale) {
+  const half = (SLOT.width / 2) * scale;
+  const room =
+    side === 'right'
+      ? workArea.x + workArea.width - (anchor.x + half)
+      : anchor.x - half - workArea.x;
+  let fit = 0;
+  while (fit < CREW.max && crewWidth(fit + 1, side) * scale <= room) fit += 1;
+  return fit;
+}
+
+/** The crew geometry the page needs to place minis (CSS px). */
+function crewGeometry(side, capacity) {
+  return {
+    capacity,
+    miniSize: CREW.miniSize,
+    report: CREW.report[side === 'right' ? 'right' : 'left'],
+    spots: Array.from({ length: capacity }, (_, i) => crewSpot(i, side)),
+  };
+}
+
 module.exports = {
   SLOT,
   SIDE_WIDTH,
   SNAP_DISTANCE,
   HOVER_THRESHOLD,
+  CREW,
+  crewSpot,
+  crewWidth,
+  crewCapacity,
+  crewGeometry,
   groundFor,
   altitudeOf,
   isAirborne,

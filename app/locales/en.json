@@ -56,5 +56,8 @@
     "backToCorner": "Back to the corner",
     "moreSettings": "More settings…",
     "quit": "Quit now"
+  },
+  "page": {
+    "helpers": "{count} helpers"
   }
 }

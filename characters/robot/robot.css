@@ -695,6 +695,135 @@
   50% { transform: scale(0.7); opacity: 0.08; }
 }
 
+/* ------------------------------------------------------------ skill book (data-skill) */
+
+/* In the pocket: tiny, hidden. The app sets data-skill="open" while a skill is
+   in use and "stow" for a moment when it is put away. */
+.rb-book {
+  opacity: 0;
+  transform-origin: 84px 124px;
+  transform: translate(-11px, 21px) scale(0.25) rotate(-20deg);
+  transition:
+    opacity 0.2s ease 0.3s,
+    transform 0.45s cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+
+.rb-book-page {
+  transform-origin: 84px 124px;
+}
+
+/* Held open in front of the chest with the far hand, in every state that
+   leaves that hand free (not while waving, raising a hand or celebrating). */
+.buddy-character[data-skill='open']:is([data-state='idle'], [data-state='thinking'], [data-state='typing'], [data-state='reading'], [data-state='running'], [data-state='working'], [data-state='standby'])
+  .rb-book {
+  opacity: 1;
+  transform: rotate(-4deg);
+  transition-delay: 0s, 0s;
+}
+
+.buddy-character[data-skill='open']:is([data-state='idle'], [data-state='thinking'], [data-state='typing'], [data-state='reading'], [data-state='running'], [data-state='working'], [data-state='standby'])
+  .rb-arm-back {
+  transform: rotate(-35deg);
+}
+
+.buddy-character[data-skill='open']:is([data-state='idle'], [data-state='thinking'], [data-state='typing'], [data-state='reading'], [data-state='running'], [data-state='working'], [data-state='standby'])
+  .rb-forearm-back {
+  transform: rotate(-70deg);
+}
+
+/* Reading it (while a tool runs the eyes stay on the laptop). */
+.buddy-character[data-skill='open']:is([data-state='idle'], [data-state='thinking'], [data-state='standby']) .rb-head {
+  transform: rotate(-3deg) translateY(1px);
+}
+
+.buddy-character[data-skill='open']:is([data-state='idle'], [data-state='thinking'], [data-state='standby']) .rb-face {
+  transform: translate(-3px, 3px);
+}
+
+/* Now and then a page turns (a few frames, then still again). */
+.buddy-character[data-skill='open']:not([data-rest]) .rb-book-page {
+  animation: rb-page 5.2s steps(1) 1s infinite;
+}
+
+@keyframes rb-page {
+  0%, 84% { transform: none; }
+  87% { transform: scaleX(0.55); }
+  90% { transform: scaleX(0.1); }
+  93% { transform: scaleX(-0.55); }
+  96%, 100% { transform: scaleX(-1); opacity: 0; }
+}
+
+/* Putting it away: the hand goes to the pocket. */
+.buddy-character[data-skill='stow'] .rb-arm-back {
+  transform: rotate(-14deg);
+}
+
+.buddy-character[data-skill='stow'] .rb-forearm-back {
+  transform: rotate(-30deg);
+}
+
+/* ------------------------------------------------------------ sub-agents: brief and receive */
+
+/* A new helper arrived: Robo explains the task (talks, nods; the far arm
+   points towards the helper when it stands on that side: data-brief="left"). */
+.buddy-character[data-brief]:not(:is([data-state='waiting'], [data-state='asking'], [data-state='greeting'], [data-state='goodbye'], [data-state='done']))
+  .rb-head {
+  animation: rb-brief-nod 0.85s ease-in-out 2;
+}
+
+.buddy-character[data-brief]:not(:is([data-state='waiting'], [data-state='asking'], [data-state='greeting'], [data-state='goodbye'], [data-state='done']))
+  .rb-mouth {
+  opacity: 0;
+}
+
+.buddy-character[data-brief]:not(:is([data-state='waiting'], [data-state='asking'], [data-state='greeting'], [data-state='goodbye'], [data-state='done']))
+  .rb-mouth-o {
+  opacity: 1;
+  animation: rb-talk 0.36s steps(2) 4;
+}
+
+.buddy-character[data-brief='left']:not(:is([data-state='waiting'], [data-state='asking'], [data-state='greeting'], [data-state='goodbye'], [data-state='done']))
+  .rb-arm-back {
+  transform: rotate(68deg);
+}
+
+.buddy-character[data-brief='left']:not(:is([data-state='waiting'], [data-state='asking'], [data-state='greeting'], [data-state='goodbye'], [data-state='done']))
+  .rb-forearm-back {
+  transform: rotate(-22deg);
+}
+
+.rb-mouth-o {
+  transform-origin: 88px 80.5px;
+}
+
+@keyframes rb-brief-nod {
+  0%, 100% { transform: none; }
+  50% { transform: rotate(-4deg) translateY(1.5px); }
+}
+
+@keyframes rb-talk {
+  50% { transform: scaleY(0.45); }
+}
+
+/* A helper hands over its note: Robo nods, smiles, and reaches for it when
+   the helper stands on its far-arm side. */
+.buddy-character[data-receive]:not(:is([data-state='waiting'], [data-state='asking'], [data-state='goodbye'])) .rb-head {
+  animation: rb-brief-nod 0.8s ease-in-out 1;
+}
+
+.buddy-character[data-receive]:not(:is([data-state='waiting'], [data-state='asking'], [data-state='goodbye'])) .rb-brow {
+  transform: translateY(-2.5px);
+}
+
+.buddy-character[data-receive='left']:not(:is([data-state='waiting'], [data-state='asking'], [data-state='goodbye'])) .rb-arm-back {
+  animation: rb-reach 1.5s cubic-bezier(0.3, 1.2, 0.5, 1);
+}
+
+@keyframes rb-reach {
+  0%, 100% { transform: none; }
+  25%, 65% { transform: rotate(55deg); }
+}
+
 /* ------------------------------------------------------------ hovering (data-fly) */
 
 /* Sole thrusters: hidden on the ground. The outer group carries visibility,

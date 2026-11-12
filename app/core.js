@@ -296,6 +296,7 @@ class BuddyCore extends EventEmitter {
         tool: evt.tool,
         // Only a file name, and only for file tools: never commands or search patterns.
         file: isFileTool(evt.tool) ? evt.detail || null : null,
+        skill: evt.skill || null,
         started: evt.event === 'PreToolUse',
       });
     }

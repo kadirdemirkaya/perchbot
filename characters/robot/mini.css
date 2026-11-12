@@ -1,17 +1,94 @@
 /*
- * Robo's helper (the mini robot for each sub-agent).
+ * Robo's kids (the little robot for each sub-agent).
  *
  * The app wraps each mini SVG in <div class="buddy-mini" data-phase="...">:
- *   data-phase  walk | brief | work | done | report | leave
- *   data-fly    present while it flies (over other minis to report, or when
- *               the whole buddy hovers above the ground)
+ *   data-phase  arrive | brief | walk | work | chat | done | report | leave
+ *   data-tint   0..4: which colour this kid wears (neighbours differ)
+ *   data-fly    thrusters on: dropping in, flying off, hopping over other
+ *               minis, or the whole buddy hovers above the ground
+ *   data-hop    walking by hopping over the minis in the way (with data-fly)
+ *   data-talk   during a chat: present while this one is talking
+ *   data-skill  "open" while the agent uses a skill: the book comes out
+ *   data-give   present while it hands over its note
  *   data-rest   the main character is resting: stop every animation
- * The app moves the wrapper itself (walking is a CSS transition on `left`);
- * this file only animates the body.
+ * The app moves and turns the wrapper itself (walking is a transition on the
+ * wrapper's transform); this file only animates the body.
  *
  * Kept cheap on purpose: every looping animation uses steps() at a few
  * changes per second, and nothing loops under data-rest.
  */
+
+/* ------------------------------------------------------------ colours (data-tint) */
+
+.buddy-mini {
+  --rbm-body: #5ed3b3;
+  --rbm-shade: #3fb597;
+  --rbm-limb: #3fb597;
+  --rbm-boot: #2f6e61;
+  --rbm-accent: #8c7bea;
+}
+
+/* rose */
+.buddy-mini[data-tint='1'] {
+  --rbm-body: #f7a8c9;
+  --rbm-shade: #e584ad;
+  --rbm-limb: #e98fb6;
+  --rbm-boot: #9c4a73;
+  --rbm-accent: #8c7bea;
+}
+
+/* butter */
+.buddy-mini[data-tint='2'] {
+  --rbm-body: #f8d872;
+  --rbm-shade: #e3bb45;
+  --rbm-limb: #e7c252;
+  --rbm-boot: #8f6e1c;
+  --rbm-accent: #8c7bea;
+}
+
+/* lavender */
+.buddy-mini[data-tint='3'] {
+  --rbm-body: #c8b9ff;
+  --rbm-shade: #a796f0;
+  --rbm-limb: #ad9cf3;
+  --rbm-boot: #5e50a8;
+  --rbm-accent: #4fd6b4;
+}
+
+/* pistachio */
+.buddy-mini[data-tint='4'] {
+  --rbm-body: #bfe08a;
+  --rbm-shade: #9cc565;
+  --rbm-limb: #a3cb6c;
+  --rbm-boot: #57762b;
+  --rbm-accent: #8c7bea;
+}
+
+.buddy-mini .rbm-c-body {
+  fill: var(--rbm-body);
+}
+
+.buddy-mini .rbm-c-shade {
+  fill: var(--rbm-shade);
+}
+
+.buddy-mini .rbm-c-shade-line {
+  stroke: var(--rbm-shade);
+}
+
+.buddy-mini .rbm-c-limb {
+  fill: var(--rbm-limb);
+}
+
+.buddy-mini .rbm-c-boot {
+  fill: var(--rbm-boot);
+}
+
+.buddy-mini .rbm-c-accent {
+  fill: var(--rbm-accent);
+}
+
+/* ------------------------------------------------------------ rig */
 
 .buddy-mini .rbm * {
   transform-box: view-box;
@@ -81,9 +158,33 @@
 
 .rbm-eyes-happy,
 .rbm-mouth-grin,
+.rbm-mouth-talk,
 .rbm-code {
   opacity: 0;
   transition: opacity 0.2s ease;
+}
+
+.rbm-mouth-talk {
+  transform-origin: 88px 81px;
+}
+
+/* Props: hidden unless their phase or attribute shows them. */
+.rbm-book {
+  opacity: 0;
+  transform-origin: 77px 143px;
+  transform: translate(-4px, 10px) scale(0.3);
+  transition:
+    opacity 0.2s ease 0.25s,
+    transform 0.4s cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+
+.rbm-note {
+  opacity: 0;
+  transform-origin: 130px 143px;
+  transform: scale(0.3);
+  transition:
+    opacity 0.15s ease,
+    transform 0.3s cubic-bezier(0.3, 1.4, 0.5, 1);
 }
 
 .rbm-flame {
@@ -102,18 +203,42 @@
   transform-origin: 100.5px 181px;
 }
 
+/* ------------------------------------------------------------ arrive: drops in, lands */
+
+.buddy-mini[data-phase='arrive'] .rbm-figure {
+  animation: rbm-drop 0.7s cubic-bezier(0.3, 0, 0.4, 1);
+}
+
+@keyframes rbm-drop {
+  0% { transform: translateY(-70px); opacity: 0; }
+  20% { opacity: 1; }
+  70% { transform: translateY(0) scale(1.08, 0.9); }
+  85% { transform: scale(0.97, 1.04); }
+  100% { transform: none; }
+}
+
 /* ------------------------------------------------------------ walk */
 
-.buddy-mini[data-phase='walk'] .rbm-figure {
+.buddy-mini[data-phase='walk']:not([data-fly]) .rbm-figure {
   animation: rbm-bob 0.4s steps(2) infinite;
 }
 
-.buddy-mini[data-phase='walk'] .rbm-leg-l {
+.buddy-mini[data-phase='walk']:not([data-fly]) .rbm-leg-l {
   animation: rbm-step 0.4s steps(2) infinite;
 }
 
-.buddy-mini[data-phase='walk'] .rbm-leg-r {
+.buddy-mini[data-phase='walk']:not([data-fly]) .rbm-leg-r {
   animation: rbm-step 0.4s steps(2) 0.2s infinite;
+}
+
+/* Hopping over the others: up, across, down (the app moves it sideways). */
+.buddy-mini[data-phase='walk'][data-hop] .rbm-figure {
+  animation: rbm-hopover var(--walk, 0.6s) ease-in-out;
+}
+
+@keyframes rbm-hopover {
+  0%, 100% { transform: none; }
+  30%, 70% { transform: translateY(-58px); }
 }
 
 @keyframes rbm-bob {
@@ -182,6 +307,64 @@
   to { transform: translateY(-28px); }
 }
 
+/* ------------------------------------------------------------ chat: laptops shut, they take turns talking */
+
+.buddy-mini[data-phase='chat'] .rbm-head {
+  transform: rotate(-3deg);
+}
+
+.buddy-mini[data-phase='chat'][data-talk] .rbm-mouth {
+  opacity: 0;
+}
+
+.buddy-mini[data-phase='chat'][data-talk] .rbm-mouth-talk {
+  opacity: 1;
+}
+
+.buddy-mini[data-phase='chat'][data-talk]:not([data-rest]) .rbm-mouth-talk {
+  animation: rbm-talk 0.5s steps(2) infinite;
+}
+
+.buddy-mini[data-phase='chat'][data-talk]:not([data-rest]) .rbm-head {
+  animation: rbm-nod 0.8s ease-in-out infinite;
+}
+
+@keyframes rbm-talk {
+  50% { transform: scaleY(0.4); }
+}
+
+/* ------------------------------------------------------------ the note changes hands */
+
+.buddy-mini[data-give] .rbm-note {
+  opacity: 1;
+  transform: none;
+}
+
+.buddy-mini[data-give] .rbm-arm-front {
+  transform: rotate(-70deg);
+}
+
+.buddy-mini[data-give] .rbm-forearm-front {
+  transform: rotate(-20deg);
+}
+
+/* ------------------------------------------------------------ skill book */
+
+/* The arm turns up by 38deg; the book turns back so it stays level. */
+.buddy-mini[data-skill='open'] .rbm-book {
+  opacity: 1;
+  transform: rotate(38deg);
+  transition-delay: 0s;
+}
+
+.buddy-mini[data-skill='open']:not([data-phase='report']) .rbm-arm {
+  transform: rotate(-38deg);
+}
+
+.buddy-mini[data-skill='open']:is([data-phase='work'], [data-phase='brief']) .rbm-face {
+  transform: translate(-3px, 3px);
+}
+
 /* ------------------------------------------------------------ done (waiting to report), report */
 
 .buddy-mini:is([data-phase='done'], [data-phase='report'], [data-phase='leave']) :is(.rbm-eyes, .rbm-mouth) {
@@ -210,6 +393,81 @@
   25% { transform: scale(1.06, 0.92); }
   55% { transform: translateY(-9px) scale(0.96, 1.05); }
   80% { transform: scale(1.03, 0.97); }
+}
+
+/* ------------------------------------------------------------ look: a stroll ends with a look around */
+
+.buddy-mini[data-phase='look']:not([data-rest]) .rbm-head {
+  animation: rbm-look 1.8s steps(6);
+}
+
+.buddy-mini[data-phase='look']:not([data-rest]) .rbm-face {
+  animation: rbm-look-eyes 1.8s steps(6);
+}
+
+@keyframes rbm-look {
+  0%, 100% { transform: none; }
+  25% { transform: rotate(-6deg); }
+  70% { transform: rotate(5deg); }
+}
+
+@keyframes rbm-look-eyes {
+  0%, 100% { transform: none; }
+  25% { transform: translate(-4px, -1px); }
+  70% { transform: translate(4px, -1px); }
+}
+
+/* ------------------------------------------------------------ held by the user, landing */
+
+/* Dangling: legs kick, arms up, a surprised "o". */
+.buddy-mini[data-phase='held'] .rbm-leg-l {
+  animation: rbm-step 0.5s steps(2) infinite;
+}
+
+.buddy-mini[data-phase='held'] .rbm-leg-r {
+  animation: rbm-step 0.5s steps(2) 0.25s infinite;
+}
+
+.buddy-mini[data-phase='held'] .rbm-arm {
+  transform: rotate(140deg);
+}
+
+.buddy-mini[data-phase='held'] .rbm-arm-front {
+  transform: rotate(-140deg);
+}
+
+.buddy-mini[data-phase='held'] .rbm-mouth {
+  opacity: 0;
+}
+
+.buddy-mini[data-phase='held'] .rbm-mouth-talk {
+  opacity: 1;
+}
+
+/* A click: a little hop with a grin. */
+.buddy-mini[data-boop] .rbm-figure {
+  animation: rbm-hop 0.5s cubic-bezier(0.3, 0, 0.4, 1);
+}
+
+.buddy-mini[data-boop] :is(.rbm-eyes, .rbm-mouth) {
+  opacity: 0;
+}
+
+.buddy-mini[data-boop] :is(.rbm-eyes-happy, .rbm-mouth-grin) {
+  opacity: 1;
+}
+
+/* ------------------------------------------------------------ leave: off it goes */
+
+.buddy-mini[data-phase='leave'] .rbm-figure {
+  opacity: 0;
+  transition:
+    transform 0.9s cubic-bezier(0.5, 0, 0.8, 0.6),
+    opacity 0.6s ease 0.3s;
+}
+
+.buddy-mini[data-phase='leave'][data-fly] .rbm-figure {
+  transform: translateY(-120px);
 }
 
 /* ------------------------------------------------------------ flying */

@@ -5,8 +5,9 @@ param(
   # Also wait for the resting pose (adds about a minute).
   [switch]$IncludeRest
 )
-# Puts the ISOLATED test overlay through every state and saves one screenshot
-# per state plus a labelled contact sheet (states.png). No mouse input.
+# Puts the ISOLATED test overlay through every state (plus the skill book and two
+# sub-agent helpers) and saves one screenshot per step and a labelled contact
+# sheet (states.png). No mouse input.
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\winput.ps1"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
@@ -31,7 +32,8 @@ function Shot([string]$name) {
 $s = "shots-" + [DateTimeOffset]::Now.ToUnixTimeSeconds(); $n = 0
 $ev = { param($name, $extra) $o = @{ session_id = $s; hook_event_name = $name }; if ($extra) { foreach ($k in $extra.Keys) { $o[$k] = $extra[$k] } }; $o }
 $tool = { param($event, $name, $id, $toolInput) & $ev $event @{ tool_name = $name; tool_use_id = $id; tool_input = $toolInput } }
-# name ($null = no screenshot), hook input, wait in ms before the screenshot
+$sub = { param($event, $agent, $type, $extra) $o = & $ev $event @{ agent_id = $agent; agent_type = $type }; if ($extra) { foreach ($k in $extra.Keys) { $o[$k] = $extra[$k] } }; $o }
+# name ($null = no screenshot), hook input (or several), wait in ms before the screenshot
 $steps = @(
   @('greeting', (& $ev 'SessionStart' @{ source = 'startup' }), 450),
   @('idle', (& $ev 'Stop'), 4200),
@@ -44,11 +46,19 @@ $steps = @(
   @('waiting (approval)', (& $ev 'Notification' @{ notification_type = 'permission_prompt' }), 3900),
   @('asking', (& $ev 'Notification' @{ notification_type = 'elicitation_dialog' }), 900),
   @('standby (idle_prompt)', (& $ev 'Notification' @{ notification_type = 'idle_prompt' }), 900),
-  @('done', (& $ev 'Stop'), 380)
+  @('skill book', (& $tool 'PreToolUse' 'Skill' 't5' @{ skill = 'code-review' }), 900),
+  @('helpers arrive', @((& $sub 'SubagentStart' 'agent-1' 'Explore'), (& $sub 'SubagentStart' 'agent-2' 'Plan')), 1300),
+  @('helpers at work', @(
+      (& $sub 'PreToolUse' 'agent-1' 'Explore' @{ tool_name = 'Read'; tool_use_id = 'a1'; tool_input = @{ file_path = 'C:\p\main.js' } }),
+      (& $sub 'PreToolUse' 'agent-2' 'Plan' @{ tool_name = 'Skill'; tool_use_id = 'a2'; tool_input = @{ skill = 'pdf' } })), 3800),
+  @('helper reports', (& $sub 'SubagentStop' 'agent-1' 'Explore'), 2600),
+  @('done', (& $ev 'Stop'), 380),
+  @($null, (& $sub 'SubagentStop' 'agent-2' 'Plan'), 0)
 )
 $shots = New-Object System.Collections.ArrayList
 foreach ($st in $steps) {
-  Hook $st[1]; Start-Sleep -Milliseconds $st[2]
+  foreach ($h in @($st[1])) { Hook $h }
+  Start-Sleep -Milliseconds $st[2]
   if ($st[0]) { [void]$shots.Add(@($st[0], (Shot ($st[0] -replace '[^a-z_-]+', '-')))) }
 }
 if ($IncludeRest) {
@@ -58,13 +68,14 @@ if ($IncludeRest) {
 
 # Contact sheet
 $imgs = $shots | ForEach-Object { [System.Drawing.Image]::FromFile($_[1]) }
-$w = $imgs[0].Width; $h = $imgs[0].Height; $cols = 4; $rows = [math]::Ceiling($imgs.Count / $cols)
+# The window grows while helpers are on screen: cells are as wide as the widest shot.
+$w = [int]($imgs | Measure-Object -Property Width -Maximum).Maximum; $h = [int]$imgs[0].Height; $cols = 4; $rows = [math]::Ceiling($imgs.Count / $cols)
 $sheet = New-Object System.Drawing.Bitmap ($w * $cols), (($h + 18) * $rows)
 $g = [System.Drawing.Graphics]::FromImage($sheet); $g.Clear([System.Drawing.Color]::White)
 $font = New-Object System.Drawing.Font 'Segoe UI', 10
 for ($i = 0; $i -lt $imgs.Count; $i++) {
   $x = ($i % $cols) * $w; $y = [math]::Floor($i / $cols) * ($h + 18)
-  $g.DrawString($shots[$i][0], $font, [System.Drawing.Brushes]::Black, $x + 4, $y); $g.DrawImage($imgs[$i], $x, $y + 18, $w, $h)
+  $g.DrawString($shots[$i][0], $font, [System.Drawing.Brushes]::Black, $x + 4, $y); $g.DrawImage($imgs[$i], $x, $y + 18, $imgs[$i].Width, $imgs[$i].Height)
 }
 $sheetFile = Join-Path $OutDir 'states.png'; $sheet.Save($sheetFile); $g.Dispose(); $sheet.Dispose(); $imgs | ForEach-Object { $_.Dispose() }
 "screenshots in $OutDir (contact sheet: $sheetFile)"

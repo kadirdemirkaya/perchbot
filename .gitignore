@@ -27,6 +27,8 @@ hook-debug*.txt
 !CHANGES.md
 !CONTRIBUTING.md
 !THIRD_PARTY_NOTICES.md
+# Character design notes are public: they document how the artwork was kept original.
+!characters/*/DESIGN.md
 
 # OS / editor noise
 .DS_Store

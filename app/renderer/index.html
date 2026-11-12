@@ -9,6 +9,8 @@
     <title>Agent Buddy</title>
     <link rel="stylesheet" href="overlay.css" />
     <script src="lib/interaction.js" defer></script>
+    <script src="lib/crew.js" defer></script>
+    <script src="crew-view.js" defer></script>
     <script src="renderer.js" defer></script>
   </head>
   <body>
@@ -41,6 +43,10 @@
         <circle cx="12" cy="12" r="6.5" />
         <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" />
       </symbol>
+      <symbol id="i-book" viewBox="0 0 24 24">
+        <path d="M3 5.5Q7.5 3.5 12 6v13q-4.5-2.5-9-.5z" />
+        <path d="M21 5.5Q16.5 3.5 12 6v13q4.5-2.5 9-.5z" />
+      </symbol>
       <symbol id="i-power" viewBox="0 0 24 24">
         <path d="M12 3v8.5" />
         <path d="M6.6 6.6a7.6 7.6 0 1 0 10.8 0" />
@@ -52,10 +58,14 @@
         <div id="bubble" class="bubble" role="status" aria-live="polite">
           <span id="bubble-text" class="bubble-text"></span>
         </div>
+        <div id="skill-tag" class="skill-tag" aria-hidden="true">
+          <svg aria-hidden="true"><use href="#i-book" /></svg>
+          <span id="skill-name"></span>
+        </div>
         <div id="character" class="buddy-character" data-state="idle"></div>
         <div id="fx" class="fx" aria-hidden="true"></div>
       </div>
-      <!-- Helper characters (sub-agents) are added here in a later version. -->
+      <!-- Sub-agent minis (crew-view.js). -->
       <div id="actors" class="actors" aria-hidden="true"></div>
       <nav id="menu" class="menu" aria-label="Agent Buddy"></nav>
       <div id="tooltip" class="tooltip" role="tooltip"></div>
