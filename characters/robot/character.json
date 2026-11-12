@@ -1,0 +1,26 @@
+{
+  "name": "Robo",
+  "author": "Agent Buddy contributors",
+  "license": "MIT",
+  "description": "A small lilac robot with a spring antenna, dial ears, thruster boots and a laptop. Original artwork drawn for Agent Buddy.",
+  "svg": "robot.svg",
+  "css": "robot.css",
+  "bubbleAnchor": { "x": 0.44, "y": 0.06 },
+  "lookAnchor": { "x": 0.44, "y": 0.33 },
+  "blink": true,
+  "confetti": true,
+  "states": {
+    "idle": "idle",
+    "greeting": "greeting",
+    "thinking": "thinking",
+    "typing": "typing",
+    "reading": "reading",
+    "running": "running",
+    "working": "working",
+    "waiting": "waiting",
+    "asking": "asking",
+    "standby": "standby",
+    "done": "done",
+    "goodbye": "goodbye"
+  }
+}

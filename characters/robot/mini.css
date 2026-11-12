@@ -1,0 +1,253 @@
+/*
+ * Robo's helper (the mini robot for each sub-agent).
+ *
+ * The app wraps each mini SVG in <div class="buddy-mini" data-phase="...">:
+ *   data-phase  walk | brief | work | done | report | leave
+ *   data-fly    present while it flies (over other minis to report, or when
+ *               the whole buddy hovers above the ground)
+ *   data-rest   the main character is resting: stop every animation
+ * The app moves the wrapper itself (walking is a CSS transition on `left`);
+ * this file only animates the body.
+ *
+ * Kept cheap on purpose: every looping animation uses steps() at a few
+ * changes per second, and nothing loops under data-rest.
+ */
+
+.buddy-mini .rbm * {
+  transform-box: view-box;
+}
+
+.rbm-figure,
+.rbm-shadow {
+  transform-origin: 98px 182px;
+}
+
+.rbm-shadow {
+  transition: opacity 0.3s ease;
+}
+
+.rbm-leg {
+  transition: transform 0.3s ease;
+}
+
+.rbm-leg-l {
+  transform-origin: 78px 150px;
+}
+
+.rbm-leg-r {
+  transform-origin: 98px 150px;
+}
+
+.rbm-head {
+  transform-origin: 88px 99px;
+  transition: transform 0.3s cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+
+.rbm-face {
+  transition: transform 0.3s ease;
+}
+
+.rbm-arm {
+  transform-origin: 58px 112px;
+  transition: transform 0.35s cubic-bezier(0.3, 1.35, 0.5, 1);
+}
+
+.rbm-arm-front {
+  transform-origin: 118px 112px;
+  transition: transform 0.35s cubic-bezier(0.3, 1.35, 0.5, 1);
+}
+
+.rbm-forearm-front {
+  transform-origin: 118px 128px;
+  transition: transform 0.35s cubic-bezier(0.3, 1.35, 0.5, 1) 0.05s;
+}
+
+.rbm-laptop {
+  transform-origin: 156px 146.5px;
+  transform: translate(-27px, -8px) rotate(90deg) scale(0.8);
+  transition: transform 0.45s cubic-bezier(0.4, 1.25, 0.5, 1);
+}
+
+.rbm-lid {
+  transform-origin: 156px 141px;
+  transform: scaleY(0.06);
+  transition: transform 0.3s ease;
+}
+
+.rbm-eyes,
+.rbm-mouth {
+  transition: opacity 0.15s ease;
+}
+
+.rbm-eyes-happy,
+.rbm-mouth-grin,
+.rbm-code {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.rbm-flame {
+  opacity: 0;
+  transform: scale(0.4, 0.1);
+  transition:
+    opacity 0.2s ease,
+    transform 0.25s ease-out;
+}
+
+.rbm-flame-l {
+  transform-origin: 76.5px 181px;
+}
+
+.rbm-flame-r {
+  transform-origin: 100.5px 181px;
+}
+
+/* ------------------------------------------------------------ walk */
+
+.buddy-mini[data-phase='walk'] .rbm-figure {
+  animation: rbm-bob 0.4s steps(2) infinite;
+}
+
+.buddy-mini[data-phase='walk'] .rbm-leg-l {
+  animation: rbm-step 0.4s steps(2) infinite;
+}
+
+.buddy-mini[data-phase='walk'] .rbm-leg-r {
+  animation: rbm-step 0.4s steps(2) 0.2s infinite;
+}
+
+@keyframes rbm-bob {
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes rbm-step {
+  50% { transform: rotate(-14deg); }
+}
+
+/* ------------------------------------------------------------ brief: listens, then nods twice */
+
+.buddy-mini[data-phase='brief'] .rbm-head {
+  animation: rbm-nod 0.5s ease-in-out 1.2s 2;
+}
+
+.buddy-mini[data-phase='brief'] .rbm-face {
+  transform: translate(4px, -1px);
+}
+
+@keyframes rbm-nod {
+  50% { transform: rotate(9deg) translateY(2px); }
+}
+
+/* ------------------------------------------------------------ work: laptop open, typing */
+
+.buddy-mini[data-phase='work'] .rbm-laptop,
+.buddy-mini[data-phase='work'] .rbm-lid {
+  transform: none;
+}
+
+.buddy-mini[data-phase='work'] .rbm-arm-front {
+  transform: rotate(-25deg);
+}
+
+.buddy-mini[data-phase='work'] .rbm-forearm-front {
+  transform: rotate(-21deg);
+}
+
+.buddy-mini[data-phase='work'] .rbm-head {
+  transform: rotate(3deg);
+}
+
+.buddy-mini[data-phase='work'] .rbm-face {
+  transform: translate(5px, 2px);
+}
+
+.buddy-mini[data-phase='work'] .rbm-code {
+  opacity: 1;
+}
+
+.buddy-mini[data-phase='work']:not([data-rest]) .rbm-forearm-front {
+  animation: rbm-tap 0.5s steps(2) 0.5s infinite;
+}
+
+.buddy-mini[data-phase='work']:not([data-rest]) .rbm-code {
+  animation: rbm-scroll 5.6s steps(4) infinite;
+}
+
+@keyframes rbm-tap {
+  0% { transform: rotate(-26deg); }
+  50% { transform: rotate(-15deg); }
+}
+
+@keyframes rbm-scroll {
+  to { transform: translateY(-28px); }
+}
+
+/* ------------------------------------------------------------ done (waiting to report), report */
+
+.buddy-mini:is([data-phase='done'], [data-phase='report'], [data-phase='leave']) :is(.rbm-eyes, .rbm-mouth) {
+  opacity: 0;
+}
+
+.buddy-mini:is([data-phase='done'], [data-phase='report'], [data-phase='leave']) :is(.rbm-eyes-happy, .rbm-mouth-grin) {
+  opacity: 1;
+}
+
+/* Report: a salute and two little hops ("finished!"). */
+.buddy-mini[data-phase='report'] .rbm-arm {
+  transform: rotate(150deg);
+}
+
+.buddy-mini[data-phase='report'] .rbm-head {
+  transform: rotate(-5deg);
+}
+
+.buddy-mini[data-phase='report'] .rbm-figure {
+  animation: rbm-hop 0.6s cubic-bezier(0.3, 0, 0.4, 1) 0.2s 2;
+}
+
+@keyframes rbm-hop {
+  0%, 100% { transform: none; }
+  25% { transform: scale(1.06, 0.92); }
+  55% { transform: translateY(-9px) scale(0.96, 1.05); }
+  80% { transform: scale(1.03, 0.97); }
+}
+
+/* ------------------------------------------------------------ flying */
+
+.buddy-mini[data-fly] .rbm-flame {
+  opacity: 1;
+  transform: none;
+}
+
+.buddy-mini[data-fly] .rbm-leg-l {
+  transform: translate(1px, -2.5px) rotate(9deg);
+  animation: none;
+}
+
+.buddy-mini[data-fly] .rbm-leg-r {
+  transform: translate(-1px, -1.5px) rotate(-6deg);
+  animation: none;
+}
+
+.buddy-mini[data-fly] .rbm-shadow {
+  opacity: 0;
+}
+
+.buddy-mini[data-fly]:not([data-rest]) .rbm-flame {
+  animation: rbm-flicker 0.8s steps(2) infinite;
+}
+
+@keyframes rbm-flicker {
+  0%, 100% { transform: scale(1.04, 1.1); }
+  50% { transform: scale(0.92, 0.84); }
+}
+
+/* ------------------------------------------------------------ reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .buddy-mini .rbm * {
+    animation: none !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+}

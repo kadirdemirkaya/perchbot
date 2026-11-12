@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+out/
+
+# Logs and debug output
+logs/
+*.log
+npm-debug.log*
+hook-debug*.txt
+
+# Output of the Windows test scripts (test overlay home, screenshots)
+.test-artifacts/
+
+# Backups written by setup/uninstall when run against a local test folder
+*.agent-buddy-*.bak
+
+# Local Claude Code config (commands, settings) is not shared
+.claude/
+
+# Markdown stays local (notes, design docs, CLAUDE.md), except the public docs below
+*.md
+!README.md
+!CHANGELOG.md
+!CHANGES.md
+!CONTRIBUTING.md
+!THIRD_PARTY_NOTICES.md
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+coverage/

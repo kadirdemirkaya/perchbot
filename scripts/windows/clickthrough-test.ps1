@@ -1,0 +1,136 @@
+param(
+  [int]$Port = 7790,
+  [string]$TestHome = (Join-Path $env:TEMP 'agent-buddy-test-home')
+)
+# Click-through regression test for the ISOLATED test overlay
+# (start it first with start-test-overlay.ps1).
+#
+# THIS MOVES THE MOUSE AND SENDS REAL CLICKS for about 40 seconds. Do not touch
+# the mouse or keyboard while it runs.
+#
+# A plain "target" window is placed directly behind the overlay (TopMost, then
+# the overlay is put back above it). Every click that passes through the
+# overlay lands on the target and is counted.
+#
+# Safety, checked before EVERY click:
+#   - the cursor must be where the test put it (otherwise someone is using the
+#     mouse: the test stops), and
+#   - the window that would receive the click must be the target or the test
+#     overlay (otherwise the test stops). Clicks never reach other applications.
+# A preflight checks all empty points WITHOUT clicking before anything else.
+$ErrorActionPreference = 'Stop'
+. "$PSScriptRoot\winput.ps1"
+function Health { try { Invoke-RestMethod "http://127.0.0.1:$Port/health" -TimeoutSec 1 } catch { $null } }
+
+$pidFile = Join-Path $TestHome 'overlay.pid'
+if (-not (Test-Path $pidFile) -or -not (Health)) { 'test overlay is not running; start it with start-test-overlay.ps1. Nothing done.'; exit 1 }
+$MainPid = [int](Get-Content $pidFile)
+$overlay = FindOverlay $MainPid
+if ($overlay -eq [IntPtr]::Zero) { 'test overlay window not found. Nothing done.'; exit 1 }
+
+$r = New-Object U+RECT; [U]::GetWindowRect($overlay, [ref]$r) | Out-Null
+$W = $r.R - $r.L; $H = $r.B - $r.T; $k = $H / 270.0
+$sideRight = ($r.L + $W / 2) -lt ([U]::GetSystemMetrics(0) / 2)
+$slotLeft = if ($sideRight) { 0 } else { 64 }
+$menuLeft = if ($sideRight) { 220 } else { 0 }
+function Css($x, $y) { @([int]($r.L + $x * $k), [int]($r.T + $y * $k)) }
+# Points in page CSS px. The character SVG sits at slot + (10, 66), 1 SVG unit = 1 CSS px.
+$P = @{
+  hiddenMenu = Css ($menuLeft + 32) 90       # where the closed menu would be
+  topCorner  = Css ($slotLeft + 12) 12       # empty top corner
+  body       = Css ($slotLeft + 98) 195      # robot belly
+  gapNearArm = Css ($slotLeft + 45) 194      # empty, just left of the far arm
+  menuFirst  = Css ($menuLeft + 32) 87       # first menu button (quiet)
+}
+$farX = if ($sideRight) { $r.R + 100 } else { $r.L - 100 }
+$P.far = @([int]$farX, [int]($r.T + $H / 2))
+"overlay ($($r.L),$($r.T)) ${W}x${H}, $([math]::Round($k,3)) px per CSS px, menu on the $(if ($sideRight) {'right'} else {'left'})"
+
+$form = New-Object System.Windows.Forms.Form
+$form.FormBorderStyle = 'None'; $form.StartPosition = 'Manual'; $form.ShowInTaskbar = $false; $form.TopMost = $true
+$form.Bounds = New-Object System.Drawing.Rectangle ([math]::Min($r.L, $P.far[0]) - 40), ($r.T - 40), ($W + 220), ($H + 80)
+$form.BackColor = [System.Drawing.Color]::FromArgb(240, 236, 228)
+$script:clicks = 0
+$form.Add_MouseDown({ $script:clicks++ })
+$form.Show(); Pump 300
+[U]::SetWindowPos($overlay, [U]::TOPMOST, 0, 0, 0, 0, 0x0001 -bor 0x0002 -bor 0x0010) | Out-Null   # NOSIZE|NOMOVE|NOACTIVATE
+Pump 300
+$target = $form.Handle
+
+$results = New-Object System.Collections.ArrayList
+function Check($name, $ok, $detail) { [void]$results.Add([pscustomobject]@{ test = $name; result = $(if ($ok) { 'PASS' } else { 'FAIL' }); detail = $detail }) }
+function Abort($why) {
+  [U]::Move([int]([U]::GetSystemMetrics(0) / 2), 200); $form.Close()
+  $results | Format-Table -AutoSize | Out-String -Width 220
+  "STOPPED: $why. No further clicks were sent."; exit 2
+}
+function Go($pt, $ms = 250) {
+  [U]::Move($pt[0], $pt[1]); Pump $ms
+  $c = New-Object U+POINT; [U]::GetCursorPos([ref]$c) | Out-Null
+  if ([math]::Abs($c.X - $pt[0]) -gt 2 -or [math]::Abs($c.Y - $pt[1]) -gt 2) { Abort 'the cursor is not where the test put it (someone is using the mouse)' }
+}
+function SafeClick($pt) {
+  $root = RootAt $pt[0] $pt[1]
+  if ($root -ne $target -and $root -ne $overlay) { Abort "a click at ($($pt[0]),$($pt[1])) would reach another application" }
+  [U]::Down($pt[0], $pt[1]); Pump 40; [U]::Up($pt[0], $pt[1]); Pump 120
+}
+
+# Preflight (no clicks): every empty point must lead to the target window.
+foreach ($name in 'far', 'topCorner', 'hiddenMenu', 'gapNearArm') {
+  Go $P[$name] 200
+  if ((RootAt $P[$name][0] $P[$name][1]) -ne $target) { Abort "preflight: '$name' does not lead to the target window" }
+}
+'preflight ok'
+
+foreach ($name in 'topCorner', 'hiddenMenu') {
+  Go $P.far 150; Go $P[$name]
+  $before = $script:clicks; SafeClick $P[$name]
+  Check "click on empty area ($name) reaches the window below" ($script:clicks -eq $before + 1) "target +$($script:clicks - $before)"
+}
+
+Go $P.body 350
+Check 'hovering the character: overlay takes the mouse' ((RootAt $P.body[0] $P.body[1]) -eq $overlay) "health.mouse=$((Health).mouse)"
+$before = $script:clicks; SafeClick $P.body
+Check 'click on the character stays on the overlay' ($script:clicks -eq $before) "target +$($script:clicks - $before)"
+Check 'click on the character does not take focus' ([U]::GetForegroundWindow() -ne $overlay) ''
+
+Go $P.gapNearArm 120
+$before = $script:clicks; SafeClick $P.gapNearArm
+Check 'character -> empty spot next to it: click passes through' ($script:clicks -eq $before + 1) "target +$($script:clicks - $before)"
+
+Go $P.body 550; Go $P.menuFirst 300
+Check 'open menu button takes the mouse' ((RootAt $P.menuFirst[0] $P.menuFirst[1]) -eq $overlay) "health.mouse=$((Health).mouse)"
+$settingsFile = Join-Path $TestHome 'settings.json'
+$q0 = (Get-Content $settingsFile -Raw | ConvertFrom-Json).quiet
+SafeClick $P.menuFirst; Pump 300
+$q1 = (Get-Content $settingsFile -Raw | ConvertFrom-Json).quiet
+Check 'menu button click works (quiet toggled in the TEST settings)' ($q1 -ne $q0) "quiet $q0 -> $q1"
+if ($q1 -ne $q0) { SafeClick $P.menuFirst; Pump 300 }
+Go $P.far 900; Go $P.menuFirst 150
+$before = $script:clicks; SafeClick $P.menuFirst
+Check 'closed menu spot passes clicks through' ($script:clicks -eq $before + 1) "target +$($script:clicks - $before)"
+
+foreach ($delay in 0, 16, 50, 100) {
+  Go $P.far 150; Go $P.body 300
+  [U]::Move($P.gapNearArm[0], $P.gapNearArm[1]); if ($delay -gt 0) { Pump $delay }
+  $before = $script:clicks; SafeClick $P.gapNearArm
+  Check "leave the shape, click after $delay ms: passes through" ($script:clicks -eq $before + 1) "target +$($script:clicks - $before)"
+}
+
+$r0 = New-Object U+RECT; [U]::GetWindowRect($overlay, [ref]$r0) | Out-Null
+Go $P.body 300
+if ((RootAt $P.body[0] $P.body[1]) -ne $overlay) { Abort 'drag: the overlay is not under the cursor' }
+[U]::Down($P.body[0], $P.body[1]); Pump 60
+for ($i = 1; $i -le 15; $i++) { [U]::Move($P.body[0] + 10 * $i, $P.body[1] - 4 * $i); Pump 25 }
+[U]::Up($P.body[0] + 150, $P.body[1] - 60); Pump 500
+$r1 = New-Object U+RECT; [U]::GetWindowRect($overlay, [ref]$r1) | Out-Null
+Check 'drag moves the window with the cursor (+150, -60 px)' ([math]::Abs(($r1.L - $r0.L) - 150) -le 6 -and [math]::Abs(($r1.T - $r0.T) + 60) -le 6) "moved ($($r1.L - $r0.L), $($r1.T - $r0.T))"
+Check 'dropped position is saved' ($null -ne (Get-Content $settingsFile -Raw | ConvertFrom-Json).position) ''
+
+$ex = [U]::GetWindowLong($overlay, -20)
+Check 'tool window (not in Alt+Tab), never activates' ((($ex -band 0x80) -ne 0) -and (($ex -band 0x8000000) -ne 0)) ('exstyle 0x{0:X8}' -f $ex)
+
+[U]::Move([int]([U]::GetSystemMetrics(0) / 2), 200); Pump 200
+$form.Close()
+$results | Format-Table -AutoSize | Out-String -Width 220
+"passed $(@($results | Where-Object result -eq 'PASS').Count) of $($results.Count)"

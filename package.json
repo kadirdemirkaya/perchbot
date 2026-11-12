@@ -1,0 +1,30 @@
+{
+  "name": "agent-buddy",
+  "version": "0.1.0",
+  "description": "A tiny animated desktop companion that reacts to what your coding agent is doing, driven by Claude Code hooks.",
+  "license": "MIT",
+  "private": true,
+  "main": "app/main.js",
+  "keywords": [
+    "desktop-companion",
+    "overlay",
+    "electron",
+    "hooks",
+    "claude-code"
+  ],
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "simulate": "node scripts/simulate.js",
+    "setup": "node setup.js",
+    "uninstall-hooks": "node uninstall.js",
+    "test": "node --test",
+    "make-icons": "node scripts/make-icons.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "electron": "45.3.1"
+  }
+}

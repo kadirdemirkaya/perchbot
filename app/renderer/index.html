@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Agent Buddy</title>
+    <link rel="stylesheet" href="overlay.css" />
+    <script src="lib/interaction.js" defer></script>
+    <script src="renderer.js" defer></script>
+  </head>
+  <body>
+    <!-- Menu icons: original line drawings for this project (24x24 grid). -->
+    <svg class="icon-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+      <symbol id="i-bubble" viewBox="0 0 24 24">
+        <path d="M5 4.5h14a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2h-7l-4.5 3.5V17H5a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2z" />
+        <path d="M8 9.5h8M8 12.5h5" />
+      </symbol>
+      <symbol id="i-bubble-off" viewBox="0 0 24 24">
+        <path d="M5 4.5h14a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2h-7l-4.5 3.5V17H5a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2z" />
+        <path d="M3.5 3l17 18" />
+      </symbol>
+      <symbol id="i-eye" viewBox="0 0 24 24">
+        <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+        <circle cx="12" cy="12" r="3" />
+      </symbol>
+      <symbol id="i-eye-off" viewBox="0 0 24 24">
+        <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+        <circle cx="12" cy="12" r="3" />
+        <path d="M3.5 3l17 18" />
+      </symbol>
+      <symbol id="i-corner" viewBox="0 0 24 24">
+        <path d="M20.5 12.5v8h-8" />
+        <path d="M20 20L8 8" />
+        <path d="M3.5 7V3.5H7" />
+      </symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3" />
+        <circle cx="12" cy="12" r="6.5" />
+        <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" />
+      </symbol>
+      <symbol id="i-power" viewBox="0 0 24 24">
+        <path d="M12 3v8.5" />
+        <path d="M6.6 6.6a7.6 7.6 0 1 0 10.8 0" />
+      </symbol>
+    </svg>
+
+    <div id="stage" class="stage side-left">
+      <div id="slot" class="slot">
+        <div id="bubble" class="bubble" role="status" aria-live="polite">
+          <span id="bubble-text" class="bubble-text"></span>
+        </div>
+        <div id="character" class="buddy-character" data-state="idle"></div>
+        <div id="fx" class="fx" aria-hidden="true"></div>
+      </div>
+      <!-- Helper characters (sub-agents) are added here in a later version. -->
+      <div id="actors" class="actors" aria-hidden="true"></div>
+      <nav id="menu" class="menu" aria-label="Agent Buddy"></nav>
+      <div id="tooltip" class="tooltip" role="tooltip"></div>
+    </div>
+  </body>
+</html>

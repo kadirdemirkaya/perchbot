@@ -1,0 +1,540 @@
+#!/usr/bin/env node
+'use strict';
+
+/**
+ * Agent Buddy hook script. Claude Code runs it for each configured hook event
+ * and passes the event as JSON on stdin.
+ *
+ * Contract: it must never get in Claude Code's way.
+ *  - Never writes to stdout (stdout of some hooks is added to Claude's context).
+ *  - Always exits with code 0, even on errors.
+ *  - Finishes fast: one local HTTP request with a 300 ms timeout.
+ *  - Forwards only a small whitelisted summary of the event (see buildPayload):
+ *    no file contents, no prompts, no full commands, no tool output.
+ *
+ * If the overlay is not running and the event is SessionStart or
+ * UserPromptSubmit, it starts the overlay detached and hands it the event as a
+ * launch argument, then exits without waiting.
+ *
+ * Usage: node hooks/send.js [EventName] [--agent-buddy]
+ *   EventName is a fallback; hook_event_name from stdin wins.
+ *   --agent-buddy only tags the command so setup/uninstall can recognise it.
+ *
+ * Environment (all optional):
+ *   AGENT_BUDDY_HOME       settings folder (default ~/.agent-buddy)
+ *   AGENT_BUDDY_PORT       overlay port (default: settings.json "port", else 7777)
+ *   AGENT_BUDDY_DEBUG=1    append one line per event to <home>/logs/hook.log
+ *   AGENT_BUDDY_NO_LAUNCH=1  never start the overlay (used by tests)
+ *
+ * Zero dependencies: Node.js built-ins only.
+ */
+
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const http = require('node:http');
+const os = require('node:os');
+const path = require('node:path');
+const { spawn } = require('node:child_process');
+
+const START_TS = Date.now();
+const ROOT = path.resolve(__dirname, '..');
+
+const DEFAULT_PORT = 7777;
+const POST_TIMEOUT_MS = 300;
+const STDIN_TIMEOUT_MS = 1000;
+const STDIN_LIMIT_BYTES = 16 * 1024 * 1024;
+const HARD_EXIT_MS = 2500;
+const COMMAND_MAX = 40;
+const PATTERN_MAX = 30;
+const FILE_MAX = 36;
+const MAX_LOG_BYTES = 256 * 1024;
+
+const EVENTS = new Set([
+  'SessionStart',
+  'SessionEnd',
+  'UserPromptSubmit',
+  'PreToolUse',
+  'PostToolUse',
+  'PostToolUseFailure',
+  'Notification',
+  'Stop',
+  'SubagentStart',
+  'SubagentStop',
+  'UserPromptExpansion',
+]);
+const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse', 'PostToolUseFailure']);
+const AGENT_EVENTS = new Set(['SubagentStart', 'SubagentStop']);
+const LAUNCH_EVENTS = new Set(['SessionStart', 'UserPromptSubmit']);
+const AGENT_TYPE_MAX = 40;
+const SKILL_MAX = 24;
+
+const FILE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'Read', 'NotebookEdit', 'NotebookRead']);
+const PATTERN_TOOLS = new Set(['Grep', 'Glob']);
+const COMMAND_TOOLS = new Set(['Bash', 'PowerShell', 'Monitor']);
+
+/**
+ * ALLOWLIST: the only fields that may leave this process, each a string or a
+ * number. Everything else is dropped at the end of buildPayload, including
+ * any field a future Claude Code version adds to the hook input.
+ */
+const PAYLOAD_FIELDS = Object.freeze({
+  v: 'payload format version',
+  event: 'hook event name',
+  session: 'session_id',
+  ts: 'timestamp (ms) taken when the hook started',
+  tool: 'tool_name',
+  id: 'tool_use_id, pairs PreToolUse with PostToolUse',
+  detail: 'file name, shortened command (secrets masked), search pattern or web host',
+  kind: 'notification_type',
+  source: 'SessionStart source (startup / resume / clear / compact)',
+  reason: 'SessionEnd reason',
+  agent: 'short hash of agent_id (sub-agents)',
+  agentType: 'agent_type, e.g. "Explore" (sub-agents)',
+  skill: 'skill name',
+  account: 'Claude config folder name, e.g. "claude-personal" (never a full path)',
+});
+
+/** Copy only allowlisted string / number fields. */
+function allowlisted(payload) {
+  const out = {};
+  for (const key of Object.keys(PAYLOAD_FIELDS)) {
+    const value = payload[key];
+    if (typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value))) out[key] = value;
+  }
+  return out;
+}
+
+const ID_RE = /^[A-Za-z0-9._:-]+$/;
+const TOOL_RE = /^[A-Za-z0-9_.:-]{1,64}$/;
+const WORD_RE = /^[a-z_]{1,40}$/;
+const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
+
+// Secrets that commonly appear inside shell commands. Matches are replaced
+// with *** before the command is shortened, so a secret is never half-shown.
+const SECRET_PATTERNS = [
+  // Authorization schemes: "Bearer abc", "Basic abc", "token abc"
+  [/\b(Bearer|Basic|Token)\s+[^\s'"]+/gi, '$1 ***'],
+  // --password=x, --api-key x, -token x ...
+  [
+    /(--?[\w-]*(?:pass(?:word|wd)?|pwd|secret|token|api[-_]?key|apikey|auth|credential|private[-_]?key)[\w-]*)(=|\s+)("[^"]*"|'[^']*'|\S+)/gi,
+    '$1$2***',
+  ],
+  // GITHUB_TOKEN=x, $env:API_KEY = "x" ...
+  [
+    /\b([A-Za-z0-9_]*(?:pass(?:word|wd)?|pwd|secret|token|api_?key|auth|credential|private_?key)[A-Za-z0-9_]*)(\s*=\s*)("[^"]*"|'[^']*'|\S+)/gi,
+    '$1$2***',
+  ],
+  // scheme://user:password@host
+  [/([a-z][a-z0-9+.-]*:\/\/)[^\s/:@]+:[^\s/@]+@/gi, '$1***@'],
+  // curl -u user:password
+  [/(\s-u\s+)("[^"]*"|'[^']*'|\S+)/g, '$1***'],
+  // Long opaque tokens: 24+ characters mixing letters and digits
+  [/(?<![A-Za-z0-9_\-+=])(?=[A-Za-z0-9_\-+=]*\d)(?=[A-Za-z0-9_\-+=]*[A-Za-z])[A-Za-z0-9_\-+=]{24,}/g, '***'],
+];
+
+// ---------------------------------------------------------------- payload
+
+function cleanString(value) {
+  return typeof value === 'string' ? value.replace(CONTROL_CHARS, ' ') : '';
+}
+
+function shorten(text, max) {
+  return text.length > max ? text.slice(0, max - 1).trimEnd() + '\u2026' : text;
+}
+
+function maskSecrets(text) {
+  let out = text;
+  for (const [pattern, replacement] of SECRET_PATTERNS) out = out.replace(pattern, replacement);
+  return out;
+}
+
+/** "C:\\a\\b\\very-long-name.test.ts" -> "very-long-name.test.ts" (shortened, extension kept). */
+function fileLabel(filePath) {
+  if (typeof filePath !== 'string' || !filePath) return undefined;
+  const name = cleanString(filePath).split(/[\\/]/).filter(Boolean).pop();
+  if (!name) return undefined;
+  if (name.length <= FILE_MAX) return name;
+  const tail = name.slice(-10);
+  return name.slice(0, FILE_MAX - tail.length - 1) + '\u2026' + tail;
+}
+
+/** First line of a command, secrets masked, at most COMMAND_MAX characters. */
+function summarizeCommand(command) {
+  if (typeof command !== 'string') return undefined;
+  const lines = command.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return undefined;
+  let line = maskSecrets(cleanString(lines[0]).replace(/\s+/g, ' ').trim());
+  if (lines.length > 1) line += ' \u2026';
+  return shorten(line, COMMAND_MAX);
+}
+
+function summarizePattern(pattern) {
+  if (typeof pattern !== 'string') return undefined;
+  const text = maskSecrets(cleanString(pattern).replace(/\s+/g, ' ').trim());
+  return text ? shorten(text, PATTERN_MAX) : undefined;
+}
+
+function hostOf(url) {
+  if (typeof url !== 'string') return undefined;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
+    return shorten(parsed.hostname.replace(/^www\./, ''), 40);
+  } catch {
+    return undefined;
+  }
+}
+
+function toolDetail(tool, input) {
+  if (!input || typeof input !== 'object') return undefined;
+  if (FILE_TOOLS.has(tool)) return fileLabel(input.file_path || input.notebook_path);
+  if (PATTERN_TOOLS.has(tool)) return summarizePattern(input.pattern);
+  if (COMMAND_TOOLS.has(tool)) return summarizeCommand(input.command);
+  if (tool === 'WebFetch') return hostOf(input.url);
+  return undefined;
+}
+
+function safeId(value, max) {
+  return typeof value === 'string' && value.length <= max && ID_RE.test(value) ? value : undefined;
+}
+
+/** agent_id -> 10 hex characters. Pairs an agent's events without passing on the id itself. */
+function agentHash(agentId) {
+  if (typeof agentId !== 'string' || !agentId || agentId.length > 256) return undefined;
+  return crypto.createHash('sha256').update(`agent-buddy:${agentId}`).digest('hex').slice(0, 10);
+}
+
+/** agent_type such as "Explore" or "plugin:reviewer": safe characters only, at most 40. */
+function agentTypeLabel(value) {
+  if (typeof value !== 'string') return undefined;
+  const text = cleanString(value).replace(/[^A-Za-z0-9 _.:/-]/g, '').replace(/\s+/g, ' ').trim();
+  return text ? text.slice(0, AGENT_TYPE_MAX).trim() : undefined;
+}
+
+/** A skill or slash-command name: no leading "/", safe characters only, at most 24. */
+function skillLabel(value) {
+  if (typeof value !== 'string') return undefined;
+  const text = value.trim().replace(/^\/+/, '').replace(/[^A-Za-z0-9_.:/-]/g, '');
+  return text ? text.slice(0, SKILL_MAX) : undefined;
+}
+
+/**
+ * Reduce a hook input to the few fields the overlay needs.
+ * Returns null for events the overlay does not handle.
+ * @param {unknown} input  parsed stdin JSON (may be null)
+ * @param {string} [fallbackEvent]  event name from argv
+ * @param {number} [now]
+ */
+function buildPayload(input, fallbackEvent, now = Date.now()) {
+  const src = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+  const event = typeof src.hook_event_name === 'string' ? src.hook_event_name : fallbackEvent;
+  if (!EVENTS.has(event)) return null;
+
+  const payload = { v: 1, event, session: safeId(src.session_id, 128) || 'unknown', ts: now };
+
+  if (TOOL_EVENTS.has(event)) {
+    payload.tool = typeof src.tool_name === 'string' && TOOL_RE.test(src.tool_name) ? src.tool_name : 'unknown';
+    const id = safeId(src.tool_use_id, 64);
+    if (id) payload.id = id;
+    if (event === 'PreToolUse') {
+      const detail = toolDetail(payload.tool, src.tool_input);
+      if (detail) payload.detail = detail;
+    }
+  }
+  if (event === 'Notification' && typeof src.notification_type === 'string' && WORD_RE.test(src.notification_type)) {
+    payload.kind = src.notification_type;
+  }
+  if (event === 'SessionStart' && typeof src.source === 'string' && WORD_RE.test(src.source)) {
+    payload.source = src.source;
+  }
+  if (event === 'SessionEnd' && typeof src.reason === 'string' && WORD_RE.test(src.reason)) {
+    payload.reason = src.reason;
+  }
+  // Sub-agents: their tool events and Start / Stop carry agent_id (the main session's do not).
+  if (TOOL_EVENTS.has(event) || AGENT_EVENTS.has(event)) {
+    const agent = agentHash(src.agent_id);
+    if (agent) {
+      payload.agent = agent;
+      const type = agentTypeLabel(src.agent_type);
+      if (type) payload.agentType = type;
+    }
+  }
+  if (AGENT_EVENTS.has(event) && !payload.agent) return null;
+  // Skills: only the name. Through the Skill tool, or typed as a slash command.
+  if (event === 'PreToolUse' && payload.tool === 'Skill' && src.tool_input && typeof src.tool_input === 'object') {
+    const skill = skillLabel(src.tool_input.skill);
+    if (skill) payload.skill = skill;
+  }
+  if (event === 'UserPromptExpansion') {
+    if (src.expansion_type !== 'slash_command') return null;
+    const skill = skillLabel(src.command_name);
+    if (!skill) return null;
+    payload.skill = skill;
+  }
+  return allowlisted(payload);
+}
+
+// ---------------------------------------------------------------- config
+
+function readConfig(env = process.env) {
+  const home = env.AGENT_BUDDY_HOME ? path.resolve(env.AGENT_BUDDY_HOME) : path.join(os.homedir(), '.agent-buddy');
+  let settings = {};
+  try {
+    settings = JSON.parse(fs.readFileSync(path.join(home, 'settings.json'), 'utf8')) || {};
+  } catch {
+    // no settings file: defaults
+  }
+  const validPort = (p) => Number.isInteger(p) && p >= 1024 && p <= 65535;
+  const envPort = Number(env.AGENT_BUDDY_PORT);
+  return {
+    home,
+    port: validPort(envPort) ? envPort : validPort(settings.port) ? settings.port : DEFAULT_PORT,
+    debug: env.AGENT_BUDDY_DEBUG === '1' || settings.debug === true,
+    noLaunch: env.AGENT_BUDDY_NO_LAUNCH === '1',
+  };
+}
+
+/** Sessions the user closed the overlay for via the tray ("Quit now"). */
+function isMuted(home, session, now = Date.now()) {
+  try {
+    const muted = JSON.parse(fs.readFileSync(path.join(home, 'muted.json'), 'utf8'));
+    return muted.until > now && Array.isArray(muted.sessions) && muted.sessions.includes(session);
+  } catch {
+    return false;
+  }
+}
+
+function shouldLaunch(payload, config) {
+  if (config.noLaunch || !LAUNCH_EVENTS.has(payload.event)) return false;
+  if (payload.event === 'SessionStart') return true; // a fresh start always brings the buddy back
+  return !isMuted(config.home, payload.session);
+}
+
+// ---------------------------------------------------------------- I/O
+
+function readStdin() {
+  return new Promise((resolve) => {
+    if (process.stdin.isTTY) {
+      resolve('');
+      return;
+    }
+    const chunks = [];
+    let size = 0;
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve(Buffer.concat(chunks).toString('utf8'));
+    };
+    const timer = setTimeout(finish, STDIN_TIMEOUT_MS);
+    process.stdin.on('data', (chunk) => {
+      if (size < STDIN_LIMIT_BYTES) chunks.push(chunk);
+      size += chunk.length;
+    });
+    process.stdin.on('end', finish);
+    process.stdin.on('error', finish);
+  });
+}
+
+/** Resolves to 'delivered' | 'refused' | 'timeout' | 'error' | 'http-<status>'. Never rejects. */
+function post(payload, port, timeoutMs = POST_TIMEOUT_MS) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+    const body = JSON.stringify(payload);
+    const req = http.request(
+      {
+        host: '127.0.0.1',
+        port,
+        method: 'POST',
+        path: '/event',
+        agent: false,
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+      },
+      (res) => {
+        res.resume();
+        done(res.statusCode === 204 ? 'delivered' : `http-${res.statusCode}`);
+      },
+    );
+    const timer = setTimeout(() => {
+      done('timeout');
+      req.destroy();
+    }, timeoutMs);
+    req.on('error', (err) => done(err && err.code === 'ECONNREFUSED' ? 'refused' : 'error'));
+    req.end(body);
+  });
+}
+
+function electronBinary() {
+  const pkg = path.join(ROOT, 'node_modules', 'electron');
+  const relative = fs.readFileSync(path.join(pkg, 'path.txt'), 'utf8').trim();
+  const binary = path.join(pkg, 'dist', relative);
+  return fs.existsSync(binary) ? binary : null;
+}
+
+/** Start the overlay detached and hand it the event; do not wait for it. */
+function launchOverlay(payload) {
+  const binary = electronBinary();
+  if (!binary) return 'electron-missing';
+  const env = { ...process.env };
+  // Set inside VS Code's extension host; it would make Electron behave as plain Node.
+  delete env.ELECTRON_RUN_AS_NODE;
+  const arg = '--initial-event=' + Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+  const child = spawn(binary, [ROOT, arg], {
+    cwd: ROOT,
+    env,
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+  child.on('error', () => {});
+  child.unref();
+  return 'launched';
+}
+
+// ---------------------------------------------------------------- schema probe
+
+/**
+ * Developer aid for checking which fields Claude Code actually sends. OFF by
+ * default; it runs only while <home>/schema-log.on exists. It appends one JSON
+ * line per hook to <home>/logs/schema.log containing:
+ *  - field NAMES (top level, tool_input, tool_response), never their values;
+ *  - the event and tool name (identifiers, needed to read the log);
+ *  - session_id / agent_id as 8-character salted hashes, so events can be
+ *    correlated without recording the ids. The salt is the content of the
+ *    flag file; deleting that file makes the hashes meaningless.
+ */
+function schemaRecord(input, salt, env = process.env) {
+  const configDir = env.CLAUDE_CONFIG_DIR ? path.resolve(env.CLAUDE_CONFIG_DIR) : null;
+  const transcript = typeof input.transcript_path === 'string' ? path.resolve(input.transcript_path) : null;
+  const keysOf = (value) =>
+    value && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value).sort() : undefined;
+  const kind = (value) => (value === undefined ? undefined : Array.isArray(value) ? 'array' : typeof value);
+  const hash = (value) =>
+    typeof value === 'string' && value
+      ? crypto.createHash('sha256').update(`${salt}:${value}`).digest('hex').slice(0, 8)
+      : undefined;
+  const safeName = (value) => (typeof value === 'string' && TOOL_RE.test(value) ? value : undefined);
+  return {
+    event: safeName(input.hook_event_name),
+    tool: safeName(input.tool_name),
+    keys: keysOf(input),
+    tool_input: keysOf(input.tool_input),
+    tool_response: keysOf(input.tool_response),
+    tool_response_type: kind(input.tool_response),
+    session: hash(input.session_id),
+    agent: hash(input.agent_id),
+    // Booleans only: is CLAUDE_CONFIG_DIR visible to the hook, and does the
+    // transcript live under it? (No paths are recorded.)
+    env_config_dir: Boolean(configDir),
+    transcript_in_config_dir:
+      configDir && transcript ? transcript.toLowerCase().startsWith(configDir.toLowerCase() + path.sep) : undefined,
+  };
+}
+
+function schemaProbe(home, input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return;
+  let salt;
+  try {
+    salt = fs.readFileSync(path.join(home, 'schema-log.on'), 'utf8').trim();
+  } catch {
+    return; // probe is off
+  }
+  try {
+    const dir = path.join(home, 'logs');
+    fs.mkdirSync(dir, { recursive: true });
+    const line = JSON.stringify({ t: new Date().toISOString(), ...schemaRecord(input, salt) });
+    fs.appendFileSync(path.join(dir, 'schema.log'), line + '\n', 'utf8');
+  } catch {
+    // never fail because of the probe
+  }
+}
+
+function debugLog(config, line) {
+  if (!config || !config.debug) return;
+  try {
+    const dir = path.join(config.home, 'logs');
+    const file = path.join(dir, 'hook.log');
+    fs.mkdirSync(dir, { recursive: true });
+    try {
+      if (fs.statSync(file).size > MAX_LOG_BYTES) fs.renameSync(file, `${file}.1`);
+    } catch {
+      // no log yet
+    }
+    fs.appendFileSync(file, `${new Date().toISOString()} ${line}\n`, 'utf8');
+  } catch {
+    // never fail because of logging
+  }
+}
+
+// ---------------------------------------------------------------- main
+
+async function main() {
+  let config = null;
+  let payload = null;
+  let result = 'skipped';
+  try {
+    const argEvent = process.argv.slice(2).find((a) => !a.startsWith('-'));
+    // Some shells (e.g. Windows PowerShell 5.1 pipes) prepend a byte-order mark.
+    const raw = (await readStdin()).replace(/^﻿/, '');
+    let input = null;
+    try {
+      input = raw.trim() ? JSON.parse(raw) : null;
+    } catch {
+      input = null;
+    }
+    config = readConfig();
+    schemaProbe(config.home, input);
+    payload = buildPayload(input, argEvent, START_TS);
+    if (payload) {
+      result = await post(payload, config.port);
+      if (result === 'refused' && shouldLaunch(payload, config)) result = launchOverlay(payload);
+    }
+  } catch {
+    result = 'error';
+  }
+  // Only event metadata is logged: no file names, commands or prompt text.
+  if (payload) {
+    debugLog(
+      config,
+      `event=${payload.event} session=${payload.session.slice(0, 8)} tool=${payload.tool || '-'} ` +
+        `result=${result} ${Date.now() - START_TS}ms`,
+    );
+  }
+  process.exit(0);
+}
+
+if (require.main === module) {
+  // Guard rails: nothing may reach stdout, nothing may change the exit code.
+  process.stdout.write = () => true;
+  console.log = () => {};
+  process.on('uncaughtException', () => process.exit(0));
+  process.on('unhandledRejection', () => process.exit(0));
+  setTimeout(() => process.exit(0), HARD_EXIT_MS).unref();
+  main();
+}
+
+module.exports = {
+  PAYLOAD_FIELDS,
+  allowlisted,
+  buildPayload,
+  summarizeCommand,
+  summarizePattern,
+  maskSecrets,
+  fileLabel,
+  agentHash,
+  agentTypeLabel,
+  skillLabel,
+  hostOf,
+  readConfig,
+  isMuted,
+  shouldLaunch,
+  post,
+  schemaRecord,
+};
