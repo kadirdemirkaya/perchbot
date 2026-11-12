@@ -38,6 +38,14 @@ test('validateEvent: whitelist, control characters, length limits', () => {
   assert.equal(validateEvent('x'), null);
 });
 
+test('validateEvent: a pid only on SessionStart, only a positive integer', () => {
+  const start = (pid) => validateEvent({ v: 1, event: 'SessionStart', session: 's', ts: 1, pid }).pid;
+  assert.equal(start(10552), 10552);
+  for (const bad of [0, -3, 2.5, '10552', 2 ** 33, null, undefined]) assert.equal(start(bad), undefined, String(bad));
+  assert.equal(validateEvent({ v: 1, event: 'Stop', session: 's', ts: 1, pid: 10552 }).pid, undefined);
+  assert.equal(validateEvent({ v: 1, event: 'UserPromptSubmit', session: 's', ts: 1, pid: 10552 }).pid, undefined);
+});
+
 test('bundled robot character is valid and maps every state', () => {
   const { characters, errors } = discoverCharacters([path.join(ROOT, 'characters')]);
   assert.deepEqual(errors, []);

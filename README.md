@@ -49,8 +49,13 @@ Claude Code ──(hooks)──► hooks/send.js ──HTTP POST──► Agent 
 3. If the overlay is not running, a `SessionStart` or `UserPromptSubmit` event starts it
    in the background and hands it that first event.
 4. **The overlay** is a transparent, frameless, click-through Electron window. It counts
-   open sessions; when the last one ends it waves goodbye and quits. If no event arrives
-   for 30 minutes (for example after a crashed session) it quits on its own.
+   open sessions. When the last one ends it waits about 2.5 seconds (a new session often
+   follows at once: Claude Code restarted, `/clear`, a resume), then waves goodbye and quits.
+   If Claude Code was closed without its `SessionEnd` hook (terminal window closed with X,
+   a killed tab, VS Code quit), the overlay notices within about 5 seconds that the Claude
+   Code process of that session is gone and closes the session the same way. If no event
+   arrives for 30 minutes (for example when that process could not be identified) it quits
+   on its own.
 
 | State | Trigger | Animation | Bubble |
 |---|---|---|---|
@@ -347,8 +352,15 @@ The full format, the list of states and performance tips are in
   | `agent`, `agentType` | for sub-agents: a short hash of the agent id, and its type (e.g. `Explore`) |
   | `skill` | the name of a skill being used |
   | `account` | the name of the Claude config folder (e.g. `claude-personal`), never a full path |
+  | `pid` | `SessionStart` only: the process id of Claude Code, a number. To find it the hook reads the names and parent ids of its own parent processes (no command lines, no paths); only the number is passed on |
 - **Never passed on or stored:** file contents, prompts, full commands, tool output,
-  environment variables, transcripts.
+  environment variables, transcripts, anything about other processes.
+- **Process check.** For sessions with a `pid`, the overlay checks every 5 seconds whether
+  that process still exists (`process.kill(pid, 0)`: no signal is sent, nothing is started).
+  So that a reused pid is not mistaken for Claude Code, it reads the process's start time
+  when the session starts and compares it now and then (Linux: `/proc`; macOS: `ps`;
+  Windows: one PowerShell query, only for sessions that were silent for 5 minutes).
+  The start time stays in memory and is never stored or sent.
 - **Stored on disk:** only your settings. The debug log is **off by default**; when you
   turn it on it records event names, tool names, results and timings, never file names,
   commands or prompts.
@@ -409,8 +421,10 @@ deny it: loopback traffic keeps working. `electron.exe` under `node_modules` is 
 official Electron binary downloaded by npm.
 
 **The buddy stays after I closed Claude Code.** If the terminal was killed, Claude Code
-may not have run its `SessionEnd` hook. The buddy quits on its own after 30 minutes
-without events, or right away with **Quit now** in the tray menu.
+may not have run its `SessionEnd` hook. The buddy then notices within about 5 seconds that
+the Claude Code process is gone. If the hook could not identify that process (an unusual
+shell or launcher between Claude Code and the hook), the buddy quits on its own after 30
+minutes without events, or right away with **Quit now** in the tray menu.
 
 **It shows up over a full-screen video or game.** It is an always-on-top window. Use
 **Quit now**, or drag it somewhere else.
@@ -432,6 +446,7 @@ npm run simulate -- two-sessions    # checks the session counter (PASS/FAIL)
 npm run simulate -- playground      # idle buddy to try hover, menu, drag, click, resting
 npm run simulate -- --fast --keep   # shorter pauses, leave the overlay open
 npm run simulate -- life             # every ambient-life behaviour, 3 pokes, the duel, the cat
+npm run simulate -- lifecycle        # start, /clear, /resume, quick restart, crash, exit (PASS/FAIL)
 AGENT_BUDDY_DEMO=duel npm run dev   # developers: duel | trips | plays | cheers by itself
 npm test                            # unit tests (node:test, no extra dependencies)
 npm run make-icons                  # regenerate the tray icons
@@ -446,6 +461,7 @@ agent-buddy/
 ├── app/                 Electron main process, renderer and the pure logic it uses
 │   ├── main.js          window, tray, single instance, private buddy:// scheme
 │   ├── core.js          state machine, session counter, idle safety net
+│   ├── liveness.js      closes sessions whose Claude Code process is gone
 │   ├── agents.js        sub-agent registry (the helpers)
 │   ├── roam.js          trips around the screen (ambient life, being poked)
 │   ├── placement.js     corners, dragging, snapping, monitor fallback

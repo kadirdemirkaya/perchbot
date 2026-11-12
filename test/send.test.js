@@ -32,7 +32,7 @@ function runHook(stdin, env = {}, args = []) {
   return new Promise((resolve) => {
     const started = Date.now();
     const child = spawn(process.execPath, [SEND_JS, ...args], {
-      env: { ...process.env, AGENT_BUDDY_NO_LAUNCH: '1', ...env },
+      env: { ...process.env, AGENT_BUDDY_NO_LAUNCH: '1', AGENT_BUDDY_NO_PID: '1', ...env },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let stdout = '';
@@ -304,7 +304,8 @@ test('only SessionStart / UserPromptSubmit may launch, and muted sessions do not
 test('config: env port beats settings file, invalid values fall back', () => {
   const home = tmpHome();
   fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ port: 8123, debug: true }));
-  assert.deepEqual(send.readConfig({ AGENT_BUDDY_HOME: home }), { home, port: 8123, debug: true, noLaunch: false, account: 'all' });
+  assert.deepEqual(send.readConfig({ AGENT_BUDDY_HOME: home }), { home, port: 8123, debug: true, noLaunch: false, noPid: false, account: 'all' });
+  assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home, AGENT_BUDDY_NO_PID: '1' }).noPid, true);
   assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home, AGENT_BUDDY_PORT: '9001' }).port, 9001);
   assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home, AGENT_BUDDY_PORT: '80' }).port, 8123);
   fs.writeFileSync(path.join(home, 'settings.json'), '{broken');
@@ -537,6 +538,57 @@ test('allowlist: the final filter drops anything not listed, objects and non-fin
   assert.deepEqual(out, { v: 1, event: 'Stop', session: 's', ts: 5, detail: 'ok' });
   assert.deepEqual(
     Object.keys(send.PAYLOAD_FIELDS),
-    ['v', 'event', 'session', 'ts', 'tool', 'id', 'detail', 'kind', 'source', 'reason', 'agent', 'agentType', 'skill', 'account'],
+    ['v', 'event', 'session', 'ts', 'tool', 'id', 'detail', 'kind', 'source', 'reason', 'agent', 'agentType', 'skill', 'account', 'pid'],
   );
+});
+
+// ------------------------------------------------------------- Claude Code's pid
+
+test('pid: only on SessionStart, only a positive integer', () => {
+  const start = send.buildPayload({ hook_event_name: 'SessionStart', session_id: 's', source: 'startup' }, null, 1, { pid: 10552 });
+  assert.equal(start.pid, 10552);
+  assert.equal(typeof start.pid, 'number');
+  for (const event of ['UserPromptSubmit', 'PreToolUse', 'Stop', 'SessionEnd', 'Notification']) {
+    const p = send.buildPayload({ hook_event_name: event, session_id: 's', tool_name: 'Read' }, null, 1, { pid: 10552 });
+    assert.equal(p.pid, undefined, event);
+  }
+  for (const bad of [0, -1, 1.5, '10552', NaN, 2 ** 40, null, { pid: 1 }]) {
+    const p = send.buildPayload({ hook_event_name: 'SessionStart', session_id: 's' }, null, 1, { pid: bad });
+    assert.equal(p.pid, undefined, String(bad));
+  }
+  // A pid in the hook input itself is ignored: only the one the hook found counts.
+  const input = send.buildPayload({ hook_event_name: 'SessionStart', session_id: 's', pid: 7, process_id: 8 });
+  assert.equal(input.pid, undefined);
+});
+
+test('pid: walk up through shells to Claude Code, or give up', () => {
+  const chain = (...rows) => new Map(rows.map(([pid, ppid, name]) => [pid, { ppid, name }]));
+  // Windows, hooks through Git Bash (its launcher and bash itself), native claude.exe.
+  const gitBash = chain([30, 20, 'bash.exe'], [20, 10, 'bash.exe'], [10, 5, 'claude.exe'], [5, 1, 'powershell.exe'], [1, 0, 'WindowsTerminal.exe']);
+  assert.equal(send.claudePidFrom(30, gitBash), 10, 'stops at claude.exe, not at the shell above it');
+  // PowerShell instead of Git Bash; cmd in between.
+  assert.equal(send.claudePidFrom(31, chain([31, 21, 'powershell.exe'], [21, 11, 'cmd.exe'], [11, 2, 'Claude.EXE'])), 11);
+  // Installed with npm: node runs the CLI.
+  assert.equal(send.claudePidFrom(32, chain([32, 12, 'bash'], [12, 3, 'node'])), 12);
+  // VS Code: the extension host starts claude.exe.
+  assert.equal(send.claudePidFrom(33, chain([33, 13, 'bash.exe'], [13, 4, 'claude.exe'], [4, 1, 'Code.exe'])), 13);
+  // Run by hand from a terminal: the first non-shell is the terminal, not Claude Code.
+  assert.equal(send.claudePidFrom(34, chain([34, 14, 'bash.exe'], [14, 1, 'WindowsTerminal.exe'])), null);
+  assert.equal(send.claudePidFrom(35, chain([35, 15, 'pwsh.exe'], [15, 1, 'Code.exe'])), null);
+  // A gap in the chain, a loop of shells, a bad pid.
+  assert.equal(send.claudePidFrom(36, chain([36, 99, 'bash.exe'])), null);
+  assert.equal(send.claudePidFrom(37, chain([37, 37, 'sh'])), null);
+  assert.equal(send.claudePidFrom(0, chain([0, 1, 'claude'])), null);
+  // The PowerShell output format.
+  const parsed = send.parseChain('30|20|bash.exe\r\n20|10|bash.exe\n10|5|claude.exe\n\njunk\n');
+  assert.deepEqual([...parsed.keys()], [30, 20, 10]);
+  assert.equal(send.claudePidFrom(30, parsed), 10);
+});
+
+test('pid: the real lookup never throws and answers in time', async () => {
+  const started = Date.now();
+  const pid = await send.findClaudePid();
+  assert.ok(pid === null || (Number.isInteger(pid) && pid > 0));
+  assert.ok(Date.now() - started < 2500);
+  assert.equal(await send.findClaudePid(0), null);
 });

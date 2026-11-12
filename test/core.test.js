@@ -190,6 +190,8 @@ test('two sessions: the buddy stays until the last one ends, then waves and quit
   assert.deepEqual(quits, []);
 
   send('SessionEnd', { session: 'B', reason: 'logout' });
+  assert.notEqual(core.state, 'goodbye', 'a short wait first: a new session may follow');
+  clock.tick(2500);
   assert.equal(core.state, 'goodbye');
   clock.tick(2999);
   assert.deepEqual(quits, []);
@@ -245,6 +247,7 @@ test('an event during goodbye cancels quitting', () => {
   const { clock, core, quits, send } = setup();
   send('SessionStart', { session: 'A' });
   send('SessionEnd', { session: 'A', reason: 'other' });
+  clock.tick(2500);
   assert.equal(core.state, 'goodbye');
   clock.tick(1000);
   send('SessionStart', { session: 'B' });
@@ -307,7 +310,7 @@ test('sub-agent events go to the crew and never change the main character', () =
 });
 
 test('account filter: other accounts are ignored but noted; switching forgets their sessions', () => {
-  const { core, send } = setup();
+  const { clock, core, send } = setup();
   const accounts = [];
   core.on('account', (name) => accounts.push(name));
   send('SessionStart', { account: 'claude-work' });
@@ -333,11 +336,94 @@ test('account filter: other accounts are ignored but noted; switching forgets th
   send('SessionEnd', { reason: 'other', account: 'claude', session: 'other' });
   assert.equal(core.state, 'thinking', 'not ours');
   send('SessionEnd', { reason: 'other', account: 'claude-work' });
+  clock.tick(2500);
   assert.equal(core.state, 'goodbye');
 
   core.setAccountFilter('all');
   send('UserPromptSubmit', { account: 'claude', session: 'third' });
   assert.equal(core.state, 'thinking', 'all accounts again');
+});
+
+test('closing and restarting Claude Code: the buddy stays, no goodbye in between', () => {
+  const { clock, core, quits, send } = setup();
+  const states = [];
+  core.on('state', (s) => states.push(s.state));
+  send('SessionStart', { session: 'A', source: 'startup' });
+  send('UserPromptSubmit', { session: 'A' });
+  send('PreToolUse', { session: 'A', tool: 'Edit', id: 't1' });
+  send('SessionEnd', { session: 'A', reason: 'prompt_input_exit' });
+  assert.equal(core.state, 'idle', 'not left typing for a session that is gone');
+  clock.tick(2000);
+  send('SessionStart', { session: 'B', source: 'startup' });
+  clock.tick(10000);
+  assert.ok(!states.includes('goodbye'), 'it never waved goodbye');
+  assert.deepEqual(quits, []);
+  assert.equal(core.sessionCount, 1);
+
+  // With endGraceMs 0 it leaves at once (the old behaviour).
+  const now = setup({ endGraceMs: 0 });
+  now.send('SessionStart');
+  now.send('SessionEnd', { reason: 'other' });
+  assert.equal(now.core.state, 'goodbye');
+});
+
+test('a late event from a session that ended does not bring it back', () => {
+  const { clock, core, quits, send } = setup();
+  send('SessionStart', { session: 'A' });
+  send('SessionEnd', { session: 'A', reason: 'prompt_input_exit' });
+  // Async hooks can arrive after SessionEnd.
+  send('Stop', { session: 'A' });
+  send('PostToolUse', { session: 'A', tool: 'Edit', id: 't9' });
+  assert.equal(core.sessionCount, 0);
+  clock.tick(2500 + 3000);
+  assert.deepEqual(quits, ['sessions-ended']);
+
+  // ...but a resume of that session (SessionStart with the same id) does.
+  const b = setup();
+  b.send('SessionStart', { session: 'R' });
+  b.send('SessionEnd', { session: 'R', reason: 'other' });
+  b.send('SessionStart', { session: 'R', source: 'resume' });
+  assert.equal(b.core.sessionCount, 1);
+  b.send('UserPromptSubmit', { session: 'R' });
+  assert.equal(b.core.state, 'thinking');
+});
+
+test('liveness: a session whose Claude Code process died closes, then goodbye', () => {
+  const clock = new FakeClock();
+  const alive = new Set([4242, 5151]);
+  const core = new BuddyCore({
+    clock,
+    now: () => clock.now,
+    liveness: { isAlive: (pid) => alive.has(pid), startTimeOf: () => null, cheapStartTime: false },
+  });
+  const quits = [];
+  const gone = [];
+  core.on('quit', (r) => quits.push(r));
+  core.on('gone', (id, why) => gone.push([id, why]));
+  let ts = 0;
+  const send = (event, extra) => core.handle({ v: 1, event, session: 'A', ts: (ts += 10), ...extra });
+  send('SessionStart', { session: 'A', pid: 4242 });
+  send('SessionStart', { session: 'B', pid: 5151 });
+  send('SessionStart', { session: 'C' }); // no pid: only the idle timeout watches it
+  assert.equal(core.sessionCount, 3);
+
+  alive.delete(4242); // terminal closed with X: no SessionEnd
+  clock.tick(5000);
+  assert.deepEqual(gone, [['A', 'exited']]);
+  assert.equal(core.sessionCount, 2);
+  send('Stop', { session: 'A' }); // nothing comes back from it
+  assert.equal(core.sessionCount, 2);
+
+  send('SessionEnd', { session: 'C', reason: 'other' });
+  alive.delete(5151);
+  clock.tick(5000);
+  assert.equal(core.sessionCount, 0);
+  clock.tick(2500);
+  assert.equal(core.state, 'goodbye');
+  clock.tick(3000);
+  assert.deepEqual(quits, ['sessions-ended']);
+  assert.equal(core.liveness.timer, null, 'no liveness timer left');
+  core.dispose();
 });
 
 test('notice: a calm standby message that times out', () => {

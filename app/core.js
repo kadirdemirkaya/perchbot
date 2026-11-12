@@ -8,6 +8,9 @@
  *  - Turn validated hook events into a visual state ("view") for the character.
  *  - Keep tool states on screen briefly after a tool finishes (no flicker).
  *  - Track live sessions; when the last one ends, play goodbye and ask to quit.
+ *  - Close a session whose Claude Code process died without SessionEnd
+ *    (app/liveness.js), and wait a moment before goodbye in case a new session
+ *    follows (restart, /clear, resume).
  *  - Quit on its own after a long period without events (crashed sessions).
  *  - Route sub-agent events to the AgentRegistry (the "minis"); they never
  *    change the main character's state.
@@ -21,6 +24,7 @@
  *      skill is null or the name of the skill in use (the book comes out).
  *  - 'crew'  (agents)              whenever the list of sub-agents changes (see app/agents.js).
  *  - 'account' (name)              the first event of an account in this run.
+ *  - 'gone'  (session, why)        a session closed because its process is gone.
  *  - 'quit'  (reason)              when the app should exit.
  *
  * Ordering: hooks run as separate async processes, so events can arrive slightly
@@ -33,6 +37,7 @@
 const { EventEmitter } = require('node:events');
 const { stateForTool, bubbleForTool, isFileTool, TOOL_STATES } = require('./tools');
 const { AgentRegistry } = require('./agents');
+const { LivenessWatch } = require('./liveness');
 
 const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse', 'PostToolUseFailure']);
 
@@ -45,7 +50,13 @@ const DEFAULT_TIMINGS = Object.freeze({
   greetingMs: 2500,
   /** Goodbye animation length before the app quits. */
   goodbyeMs: 3000,
-  /** After SessionEnd with reason clear/resume a new session usually follows. */
+  /**
+   * After the last session ends, wait this long before waving goodbye: a new
+   * session often follows at once (Claude Code restarted, /clear, a resume).
+   * If one comes, the buddy just stays. 0 = goodbye at once.
+   */
+  endGraceMs: 2500,
+  /** The same after SessionEnd with reason clear / resume: a new session nearly always follows. */
   clearGraceMs: 4000,
   /** How long a calm notification (idle_prompt, unknown types) stays up. */
   idlePromptMs: 10000,
@@ -73,6 +84,8 @@ const SILENT_NOTIFICATIONS = new Set(['auth_success']);
 
 const RESTART_REASONS = new Set(['clear', 'resume']);
 const FINISHED_ID_LIMIT = 256;
+/** Ended sessions remembered, so a late event from one does not bring it back. */
+const ENDED_ID_LIMIT = 64;
 
 class BuddyCore extends EventEmitter {
   /**
@@ -81,11 +94,14 @@ class BuddyCore extends EventEmitter {
    * @param {{ setTimeout: Function, clearTimeout: Function }} [options.clock]
    * @param {object} [options.crew]  AgentRegistry options (idleMs, releaseMs)
    * @param {string} [options.account]  'all' (default) or the account to show
+   * @param {object|false} [options.liveness]  LivenessWatch options (app/liveness.js):
+   *   watch the Claude Code process of sessions that report a pid. Off when omitted.
+   * @param {() => number} [options.now]  current time in ms (for the liveness watch)
    */
   constructor(options = {}) {
     super();
     this.timings = { ...DEFAULT_TIMINGS, ...(options.timings || {}) };
-    this.clock = options.clock || { setTimeout, clearTimeout };
+    this.clock = options.clock || { setTimeout, clearTimeout, setInterval, clearInterval };
     /** @type {Map<string, SessionInfo>} */
     this.sessions = new Map();
     /** owner: the session whose event produced the view (null for fallbacks). */
@@ -100,6 +116,17 @@ class BuddyCore extends EventEmitter {
     this.accountFilter = options.account || 'all';
     /** Accounts that sent at least one event in this run. */
     this.seenAccounts = new Set();
+    /** Sessions that ended (SessionEnd, or their process is gone), most recent last. */
+    this.ended = new Set();
+    /** Second safety net: the Claude Code process of a session died without SessionEnd. */
+    this.liveness = options.liveness
+      ? new LivenessWatch({
+          clock: this.clock,
+          now: options.now || Date.now,
+          ...options.liveness,
+          onGone: (id, why) => this.endSession(id, why),
+        })
+      : null;
     this.crew.on('change', (agents) => this.emit('crew', agents));
     this.armIdleTimeout();
   }
@@ -150,6 +177,7 @@ class BuddyCore extends EventEmitter {
     for (const [id, session] of this.sessions) {
       if (session.account !== this.accountFilter) {
         this.sessions.delete(id);
+        if (this.liveness) this.liveness.untrack(id);
         this.crew.endSession(id);
         if (this.skill && this.skill.session === id) this.skill = null;
         dropped = true;
@@ -188,6 +216,12 @@ class BuddyCore extends EventEmitter {
     // Another account than the one the user picked: not for us. (Events
     // without an account only show when every account is shown.)
     if (this.accountFilter !== 'all' && evt.account !== this.accountFilter) return;
+    // A session that ended only comes back with a new SessionStart (a resume);
+    // a late event from it (async hooks can arrive after SessionEnd) is ignored.
+    if (this.ended.has(evt.session)) {
+      if (evt.event !== 'SessionStart') return;
+      this.ended.delete(evt.session);
+    }
     if (evt.event === 'SessionEnd') {
       this.onSessionEnd(evt);
       return;
@@ -200,6 +234,10 @@ class BuddyCore extends EventEmitter {
 
     const session = this.touch(evt.session, evt.account);
     const owner = evt.session;
+    if (this.liveness) {
+      if (evt.event === 'SessionStart' && evt.pid) this.liveness.track(evt.session, evt.pid);
+      else this.liveness.touch(evt.session);
+    }
     const stale = typeof evt.ts === 'number' && evt.ts < session.stopTs;
 
     // Sub-agents live their own life next to the main character.
@@ -277,8 +315,23 @@ class BuddyCore extends EventEmitter {
     }
   }
 
+  /**
+   * Close a session as if its SessionEnd had come: its Claude Code process is
+   * gone ('exited', or its pid now belongs to another process: 'reused').
+   * Emits 'gone' (session id, why) when the session was open.
+   */
+  endSession(id, why = 'exited') {
+    if (this.disposed || !this.sessions.has(id)) return;
+    this.emit('gone', id, why);
+    this.onSessionEnd({ event: 'SessionEnd', session: id, reason: 'gone' });
+  }
+
   onSessionEnd(evt) {
-    this.sessions.delete(evt.session);
+    const known = this.sessions.delete(evt.session);
+    if (this.liveness) this.liveness.untrack(evt.session);
+    this.ended.delete(evt.session);
+    this.ended.add(evt.session);
+    if (this.ended.size > ENDED_ID_LIMIT) this.ended.delete(this.ended.values().next().value);
     this.crew.endSession(evt.session);
     const hadSkill = Boolean(this.skill && this.skill.session === evt.session);
     if (hadSkill) this.skill = null;
@@ -290,17 +343,20 @@ class BuddyCore extends EventEmitter {
       return;
     }
 
-    if (RESTART_REASONS.has(evt.reason)) {
-      // /clear and /resume end one session and immediately start another.
-      // Wait a moment instead of waving goodbye and coming straight back.
-      this.clearTimer('empty');
-      this.timers.empty = this.clock.setTimeout(() => {
-        this.timers.empty = null;
-        if (this.sessions.size === 0) this.leave('sessions-ended');
-      }, this.timings.clearGraceMs);
-    } else {
+    // The last one: wait a moment before waving goodbye. /clear and /resume end one
+    // session and start another at once, and so does restarting Claude Code; the
+    // buddy should not vanish and come straight back. Any event cancels the wait.
+    const grace = RESTART_REASONS.has(evt.reason) ? this.timings.clearGraceMs : this.timings.endGraceMs;
+    if (!grace) {
       this.leave('sessions-ended');
+      return;
     }
+    if (known && this.view.owner === evt.session) this.showFallback();
+    this.clearTimer('empty');
+    this.timers.empty = this.clock.setTimeout(() => {
+      this.timers.empty = null;
+      if (this.sessions.size === 0) this.leave('sessions-ended');
+    }, grace);
   }
 
   /** Play goodbye, then emit 'quit' unless another event arrives first. */
@@ -326,6 +382,7 @@ class BuddyCore extends EventEmitter {
   dispose() {
     this.disposed = true;
     for (const name of Object.keys(this.timers)) this.clearTimer(name);
+    if (this.liveness) this.liveness.dispose();
     this.crew.dispose();
     this.removeAllListeners();
   }

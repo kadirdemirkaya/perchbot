@@ -13,6 +13,11 @@
  *   npm run simulate -- life            every ambient-life behaviour in turn, then three quick
  *                                       taps (it gets angry and moves: the new place is saved),
  *                                       the sword duel and the cat. No mouse needed.
+ *   npm run simulate -- lifecycle       Claude Code starting, /clear, /resume, a quick restart,
+ *                                       a crash (process killed, no SessionEnd) and a normal
+ *                                       exit, with PASS/FAIL checks. Uses stand-in "claude"
+ *                                       processes. Run it against the test overlay, or with no
+ *                                       Claude Code session open (it waits for the goodbye).
  *   npm run simulate -- --fast          shorter pauses
  *   npm run simulate -- --keep          skip the final SessionEnd (overlay stays open)
  */
@@ -39,7 +44,12 @@ const randomId = () => Math.random().toString(36).slice(2, 10);
 function hook(input) {
   return new Promise((resolve) => {
     const started = Date.now();
-    const child = spawn(process.execPath, [SEND, input.hook_event_name], { stdio: ['pipe', 'pipe', 'ignore'] });
+    // Not from a Claude Code process: no pid, so the session lives until its SessionEnd
+    // (with --keep, until the idle timeout), as before.
+    const child = spawn(process.execPath, [SEND, input.hook_event_name], {
+      stdio: ['pipe', 'pipe', 'ignore'],
+      env: { ...process.env, AGENT_BUDDY_NO_PID: '1' },
+    });
     let stdout = '';
     child.stdout.on('data', (d) => {
       stdout += d;
@@ -204,10 +214,154 @@ async function twoSessions() {
   await step('B thinking', base(b, 'UserPromptSubmit', { prompt: 'y' }), 1500);
   await step('B done', base(b, 'Stop', {}), 3500);
   await step('B ends: goodbye', base(b, 'SessionEnd', { reason: 'prompt_input_exit' }), 0);
-  await waitUntilGone(6000);
+  await waitUntilGone(10000);
   results.push(await expect('B ended, buddy gone', (h) => h === null));
   console.log(results.every(Boolean) ? '\nAll checks passed.' : '\nSome checks FAILED.');
   if (!results.every(Boolean)) process.exitCode = 1;
+}
+
+/**
+ * A stand-in for a Claude Code process: it runs hooks/send.js as its own child
+ * (as Claude Code does, minus the shell), so the hook finds THIS process as
+ * "Claude Code" and reports its pid. Killing it is a crash: no SessionEnd.
+ */
+const FAKE_CLAUDE = `
+const { spawn } = require('node:child_process');
+const lines = require('node:readline').createInterface({ input: process.stdin });
+lines.on('line', (line) => {
+  const env = { ...process.env };
+  delete env.AGENT_BUDDY_NO_PID;
+  const event = JSON.parse(line).hook_event_name;
+  const child = spawn(process.execPath, [${JSON.stringify(SEND)}, event], { stdio: ['pipe', 'ignore', 'ignore'], env });
+  child.on('close', () => process.stdout.write('done\\n'));
+  child.stdin.end(line);
+});
+setInterval(() => {}, 1 << 30);
+`;
+
+class FakeClaude {
+  constructor() {
+    this.proc = spawn(process.execPath, ['-e', FAKE_CLAUDE], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+    this.waiting = [];
+    this.proc.stdout.on('data', (d) => {
+      for (const _ of String(d).split('done').slice(1)) (this.waiting.shift() || (() => {}))();
+    });
+  }
+
+  get pid() {
+    return this.proc.pid;
+  }
+
+  /** Run one hook and wait until send.js has finished. */
+  hook(input, label) {
+    return new Promise((resolve) => {
+      const started = Date.now();
+      this.waiting.push(() => {
+        console.log(`  ${input.hook_event_name.padEnd(18)} -> ${label.padEnd(36)} (${Date.now() - started} ms)`);
+        resolve();
+      });
+      this.proc.stdin.write(JSON.stringify(input) + '\n');
+    });
+  }
+
+  /** Like closing the terminal window with X: the process is gone, no SessionEnd. */
+  kill() {
+    this.proc.kill();
+  }
+}
+
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Poll fn every 200 ms until it returns something truthy; null after timeoutMs. */
+async function waitFor(fn, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const value = await fn();
+    if (value) return value;
+    await pause(200);
+  }
+  return null;
+}
+
+/** Every state seen in the next ms ('down' = the overlay did not answer). */
+async function statesFor(ms) {
+  const seen = new Set();
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    const h = await health();
+    seen.add(h ? h.state : 'down');
+    await pause(200);
+  }
+  return [...seen];
+}
+
+async function lifecycle() {
+  const results = [];
+  const check = (label, ok, detail) => {
+    results.push(Boolean(ok));
+    console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  (${detail})` : ''}\n`);
+  };
+  const id = (name) => `life-${name}-${randomId()}`;
+  const calm = (seen) => !seen.includes('goodbye') && !seen.includes('down');
+
+  console.log('1. Claude Code starts: the buddy appears and greets, no prompt needed');
+  let claude = new FakeClaude();
+  const a = id('a');
+  await claude.hook(base(a, 'SessionStart', { source: 'startup' }), 'startup (stand-in claude, pid found by the hook)');
+  let h = await waitFor(health, 6000);
+  check('it is there after SessionStart', h && h.sessions >= 1 && ['greeting', 'idle'].includes(h.state), h ? `${h.state}, ${h.sessions} session(s)` : 'not running');
+
+  console.log('2. /clear: the session ends and the next one starts at once');
+  const b = id('b');
+  await claude.hook(base(a, 'SessionEnd', { reason: 'clear' }), 'SessionEnd (clear)');
+  await claude.hook(base(b, 'SessionStart', { source: 'clear' }), 'SessionStart (clear)');
+  let seen = await statesFor(5000);
+  check('it stays, no goodbye', calm(seen), seen.join(', '));
+
+  console.log('3. /resume: another conversation is picked');
+  const c = id('c');
+  await claude.hook(base(b, 'SessionEnd', { reason: 'resume' }), 'SessionEnd (resume)');
+  await pause(800);
+  await claude.hook(base(c, 'SessionStart', { source: 'resume' }), 'SessionStart (resume)');
+  seen = await statesFor(5000);
+  check('it stays, no goodbye', calm(seen), seen.join(', '));
+
+  console.log('4. Quit (/exit) and start Claude Code again within 1.5 s');
+  await claude.hook(base(c, 'SessionEnd', { reason: 'prompt_input_exit' }), 'SessionEnd (prompt_input_exit)');
+  claude.kill();
+  await pause(1500);
+  claude = new FakeClaude();
+  const d = id('d');
+  await claude.hook(base(d, 'SessionStart', { source: 'startup' }), 'startup (a new claude process)');
+  seen = await statesFor(5000);
+  check('it stays, no goodbye in between', calm(seen), seen.join(', '));
+
+  console.log('5. Crash: the terminal window is closed with X, no SessionEnd');
+  claude.kill();
+  console.log(`  ${''.padEnd(18)}    stand-in claude killed; liveness check every 5 s, then 2.5 s wait`);
+  const t0 = Date.now();
+  const left = await waitFor(async () => {
+    const x = await health();
+    return !x || x.state === 'goodbye' || x.sessions === 0;
+  }, 15000);
+  check('the session closes by itself, then goodbye', left, `${((Date.now() - t0) / 1000).toFixed(1)} s after the kill`);
+  await waitUntilGone(10000);
+
+  console.log('6. Claude Code starts again and exits normally');
+  claude = new FakeClaude();
+  const e = id('e');
+  await claude.hook(base(e, 'SessionStart', { source: 'startup' }), 'startup');
+  h = await waitFor(health, 6000);
+  check('it comes back at SessionStart', h && h.sessions >= 1, h ? `${h.state}, ${h.sessions} session(s)` : 'not running');
+  await claude.hook(base(e, 'SessionEnd', { reason: 'prompt_input_exit' }), 'SessionEnd (prompt_input_exit)');
+  claude.kill();
+  const t1 = Date.now();
+  const gone = await waitUntilGone(10000);
+  check('it waves goodbye and quits after the short wait', gone, `${((Date.now() - t1) / 1000).toFixed(1)} s`);
+
+  const passed = results.filter(Boolean).length;
+  console.log(passed === results.length ? `All ${passed} checks passed.` : `${results.length - passed} of ${results.length} checks FAILED.`);
+  if (passed !== results.length) process.exitCode = 1;
 }
 
 async function playground() {
@@ -273,8 +427,9 @@ async function life() {
   else if (scenario === 'tour') await tour();
   else if (scenario === 'playground') await playground();
   else if (scenario === 'life') await life();
+  else if (scenario === 'lifecycle') await lifecycle();
   else {
-    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground" or "life".`);
+    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life" or "lifecycle".`);
     process.exitCode = 1;
   }
 })();

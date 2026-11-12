@@ -23,6 +23,7 @@
  *     agentType?: string,       // sub-agent type, e.g. "Explore"
  *     skill?: string,           // skill / slash-command name (PreToolUse of Skill, UserPromptExpansion)
  *     account?: string,         // Claude config folder name, e.g. "claude-work" (any event)
+ *     pid?:    number,          // SessionStart: process id of Claude Code (liveness check)
  *   }
  *   SubagentStart / SubagentStop / UserPromptExpansion are also accepted, and
  *   Demo ({ demo: one of DEMOS }) from the simulator.
@@ -126,6 +127,7 @@ function validateEvent(raw) {
   if (raw.event === 'SessionStart') {
     const source = pick(raw.source, WORD_RE);
     if (source) evt.source = source;
+    if (Number.isInteger(raw.pid) && raw.pid > 0 && raw.pid <= 0xffffffff) evt.pid = raw.pid;
   }
   if (raw.event === 'SessionEnd') {
     const reason = pick(raw.reason, WORD_RE);

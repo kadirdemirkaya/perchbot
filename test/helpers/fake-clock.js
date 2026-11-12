@@ -14,6 +14,15 @@ class FakeClock {
     this.clearTimeout = (id) => {
       this.timers.delete(id);
     };
+    // A repeating timer: the next run is scheduled before the callback runs, so
+    // the callback may clear it.
+    this.setInterval = (fn, ms) => {
+      const id = this.nextId++;
+      const schedule = () => this.timers.set(id, { at: this.now + ms, fn: () => (schedule(), fn()) });
+      schedule();
+      return id;
+    };
+    this.clearInterval = this.clearTimeout;
   }
 
   /** Advance time, firing due timers in order (including ones they schedule). */

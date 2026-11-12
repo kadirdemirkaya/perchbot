@@ -65,6 +65,8 @@ const TILT_SPEED = 14;
 const TILT_SETTLE_MS = 140;
 /** Agent hashes from the hook (see validate.js); the page sends them back when a mini has left. */
 const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
+/** Events that start the overlay (as in hooks/send.js). */
+const LAUNCH_EVENTS = new Set(['SessionStart', 'UserPromptSubmit']);
 /** What the page may ask for (fun mode): a trip, or the right-click menu. */
 const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off']);
 /** Frame interval while the window travels. */
@@ -133,6 +135,8 @@ function start() {
   const core = new BuddyCore({
     timings: { idleTimeoutMs: settings.idleTimeoutMinutes * 60 * 1000 },
     account: settings.account,
+    // Sessions that report Claude Code's pid close when that process is gone.
+    liveness: {},
   });
 
   /** @type {Map<string, object>} */
@@ -176,7 +180,11 @@ function start() {
       log.warn(`ignored invalid event (${source})`);
       return;
     }
-    log.info(`event ${evt.event}${evt.tool ? ` tool=${evt.tool}` : ''}${evt.demo ? ` ${evt.demo}` : ''} (${source})`);
+    log.info(`event ${evt.event}${evt.tool ? ` tool=${evt.tool}` : ''}${evt.demo ? ` ${evt.demo}` : ''}${evt.pid ? ' +pid' : ''} (${source})`);
+    if (quitting) {
+      relaunchFor(evt);
+      return;
+    }
     if (evt.event === 'Demo') {
       onDemo(evt.demo);
       return;
@@ -218,6 +226,26 @@ function start() {
     else refreshTray();
   });
 
+  core.on('gone', (_session, why) => log.info(`session closed: its Claude Code process is gone (${why})`));
+
+  /**
+   * A session starts (or a prompt comes) while this instance is on its way out:
+   * the hook found the server closed and started a new overlay, but this one
+   * still holds the single-instance lock, so the event landed here. Start a
+   * fresh overlay with it once this one has exited; otherwise the buddy would
+   * only come back with the next prompt.
+   */
+  let relaunching = false;
+  function relaunchFor(evt) {
+    if (relaunching || !LAUNCH_EVENTS.has(evt.event)) return;
+    if (settings.account !== 'all' && evt.account !== settings.account) return;
+    relaunching = true;
+    const args = process.argv.slice(1).filter((a) => !a.startsWith('--initial-event='));
+    args.push('--initial-event=' + Buffer.from(JSON.stringify(evt), 'utf8').toString('base64url'));
+    log.info(`event ${evt.event} while quitting: starting again after exit`);
+    app.relaunch({ args });
+  }
+
   core.on('quit', (reason) => {
     log.info(`quitting (${reason})`);
     quitApp();
@@ -241,6 +269,7 @@ function start() {
 
   ipcMain.on('buddy:ready', (event) => {
     if (!fromPage(event)) return;
+    log.info(`renderer ready (${Math.round(process.uptime() * 1000)} ms after start)`);
     rendererReady = true;
     setCapture(false);
     sendInit();
@@ -494,7 +523,10 @@ function start() {
     if (isDev) {
       win.webContents.on('console-message', (event) => log.devOnly(`renderer: ${event.message}`));
     }
-    win.once('ready-to-show', () => win && win.showInactive());
+    win.once('ready-to-show', () => {
+      log.info(`window shown (${Math.round(process.uptime() * 1000)} ms after start)`);
+      if (win) win.showInactive();
+    });
     win.on('closed', () => {
       win = null;
       rendererReady = false;

@@ -8,9 +8,16 @@
  * Contract: it must never get in Claude Code's way.
  *  - Never writes to stdout (stdout of some hooks is added to Claude's context).
  *  - Always exits with code 0, even on errors.
- *  - Finishes fast: one local HTTP request with a 300 ms timeout.
+ *  - Finishes fast: one local HTTP request with a 300 ms timeout. On SessionStart
+ *    (registered async, so Claude Code does not wait) finding Claude Code's
+ *    process id adds up to 1.5 s (about 0.4 s on Windows, a few ms elsewhere).
  *  - Forwards only a small whitelisted summary of the event (see buildPayload):
  *    no file contents, no prompts, no full commands, no tool output.
+ *
+ * On SessionStart it also looks for the process id of Claude Code among its
+ * ancestors (see findClaudePid; only names and parent ids are read, and only
+ * the number is sent), so the overlay can tell when a session dies without
+ * SessionEnd (terminal closed with X, VS Code quit).
  *
  * If the overlay is not running and the event is SessionStart or
  * UserPromptSubmit, it starts the overlay detached and hands it the event as a
@@ -26,6 +33,7 @@
  *   AGENT_BUDDY_PORT       overlay port (default: settings.json "port", else 7777)
  *   AGENT_BUDDY_DEBUG=1    append one line per event to <home>/logs/hook.log
  *   AGENT_BUDDY_NO_LAUNCH=1  never start the overlay (used by tests)
+ *   AGENT_BUDDY_NO_PID=1   do not look for Claude Code's process id (tests, simulator)
  *
  * Zero dependencies: Node.js built-ins only.
  */
@@ -35,7 +43,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { spawn, execFile, execFileSync } = require('node:child_process');
 
 const START_TS = Date.now();
 const ROOT = path.resolve(__dirname, '..');
@@ -70,6 +78,12 @@ const AGENT_TYPE_MAX = 40;
 const SKILL_MAX = 24;
 const ACCOUNT_MAX = 40;
 const ACCOUNT_RE = /^[A-Za-z0-9._-]{1,40}$/;
+/** Shells and launchers between Claude Code and this script (Git Bash runs bash.exe twice). */
+const SHELL_NAMES = new Set(['bash', 'sh', 'dash', 'zsh', 'ksh', 'fish', 'cmd', 'powershell', 'pwsh', 'env', 'winpty']);
+/** Claude Code's own process: the native binary, or Node / Bun running the CLI. */
+const CLAUDE_NAMES = new Set(['claude', 'node', 'bun']);
+const PID_DEPTH = 6;
+const PID_TIMEOUT_MS = 1500;
 
 const FILE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'Read', 'NotebookEdit', 'NotebookRead']);
 const PATTERN_TOOLS = new Set(['Grep', 'Glob']);
@@ -95,6 +109,7 @@ const PAYLOAD_FIELDS = Object.freeze({
   agentType: 'agent_type, e.g. "Explore" (sub-agents)',
   skill: 'skill name',
   account: 'Claude config folder name, e.g. "claude-personal" (never a full path)',
+  pid: 'SessionStart only: process id of Claude Code, a number (nothing else about the process)',
 });
 
 /** Copy only allowlisted string / number fields. */
@@ -240,7 +255,8 @@ function accountName(env = process.env) {
  * @param {unknown} input  parsed stdin JSON (may be null)
  * @param {string} [fallbackEvent]  event name from argv
  * @param {number} [now]
- * @param {{ account?: string }} [extra]  the account name (see accountName)
+ * @param {{ account?: string, pid?: number }} [extra]  the account name (see accountName),
+ *   Claude Code's process id (see findClaudePid; used on SessionStart only)
  */
 function buildPayload(input, fallbackEvent, now = Date.now(), extra = {}) {
   const src = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
@@ -265,6 +281,7 @@ function buildPayload(input, fallbackEvent, now = Date.now(), extra = {}) {
   if (event === 'SessionStart' && typeof src.source === 'string' && WORD_RE.test(src.source)) {
     payload.source = src.source;
   }
+  if (event === 'SessionStart' && validPid(extra.pid)) payload.pid = extra.pid;
   if (event === 'SessionEnd' && typeof src.reason === 'string' && WORD_RE.test(src.reason)) {
     payload.reason = src.reason;
   }
@@ -292,6 +309,107 @@ function buildPayload(input, fallbackEvent, now = Date.now(), extra = {}) {
   return allowlisted(payload);
 }
 
+// ---------------------------------------------------------------- Claude Code's process id
+
+function validPid(pid) {
+  return Number.isInteger(pid) && pid > 0 && pid <= 0xffffffff;
+}
+
+/** "C:\\x\\Claude.EXE" -> "claude" */
+function processName(name) {
+  return typeof name === 'string' ? path.basename(name.trim()).toLowerCase().replace(/\.exe$/, '') : '';
+}
+
+/**
+ * Walk up from the hook's parent through shells: the first process that is
+ * not a shell is Claude Code if it is called claude / node / bun. Anything
+ * else (a terminal, an IDE, a gap in the chain): null, and no pid is sent.
+ * @param {number} start  the hook's parent pid
+ * @param {Map<number, { ppid: number, name: string }>} chain  ancestors by pid
+ * @returns {number|null}
+ */
+function claudePidFrom(start, chain) {
+  let pid = start;
+  for (let depth = 0; depth < PID_DEPTH; depth += 1) {
+    const info = chain.get(pid);
+    if (!info) return null;
+    const name = processName(info.name);
+    if (!SHELL_NAMES.has(name)) return CLAUDE_NAMES.has(name) && validPid(pid) ? pid : null;
+    pid = info.ppid;
+  }
+  return null;
+}
+
+/** "pid|ppid|name" lines -> Map. */
+function parseChain(text) {
+  const chain = new Map();
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const [pid, ppid, ...name] = line.trim().split('|');
+    const p = Number(pid);
+    if (validPid(p)) chain.set(p, { ppid: Number(ppid) || 0, name: name.join('|') });
+  }
+  return chain;
+}
+
+/**
+ * The hook's ancestors, at most PID_DEPTH of them: process id, parent id and
+ * executable name, nothing else (no command lines, no paths). Never rejects.
+ * @returns {Promise<Map<number, { ppid: number, name: string }>>}
+ */
+function readAncestors(start, platform = process.platform) {
+  return new Promise((resolve) => {
+    if (!validPid(start)) return resolve(new Map());
+    if (platform === 'win32') {
+      // One PowerShell call walks the chain (Name and ParentProcessId only).
+      const script =
+        `$p = ${start}; for ($i = 0; $i -lt ${PID_DEPTH} -and $p -gt 0; $i++) { ` +
+        '$c = Get-CimInstance Win32_Process -Filter "ProcessId=$p" -Property ProcessId,ParentProcessId,Name; ' +
+        'if (-not $c) { break }; "$($c.ProcessId)|$($c.ParentProcessId)|$($c.Name)"; $p = $c.ParentProcessId }';
+      execFile(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', script],
+        { windowsHide: true, timeout: PID_TIMEOUT_MS },
+        (err, stdout) => resolve(err ? new Map() : parseChain(stdout)),
+      );
+      return;
+    }
+    const chain = new Map();
+    try {
+      let pid = start;
+      for (let depth = 0; depth < PID_DEPTH && validPid(pid); depth += 1) {
+        let ppid;
+        let name;
+        if (platform === 'linux') {
+          // "pid (comm) state ppid ..."
+          const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+          name = stat.slice(stat.indexOf('(') + 1, stat.lastIndexOf(')'));
+          ppid = Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[1]);
+        } else {
+          const out = execFileSync('ps', ['-o', 'ppid=,comm=', '-p', String(pid)], { timeout: 300, encoding: 'utf8' });
+          const m = /^\s*(\d+)\s+(.+?)\s*$/.exec(out);
+          if (!m) break;
+          ppid = Number(m[1]);
+          name = m[2];
+        }
+        chain.set(pid, { ppid, name: processName(name) });
+        pid = ppid;
+      }
+    } catch {
+      // a gap in the chain: what was read so far
+    }
+    resolve(chain);
+  });
+}
+
+/** Claude Code's process id, or null if it cannot be found reliably. Never rejects. */
+async function findClaudePid(start = process.ppid, platform = process.platform) {
+  try {
+    return claudePidFrom(start, await readAncestors(start, platform));
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------- config
 
 function readConfig(env = process.env) {
@@ -309,6 +427,7 @@ function readConfig(env = process.env) {
     port: validPort(envPort) ? envPort : validPort(settings.port) ? settings.port : DEFAULT_PORT,
     debug: env.AGENT_BUDDY_DEBUG === '1' || settings.debug === true,
     noLaunch: env.AGENT_BUDDY_NO_LAUNCH === '1',
+    noPid: env.AGENT_BUDDY_NO_PID === '1',
     /** "all", or the one account the overlay shows (tray menu "Account"). */
     account: typeof settings.account === 'string' && ACCOUNT_RE.test(settings.account) ? settings.account : 'all',
   };
@@ -523,7 +642,9 @@ async function main() {
     }
     config = readConfig();
     schemaProbe(config.home, input);
-    payload = buildPayload(input, argEvent, START_TS, { account: accountName() });
+    const event = input && typeof input.hook_event_name === 'string' ? input.hook_event_name : argEvent;
+    const pid = event === 'SessionStart' && !config.noPid ? await findClaudePid() : null;
+    payload = buildPayload(input, argEvent, START_TS, { account: accountName(), pid });
     if (payload) {
       result = await post(payload, config.port);
       if (result === 'refused' && shouldLaunch(payload, config)) result = launchOverlay(payload);
@@ -555,6 +676,9 @@ if (require.main === module) {
 module.exports = {
   PAYLOAD_FIELDS,
   accountName,
+  claudePidFrom,
+  parseChain,
+  findClaudePid,
   allowlisted,
   buildPayload,
   summarizeCommand,
