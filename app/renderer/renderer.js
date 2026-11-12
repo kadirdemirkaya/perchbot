@@ -198,17 +198,23 @@
     flag('mood', next.mood === 'worried' ? 'worried' : null);
     stage.classList.toggle('leaving', next.state === 'goodbye');
     applySkill(next.skill || null);
-    renderBubble();
-    // Claude Code needs the character: any event ends a duel at once, and
-    // work (anything but a calm state) ends ambient life, anger and the cat's play.
-    if (duel.active) duel.stop();
+    // Claude Code needs the character: anything but idle / standby ends a duel at
+    // once (the arena goes, the sword is put away by the character's own eased
+    // transitions), and work (anything but a calm state) ends ambient life, anger
+    // and the cat's play. A line of its own gives way to the work text.
+    if (!AMBIENT_STATES.has(next.state) && duel.active) {
+      duel.stop();
+      dropQuip();
+    }
     if (!CALM.has(next.state)) {
       cancel('flee');
       cancel('anger');
       flag('annoyed', null);
       meter.reset();
       pet.interrupt();
+      dropQuip();
     }
+    renderBubble();
 
     // Every event wakes the character; idle starts the rest countdown again.
     rest.setIdle(next.state === 'idle');
@@ -237,6 +243,11 @@
       quipText = null;
       renderBubble();
     });
+  }
+
+  function dropQuip() {
+    cancel('quip');
+    quipText = null;
   }
 
   function renderBubble() {
@@ -330,7 +341,8 @@
   function zoneOf(el) {
     if (!el || !(el instanceof Element)) return null;
     if (el.closest('.duel-pad')) return 'duel';
-    if (el.closest('.menu.open .menu-button')) return 'menu';
+    // An open menu's buttons; in a duel only the Play button (it ends the duel).
+    if (el.closest('.menu.open .menu-button, .menu.duel .menu-button[data-id="play"]')) return 'menu';
     if (holder.contains(el) && el !== holder && el.closest('svg') && el.tagName.toLowerCase() !== 'svg') {
       return 'character';
     }
@@ -494,8 +506,12 @@
 
   // ---------------------------------------------------------------- hover menu
 
+  /** The items on screen now (main sends them; labels are localised there). */
+  let menuList = [];
+
   function renderMenu(items) {
-    const buttons = (items || []).map((item, index) => {
+    menuList = items || [];
+    const buttons = menuList.map((item, index) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'menu-button';
@@ -508,15 +524,40 @@
       use.setAttribute('href', `#i-${item.icon}`);
       svg.appendChild(use);
       button.appendChild(svg);
-      button.addEventListener('mouseenter', () => showTooltip(button, item.label));
+      button.addEventListener('mouseenter', () => showTooltip(button, labelOf(item)));
       button.addEventListener('mouseleave', hideTooltip);
       button.addEventListener('click', () => {
         rest.activity();
+        // The same button ends the duel it started (the page owns the duel).
+        if (item.id === 'play' && duel.active) {
+          trace('duel: stopped from the menu');
+          duel.stop();
+          return;
+        }
         window.buddy.menu(item.id);
       });
       return button;
     });
     menuEl.replaceChildren(...buttons);
+    syncMenuDuel();
+  }
+
+  const labelOf = (item) => (item.id === 'play' && duel.active && item.activeLabel ? item.activeLabel : item.label);
+
+  /**
+   * In a duel the menu keeps only the Play button, in its place and lit up
+   * (overlay.css), so the same spot that started the duel ends it.
+   */
+  function syncMenuDuel() {
+    const inDuel = duel.active;
+    menuEl.classList.toggle('duel', inDuel);
+    const item = menuList.find((i) => i.id === 'play');
+    const button = menuEl.querySelector('.menu-button[data-id="play"]');
+    if (!item || !button) return;
+    button.setAttribute('aria-label', labelOf(item));
+    button.setAttribute('aria-pressed', String(inDuel));
+    if (inDuel && button.matches(':hover')) showTooltip(button, labelOf(item));
+    else if (!inDuel && !hover.open) hideTooltip();
   }
 
   /** Tooltip next to the button, on the character's side, inside the window. */
@@ -770,6 +811,8 @@
   /** States that are not work: ambient life may run, nothing gets interrupted. */
   const CALM = new Set(['idle', 'standby', 'greeting']);
   const AMBIENT_STATES = new Set(['idle', 'standby']);
+  /** A duel may start in these (it goes on into idle / standby). */
+  const DUEL_STATES = new Set(['idle', 'standby', 'greeting', 'done']);
   const ANNOYED_MS = 1500;
   const INSPECT_MS = 3800;
   let moving = null;
@@ -978,12 +1021,19 @@
 
   function startDuel() {
     if (!motionAllowed() || duel.active) return;
+    // Not in the middle of work: the next event would end it at once.
+    if (!DUEL_STATES.has(view.state)) {
+      quip('busy', 1400);
+      return;
+    }
     hover.closeNow();
     flag('play', null);
     flag('greet', null);
+    flag('cheer', null);
     trace('duel: start');
     root.dataset.duel = '1';
     duel.start();
+    syncMenuDuel();
     updateFun();
   }
 
@@ -995,6 +1045,7 @@
       flag('face', null);
       delete root.dataset.duel;
       duelHud.classList.remove('show');
+      syncMenuDuel();
       // The arena is gone: let clicks through again right away, not only after the next move.
       const under = pointerAt ? zoneOf(document.elementFromPoint(pointerAt.x, pointerAt.y)) : null;
       capture.pointer(takesMouse(under));
@@ -1115,6 +1166,13 @@
         swing(r.left + r.width * 0.62, r.top + r.height * 0.55);
       };
       later('demo-start', 1200, startDuel);
+    } else if (name === 'menu') {
+      // The hover menu, open, with the Play button's tooltip.
+      later('demo-menu', 900, () => {
+        hover.setOpen(true);
+        const play = menuEl.querySelector('.menu-button[data-id="play"]');
+        if (play) later('demo-tip', 300, () => showTooltip(play, play.getAttribute('aria-label')));
+      });
     } else if (name === 'plays' || name === 'cheers') {
       const list = name === 'plays' ? ['stretch', 'look', 'peek', 'hum', 'jump', 'ball', 'antenna'] : ['jump', 'spin', 'dance', 'fist'];
       list.forEach((item, i) =>

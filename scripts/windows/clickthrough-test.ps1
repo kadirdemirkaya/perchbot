@@ -5,7 +5,7 @@ param(
 # Click-through regression test for the ISOLATED test overlay
 # (start it first with start-test-overlay.ps1).
 #
-# THIS MOVES THE MOUSE AND SENDS REAL CLICKS for about 50 seconds. Do not touch
+# THIS MOVES THE MOUSE AND SENDS REAL CLICKS for about 55 seconds. Do not touch
 # the mouse or keyboard while it runs.
 #
 # Run it from a normal PowerShell window. Inside a sandboxed tool (for example
@@ -45,13 +45,23 @@ $sideRight = ($r.L + $W / 2) -lt ([U]::GetSystemMetrics(0) / 2)
 $slotLeft = if ($sideRight) { 0 } else { 64 }
 $menuLeft = if ($sideRight) { 220 } else { 0 }
 function Css($x, $y) { @([int]($r.L + $x * $k), [int]($r.T + $y * $k)) }
+# The hover menu: two columns of 30 px buttons from y = 70, rows 36 px apart, row by
+# row, the first column on the outer side. Items: quiet, eyes, play, cat, [corner],
+# settings, quit.
+function MenuSpot($index) {
+  $outer = if ($sideRight) { 49 } else { 15 }; $inner = if ($sideRight) { 15 } else { 49 }
+  $x = if ($index % 2 -eq 0) { $outer } else { $inner }
+  Css ($menuLeft + $x) (85 + 36 * [math]::Floor($index / 2))
+}
 # Points in page CSS px. The character SVG sits at slot + (10, 66), 1 SVG unit = 1 CSS px.
 $P = @{
-  hiddenMenu = Css ($menuLeft + 32) 90       # where the closed menu would be
+  hiddenMenu = MenuSpot 0                    # where the closed menu's first button would be
+  hiddenPlay = MenuSpot 2                    # ... and its Play button
   topCorner  = Css ($slotLeft + 12) 12       # empty top corner
   body       = Css ($slotLeft + 98) 195      # robot belly
   gapNearArm = Css ($slotLeft + 45) 194      # empty, just left of the far arm
-  menuFirst  = Css ($menuLeft + 32) 87       # first menu button (quiet)
+  menuFirst  = MenuSpot 0                    # first menu button (quiet)
+  menuPlay   = MenuSpot 2                    # Play (sword duel)
 }
 $farX = if ($sideRight) { $r.R + 100 } else { $r.L - 100 }
 $P.far = @([int]$farX, [int]($r.T + $H / 2))
@@ -87,13 +97,13 @@ function SafeClick($pt) {
 }
 
 # Preflight (no clicks): every empty point must lead to the target window.
-foreach ($name in 'far', 'topCorner', 'hiddenMenu', 'gapNearArm') {
+foreach ($name in 'far', 'topCorner', 'hiddenMenu', 'hiddenPlay', 'gapNearArm') {
   Go $P[$name] 200
   if ((RootAt $P[$name][0] $P[$name][1]) -ne $target) { Abort "preflight: '$name' does not lead to the target window" }
 }
 'preflight ok'
 
-foreach ($name in 'topCorner', 'hiddenMenu') {
+foreach ($name in 'topCorner', 'hiddenMenu', 'hiddenPlay') {
   Go $P.far 150; Go $P[$name]
   $before = $script:clicks; SafeClick $P[$name]
   Check "click on empty area ($name) reaches the window below" ($script:clicks -eq $before + 1) "target +$($script:clicks - $before)"
@@ -120,6 +130,36 @@ if ($q1 -ne $q0) { SafeClick $P.menuFirst; Pump 300 }
 Go $P.far 900; Go $P.menuFirst 150
 $before = $script:clicks; SafeClick $P.menuFirst
 Check 'closed menu spot passes clicks through' ($script:clicks -eq $before + 1) "target +$($script:clicks - $before)"
+
+# The Play button: one click starts a duel (it turns play mode on by itself), a second
+# click on the same spot ends it, and then clicks pass through again. The duel is the
+# page's own, so its start and end are read from the [ui] trace in dev.log.
+$devLog = Join-Path $TestHome 'dev.log'
+function LogSince($from) {
+  $fs = [IO.File]::Open($devLog, 'Open', 'Read', 'ReadWrite')
+  try { [void]$fs.Seek($from, 'Begin'); (New-Object IO.StreamReader $fs).ReadToEnd() } finally { $fs.Dispose() }
+}
+$items = if ((Get-Content $settingsFile -Raw | ConvertFrom-Json).position) { 7 } else { 6 }
+$P.menuLast = MenuSpot ($items - 1)
+Go $P.far 150; Go $P.body 550; Go $P.menuPlay 300
+Check 'open menu: the Play button takes the mouse' ((RootAt $P.menuPlay[0] $P.menuPlay[1]) -eq $overlay) "health.mouse=$((Health).mouse)"
+Go $P.menuLast 200
+Check "open menu: the last button ($items items) is inside the window and takes the mouse" ((RootAt $P.menuLast[0] $P.menuLast[1]) -eq $overlay) ''
+Go $P.menuPlay 200
+$mark = (Get-Item $devLog).Length
+SafeClick $P.menuPlay; Pump 700
+$started = (LogSince $mark) -match '\[ui\] duel: start'
+$playMode = (Get-Content $settingsFile -Raw | ConvertFrom-Json).playMode
+Check 'Play starts a duel (play mode turned on in the TEST settings)' ($started -and $playMode) "duel start=$started, playMode=$playMode"
+Go $P.menuPlay 150
+Check 'in the duel the Play button stays and takes the mouse' ((RootAt $P.menuPlay[0] $P.menuPlay[1]) -eq $overlay) ''
+$mark = (Get-Item $devLog).Length
+SafeClick $P.menuPlay; Pump 500
+$ended = (LogSince $mark) -match '\[ui\] duel: stopped from the menu'
+Check 'a second click on Play ends the duel' $ended ''
+Go $P.far 300; Go $P.topCorner 200
+$before = $script:clicks; SafeClick $P.topCorner
+Check 'after the duel, clicks pass through again' ($script:clicks -eq $before + 1) "target +$($script:clicks - $before)"
 
 foreach ($delay in 0, 16, 50, 100) {
   Go $P.far 150; Go $P.body 300

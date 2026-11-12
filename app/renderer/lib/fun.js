@@ -285,11 +285,11 @@
       this.go(result, this.t.endMs, () => this.close());
     }
 
+    /** Over: no longer active, already while the 'end' callback runs. */
     close() {
       this.clearTimers();
-      this.phase = 'end';
-      this.onPhase('end', this.info());
       this.phase = null;
+      this.onPhase('end', this.info());
     }
 
     /** Stop at once (Esc, a right-click, or Claude Code needs the character). */

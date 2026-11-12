@@ -46,7 +46,7 @@ const { translate } = require('./i18n');
 const placement = require('./placement');
 const roam = require('./roam');
 const { buildTrayTemplate, buildFunMenuTemplate } = require('./tray');
-const { buildMenuItems, MENU_IDS } = require('./menu-items');
+const { buildMenuItems, MENU_IDS, switchFor } = require('./menu-items');
 const { createLogger } = require('./log');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -98,14 +98,15 @@ const MIME = {
 
 const isDev = process.argv.includes('--dev');
 /**
- * Developers only (npm run dev): AGENT_BUDDY_DEMO=duel | trips | plays | cheers
- * plays that part of fun mode by itself, for screenshots and trying things out.
+ * Developers only (npm run dev): AGENT_BUDDY_DEMO=duel | trips | plays | cheers | menu
+ * plays that part of fun mode by itself (menu: opens the hover menu), for
+ * screenshots and trying things out.
  */
-const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers']);
+const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers', 'menu']);
 const demo = isDev && DEMOS.has(process.env.AGENT_BUDDY_DEMO) ? process.env.AGENT_BUDDY_DEMO : null;
 const DEMO_TRIPS = ['stroll', 'hop', 'inspect', 'home'];
 /** Short lines in the speech bubble when it is hit or fights (locales: "quip"). */
-const QUIPS = ['ouch', 'hey', 'enough', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin'];
+const QUIPS = ['ouch', 'hey', 'enough', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy'];
 
 // Keep Chromium's own data (caches, the single-instance lock) under
 // ~/.agent-buddy too, so there is exactly one folder to delete on uninstall.
@@ -163,7 +164,7 @@ function start() {
   let demoIndex = -1;
   /** The whip from the right-click menu is in the user's hand (the page shows it). */
   let whipOn = false;
-  /** The cat is on screen (called from the menu; needs the "Cat" setting). */
+  /** The cat is on screen (called from a menu, which turns the "Cat" setting on). */
   let petOn = false;
   let petTimer = null;
 
@@ -697,15 +698,16 @@ function start() {
       away: Boolean(roamAnchor),
       whip: whipOn,
       catHere: petOn,
+      pet: hasPet(),
       on: {
         ...actions,
-        duel: () => startDuel(),
+        duel: () => playDuel(),
         trip: (kind) => startTrip(kind),
         setWhip: (value) => {
           whipOn = value;
           if (canSend()) win.webContents.send('buddy:fun', { action: 'whip', on: value });
         },
-        cat: (on) => setPet(on),
+        cat: (on) => (on ? callCat() : setPet(false)),
       },
     });
     popUpAtCursor(Menu.buildFromTemplate(template));
@@ -714,6 +716,23 @@ function start() {
   function startDuel() {
     if (settings.playMode && canSend()) win.webContents.send('buddy:fun', { action: 'duel' });
   }
+
+  /** Play (hover or right-click menu): turns play mode on if needed, then the duel starts. */
+  function playDuel() {
+    const patch = switchFor('play', settings);
+    if (patch) updateSettings(patch, startDuel);
+    else startDuel();
+  }
+
+  /** Call the cat (hover or right-click menu): turns the Cat switch on if needed. */
+  function callCat() {
+    if (!hasPet()) return;
+    const patch = switchFor('cat', settings);
+    if (patch) updateSettings(patch, () => setPet(true));
+    else setPet(true);
+  }
+
+  const hasPet = () => Boolean(character && character.pet);
 
   /**
    * The cat comes (the window makes room first) or goes (the page plays its
@@ -804,7 +823,7 @@ function start() {
   }
 
   function menuItems() {
-    return buildMenuItems(settings, { catHere: petOn });
+    return buildMenuItems(settings, { catHere: petOn, pet: hasPet() });
   }
 
   function canSend() {
@@ -878,10 +897,11 @@ function start() {
         actions.backToCorner();
         break;
       case 'play':
-        startDuel();
+        playDuel();
         break;
       case 'cat':
-        setPet(!petOn);
+        if (petOn) setPet(false);
+        else callCat();
         break;
       case 'settings':
         popUpSettings();

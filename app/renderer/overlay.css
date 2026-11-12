@@ -161,28 +161,38 @@ body {
 
 /* ---------------------------------------------------------------- hover menu */
 
+/*
+ * Two columns of round buttons in the side column (64 px), row by row, the
+ * first column on the outer side. Up to four rows (70 + 4 x 30 + 3 x 6 = 208 px)
+ * stay well inside the 270 px window. Above the duel pad (z-index 2), the minis
+ * and the cat, so a button is always what the pointer hits.
+ */
 .menu {
   position: absolute;
+  z-index: 16;
   top: 70px;
   width: var(--side);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 7px;
+  display: grid;
+  grid-template-columns: repeat(2, 30px);
+  justify-content: center;
+  column-gap: 4px;
+  row-gap: 6px;
 }
 
 .stage.side-left .menu {
   right: 220px;
 }
 
+/* Mirrored, so the first column is the outer one on both sides. */
 .stage.side-right .menu {
   left: 220px;
+  direction: rtl;
 }
 
 .menu-button {
   position: relative;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   padding: 0;
   display: grid;
   place-items: center;
@@ -219,9 +229,30 @@ body {
   transform: scale(0.94);
 }
 
+/*
+ * In a duel only Play stays, in its place, lit up in mint: a click on it ends
+ * the duel. It is the only button that takes the mouse then.
+ */
+.menu.duel .menu-button[data-id='play'] {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  transition-delay: 0s;
+  border-color: #2a2650;
+  background: #c9f3e7;
+  box-shadow:
+    0 0 0 3px rgba(79, 214, 180, 0.45),
+    0 2px 0 rgba(34, 52, 74, 0.2);
+}
+
+.menu.duel .menu-button[data-id='play']:hover {
+  background: #ffffff;
+  transform: scale(1.08);
+}
+
 .menu-button svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
@@ -232,6 +263,7 @@ body {
 
 .tooltip {
   position: absolute;
+  z-index: 17;
   top: 0;
   left: 0;
   max-width: 190px;

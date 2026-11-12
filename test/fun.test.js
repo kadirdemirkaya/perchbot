@@ -162,6 +162,13 @@ test('duel: stop() ends it at once, and a duel never runs forever', () => {
   assert.equal(d.active, false);
   assert.equal(phases.at(-1), 'end');
   d.stop(); // harmless
+  // The 'end' callback already sees an inactive duel (the page hides the arena and
+  // the duel's Play button there, and ambient life may run again).
+  let activeAtEnd = null;
+  const seen = new Duel({ clock, onPhase: (phase) => phase === 'end' && (activeAtEnd = seen.active) });
+  seen.start();
+  seen.stop();
+  assert.equal(activeAtEnd, false);
   d.start();
   // Nobody plays: hits until the robot wins, well before the time limit.
   clock.tick(D.maxMs + D.endMs + 10);

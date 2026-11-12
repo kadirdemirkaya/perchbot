@@ -119,15 +119,17 @@ function lifeToggles(settings, t, on) {
  * @param {boolean} p.away  the character is somewhere else than its home spot
  * @param {boolean} [p.whip]  the whip is in the user's hand
  * @param {boolean} [p.catHere]  the cat is on screen
+ * @param {boolean} [p.pet]  the character has a pet (default true)
  * @param {object} p.on  callbacks: duel, setWhip(bool), trip(kind), cat(bool),
  *   setAmbientLife, setPlayMode, setCat
  */
-function buildFunMenuTemplate({ settings, away, whip = false, catHere = false, on }) {
+function buildFunMenuTemplate({ settings, away, whip = false, catHere = false, pet = true, on }) {
   const t = (key) => translate(settings.language, 'fun', key);
   const life = settings.ambientLife !== false;
   const play = Boolean(settings.playMode);
   return [
-    { label: t('duel'), enabled: play, click: () => on.duel() },
+    // The duel and the cat turn their switch on by themselves (as in the hover menu).
+    { label: t('duel'), click: () => on.duel() },
     {
       label: t('whip'),
       type: 'checkbox',
@@ -140,7 +142,7 @@ function buildFunMenuTemplate({ settings, away, whip = false, catHere = false, o
     { label: t('fly'), enabled: life && settings.hoverMode !== 'stand', click: () => on.trip('hop') },
     { label: t('home'), enabled: Boolean(away), click: () => on.trip('home') },
     { type: 'separator' },
-    { label: t(catHere ? 'catAway' : 'catCall'), enabled: Boolean(settings.cat), click: () => on.cat(!catHere) },
+    { label: t(catHere ? 'catAway' : 'catCall'), enabled: Boolean(pet), click: () => on.cat(!catHere) },
     { type: 'separator' },
     ...lifeToggles(settings, (key) => translate(settings.language, 'menu', key), on),
   ];

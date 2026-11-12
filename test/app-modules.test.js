@@ -13,7 +13,7 @@ const { discoverCharacters, STATES } = require('../app/characters');
 const { LOCALES, translate } = require('../app/i18n');
 const { normalizeSettings, loadSettings, saveSettings, rememberAccount, DEFAULTS } = require('../app/settings');
 const { buildTrayTemplate, buildFunMenuTemplate } = require('../app/tray');
-const { buildMenuItems, MENU_IDS } = require('../app/menu-items');
+const { buildMenuItems, MENU_IDS, switchFor } = require('../app/menu-items');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -143,8 +143,10 @@ test('characters written before a state existed fall back to an older state', ()
 
 test('hover menu items come from settings and are localised', () => {
   const ids = (s) => buildMenuItems({ ...DEFAULTS, ...s }).map((i) => i.id);
-  assert.deepEqual(ids({}), ['quiet', 'eyes', 'settings', 'quit']);
-  assert.deepEqual(ids({ position: { x: 1, y: 2 } }), ['quiet', 'eyes', 'corner', 'settings', 'quit']);
+  assert.deepEqual(ids({}), ['quiet', 'eyes', 'play', 'cat', 'settings', 'quit']);
+  assert.deepEqual(ids({ position: { x: 1, y: 2 } }), ['quiet', 'eyes', 'play', 'cat', 'corner', 'settings', 'quit']);
+  // Two columns of 30 px buttons, rows 36 px apart from y = 70: four rows fit the 270 px window.
+  assert.ok(Math.ceil(ids({ position: { x: 1, y: 2 } }).length / 2) <= 4, 'at most four rows');
   const quiet = buildMenuItems({ ...DEFAULTS, quiet: true, language: 'tr' }).find((i) => i.id === 'quiet');
   assert.deepEqual(quiet, { id: 'quiet', icon: 'bubble-off', label: 'Baloncuğu göster' });
   for (const id of ids({ position: { x: 1, y: 2 } })) assert.ok(MENU_IDS.has(id));
@@ -259,16 +261,21 @@ test('ambient life, play mode and the cat: settings, tray, right-click and hover
   box('Cat').click({ checked: true });
   assert.deepEqual(calls.splice(0), [['setAmbientLife', false], ['setPlayMode', true], ['setCat', true]]);
 
-  // Defaults: no play, no cat; walks and flights from ambient life.
+  // Defaults: the duel and the cat are offered anyway (they turn their switch on),
+  // the whip needs play mode; walks and flights from ambient life.
   const menu = buildFunMenuTemplate({ settings: { ...DEFAULTS }, away: false, on });
   const byLabel = (m, label) => m.find((i) => i.label === label);
-  assert.equal(byLabel(menu, 'Play: sword duel').enabled, false);
+  assert.notEqual(byLabel(menu, 'Play: sword duel').enabled, false);
   assert.equal(byLabel(menu, 'Take the whip').enabled, false);
-  assert.equal(byLabel(menu, 'Call the cat').enabled, false);
+  assert.notEqual(byLabel(menu, 'Call the cat').enabled, false);
+  byLabel(menu, 'Play: sword duel').click();
+  byLabel(menu, 'Call the cat').click();
   byLabel(menu, 'Go for a walk').click();
   byLabel(menu, 'Fly somewhere').click();
   assert.equal(byLabel(menu, 'Come back home').enabled, false, 'already home');
-  assert.deepEqual(calls.splice(0), [['trip', 'stroll'], ['trip', 'hop']]);
+  assert.deepEqual(calls.splice(0), [['duel'], ['cat', true], ['trip', 'stroll'], ['trip', 'hop']]);
+  const petless = buildFunMenuTemplate({ settings: { ...DEFAULTS, cat: true }, away: false, pet: false, on });
+  assert.equal(byLabel(petless, 'Call the cat').enabled, false, 'a character without a pet');
 
   const play = buildFunMenuTemplate({ settings: { ...DEFAULTS, playMode: true, cat: true }, away: true, whip: true, catHere: false, on });
   byLabel(play, 'Play: sword duel').click();
@@ -287,12 +294,23 @@ test('ambient life, play mode and the cat: settings, tray, right-click and hover
   const tr = buildFunMenuTemplate({ settings: { ...DEFAULTS, language: 'tr' }, away: false, on });
   assert.equal(tr[0].label, 'Oyna: kılıç düellosu');
 
-  // Hover menu: a Play button in play mode, a cat button when the cat is enabled.
+  // Hover menu: Play and the cat are always there, also with their switches off.
   const ids = (s, x) => buildMenuItems({ ...DEFAULTS, ...s }, x).map((i) => i.id);
-  assert.ok(!ids({}).includes('play') && !ids({}).includes('cat'));
-  assert.ok(ids({ playMode: true }).includes('play'));
+  assert.ok(ids({}).includes('play') && ids({}).includes('cat'));
+  assert.ok(!ids({}, { pet: false }).includes('cat'), 'no cat button for a character without a pet');
   assert.ok(MENU_IDS.has('play') && MENU_IDS.has('cat'));
-  const cat = (x) => buildMenuItems({ ...DEFAULTS, cat: true }, x).find((i) => i.id === 'cat').label;
+  const playItem = (s) => buildMenuItems({ ...DEFAULTS, ...s }).find((i) => i.id === 'play');
+  assert.deepEqual(playItem({}), { id: 'play', icon: 'sword', label: 'Play: sword duel', activeLabel: 'Stop the duel' });
+  assert.deepEqual(playItem({ language: 'tr' }), { id: 'play', icon: 'sword', label: 'Oyna: kılıç düellosu', activeLabel: 'Düelloyu bitir' });
+  const cat = (x) => buildMenuItems({ ...DEFAULTS }, x).find((i) => i.id === 'cat').label;
   assert.equal(cat({}), 'Call the cat');
   assert.equal(cat({ catHere: true }), 'Send the cat away');
+  assert.equal(buildMenuItems({ ...DEFAULTS, language: 'tr' }).find((i) => i.id === 'cat').label, 'Kediyi çağır');
+
+  // A button turns on the switch it needs, once; other buttons need nothing.
+  assert.deepEqual(switchFor('play', { ...DEFAULTS }), { playMode: true });
+  assert.equal(switchFor('play', { ...DEFAULTS, playMode: true }), null);
+  assert.deepEqual(switchFor('cat', { ...DEFAULTS }), { cat: true });
+  assert.equal(switchFor('cat', { ...DEFAULTS, cat: true }), null);
+  assert.equal(switchFor('quiet', { ...DEFAULTS }), null);
 });

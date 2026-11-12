@@ -64,6 +64,7 @@
     "moreSettings": "More settings…",
     "quit": "Quit now",
     "play": "Play: sword duel",
+    "playStop": "Stop the duel",
     "catCall": "Call the cat",
     "catAway": "Send the cat away"
   },
@@ -90,6 +91,7 @@
     "hurt": "Ow!",
     "blocked": "Blocked!",
     "robotWins": "I win!",
-    "youWin": "You win!"
+    "youWin": "You win!",
+    "busy": "Working, later!"
   }
 }

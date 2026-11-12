@@ -64,6 +64,7 @@
     "moreSettings": "Diğer ayarlar…",
     "quit": "Şimdi kapat",
     "play": "Oyna: kılıç düellosu",
+    "playStop": "Düelloyu bitir",
     "catCall": "Kediyi çağır",
     "catAway": "Kediyi gönder"
   },
@@ -90,6 +91,7 @@
     "hurt": "Ah!",
     "blocked": "Bloke!",
     "robotWins": "Kazandım!",
-    "youWin": "Sen kazandın!"
+    "youWin": "Sen kazandın!",
+    "busy": "Çalışıyorum, sonra!"
   }
 }

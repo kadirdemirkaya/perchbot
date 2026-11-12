@@ -97,8 +97,8 @@ Three switches, in the tray menu and in the right-click menu:
 | Switch | Default | What it adds |
 |---|---|---|
 | **Ambient life** | on | Idle behaviours, varied cheers, getting cross when poked |
-| **Play mode** | off | *Play: sword duel* (also a sword button in the hover menu) and the whip |
-| **Cat** | off | *Call the cat* / *Send the cat away* (also a cat button in the hover menu) |
+| **Play mode** | off | *Play: sword duel* and the whip. The sword button in the hover menu is always there and turns this on by itself |
+| **Cat** | off | *Call the cat* / *Send the cat away*. The cat button in the hover menu is always there and turns this on by itself |
 
 **Ambient life.** While the buddy is idle (or on standby) and awake, every 20 to 90 seconds
 it does one short thing, never the same twice in a row: stretch and yawn, look around, a
@@ -116,21 +116,26 @@ and walks or flies off to a random spot elsewhere on the screen. That spot is sa
 place (*Back to the corner* in its menu undoes it). Handy when it sits right where you want to
 click. Helpers do the same inside their row.
 
-**Play mode.** *Play: sword duel*: the buddy puts its laptop down and draws a toy wooden
+**Play mode.** *Play: sword duel* (the sword button in the hover menu, or the right-click
+menu; one click, play mode is switched on if needed): the buddy puts its laptop down and draws a toy wooden
 sword, and the whole overlay window becomes the arena: your cursor is a sword and every click
 is a swing. It guards, raises its sword (its light blinks: get ready) and slashes at you.
 Click while it raises the sword to parry (sparks fly where the blades meet, it is stunned),
 then click again to hit it; click while it guards and it blocks and strikes back at once.
-Three hearts each. Right-click to give up. *Take the whip*: the cursor turns into a whip over
+Three hearts each. To stop, click the sword button again: during the duel it stays in its
+place, lit up in mint. A right-click gives up too. *Take the whip*: the cursor turns into a whip over
 the buddy and its helpers; every click is a lash (a crack, a wince), the third in a row sends
 it off.
 
-**The cat.** *Call the cat*: a cream cat with lilac stripes walks in, plays ball with the buddy
+**The cat.** *Call the cat* (the cat button in the hover menu, or the right-click menu; the Cat
+switch is turned on if needed): a cream cat with lilac stripes walks in, plays ball with the buddy
 for a while, then walks aside, curls up and naps until you send it away. If Claude Code needs
 the buddy while they play, the cat goes to nap at once.
 
-Any event from Claude Code ends the duel, a play or a poke reaction immediately: work comes
-first, and work notifications are never delayed.
+Anything Claude Code needs the buddy for (a prompt, a tool, a permission prompt, the end of a
+turn) ends the duel, a play or a poke reaction immediately: the arena is gone at once, the sword
+is put away and the work text shows right away. Work comes first, and work notifications are
+never delayed. A duel does not start in the middle of work ("Working, later!").
 
 When a skill is used (the `Skill` tool, or a slash command you type), the buddy takes the
 skill book out of its pocket and a tag with the skill name appears above its head; at the
@@ -156,8 +161,9 @@ main process releases the mouse whenever the cursor is outside the window.
 | Right-click it | Play (duel), whip, walk, fly, come back home, call the cat, and the three switches |
 | Leave it alone for a minute while idle | It rests: eyes half closed, no animation. Any event or hover wakes it |
 
-The hover menu: show/hide speech bubble, eyes on/off, back to the corner (after a drag),
-more settings (the full tray menu), quit.
+The hover menu, two columns of round buttons: show/hide speech bubble, eyes on/off, Play
+(sword duel; click it again to stop), call or send away the cat, back to the corner (after a
+drag), more settings (the full tray menu), quit. Play and the cat switch on what they need.
 
 ## Requirements
 
