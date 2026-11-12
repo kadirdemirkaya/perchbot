@@ -124,6 +124,7 @@ Use whatever you like; ignore the rest.
 | `--fly-tilt` | while flying: -1 to 1, the drag direction (positive = moving right); 0 at rest |
 | `data-skill` | `open` while a skill is in use (show a book, a scroll, ...), `stow` for ~0.8 s when it is put away. The app draws the tag with the skill name itself |
 | `data-brief`, `data-receive` | present for ~1.7 s when a helper is briefed / reports back. The value (`left` / `right`) is the side the helper stands on |
+| `data-talk` | up to ~1.8 s while it answers a question from the chat panel (talk, nod) |
 | `data-play` | ambient life, while idle: `stretch`, `look`, `peek`, `hum`, `jump`, `ball` or `antenna` for 1.5-4 s |
 | `data-pet` | `play` while the pet plays next to the character (it joins in) |
 | `data-cheer` | with `data-state="done"`: `jump` (the classic), `spin`, `dance` or `fist` |

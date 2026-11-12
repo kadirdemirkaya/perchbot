@@ -39,6 +39,12 @@ const ITEMS = [
     label: (s, x) => (x.catHere ? 'catAway' : 'catCall'),
     visible: (s, x) => x.pet !== false,
   },
+  // The chat panel: ready-made questions about what it is doing (app/chat.js).
+  {
+    id: 'chat',
+    icon: () => 'chat',
+    label: (s, x) => (x.chatOpen ? 'chatClose' : 'chat'),
+  },
   {
     id: 'corner',
     icon: () => 'corner',
@@ -53,8 +59,8 @@ const MENU_IDS = new Set(ITEMS.map((item) => item.id));
 
 /**
  * @param {object} settings
- * @param {{ catHere?: boolean, pet?: boolean }} [extra]  runtime state: the cat is
- *   on screen; the character has a pet (default true)
+ * @param {{ catHere?: boolean, pet?: boolean, chatOpen?: boolean }} [extra]  runtime state:
+ *   the cat is on screen; the character has a pet (default true); the chat panel is open
  * @returns {Array<{ id: string, icon: string, label: string, activeLabel?: string }>}
  */
 function buildMenuItems(settings, extra = {}) {

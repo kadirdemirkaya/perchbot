@@ -13,6 +13,7 @@
     <script src="lib/fun.js" defer></script>
     <script src="lib/pet.js" defer></script>
     <script src="lib/perf.js" defer></script>
+    <script src="lib/chat-match.js" defer></script>
     <script src="pet-view.js" defer></script>
     <script src="crew-view.js" defer></script>
     <script src="renderer.js" defer></script>
@@ -84,6 +85,15 @@
         <path d="M5 7l5 5-5 5" />
         <path d="M12.5 18h7" />
       </symbol>
+      <!-- Chat: a round speech bubble with a question mark. -->
+      <symbol id="i-chat" viewBox="0 0 24 24">
+        <path d="M12 4c4.7 0 8.5 3.1 8.5 7s-3.8 7-8.5 7c-1 0-2-.1-2.9-.4L5 19.5l1.2-3.6C4.5 14.6 3.5 12.9 3.5 11 3.5 7.1 7.3 4 12 4z" />
+        <path d="M10 9.3a2 2 0 1 1 2.7 1.9c-.5.2-.7.6-.7 1v.4" />
+        <path d="M12 14.9v.1" />
+      </symbol>
+      <symbol id="i-close" viewBox="0 0 24 24">
+        <path d="M7 7l10 10M17 7L7 17" />
+      </symbol>
       <symbol id="i-power" viewBox="0 0 24 24">
         <path d="M12 3v8.5" />
         <path d="M6.6 6.6a7.6 7.6 0 1 0 10.8 0" />
@@ -112,6 +122,20 @@
       <!-- Hits, sparks, whip cracks at the cursor. -->
       <div id="fx-top" class="fx-top" aria-hidden="true"></div>
       <nav id="menu" class="menu" aria-label="Agent Buddy"></nav>
+      <!-- The chat panel: ready-made questions; "Type…" turns into a text field. -->
+      <section id="chat" class="chat" aria-hidden="true">
+        <div class="chat-card">
+          <div class="chat-head">
+            <span id="chat-title" class="chat-title"></span>
+            <button id="chat-close" class="chat-close" type="button" tabindex="-1">
+              <svg aria-hidden="true"><use href="#i-close" /></svg>
+            </button>
+          </div>
+          <div id="chat-list" class="chat-list"></div>
+          <button id="chat-type" class="chat-q chat-type" type="button" tabindex="-1"></button>
+          <input id="chat-input" class="chat-input" type="text" maxlength="120" autocomplete="off" spellcheck="false" />
+        </div>
+      </section>
       <div id="tooltip" class="tooltip" role="tooltip"></div>
     </div>
   </body>

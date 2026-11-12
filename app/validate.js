@@ -66,6 +66,8 @@ const DEMOS = new Set([
   'menu',
   // A throw from where it is (no mouse needed), towards the middle of the screen.
   'fling',
+  // The chat panel opens, two questions are asked and answered.
+  'chat',
 ]);
 
 const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse', 'PostToolUseFailure']);

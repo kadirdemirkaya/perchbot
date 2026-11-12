@@ -15,9 +15,12 @@
  *   crew       [{ id, type, tool, file, skill, status }] sub-agents (crew-view.js draws them)
  *   move       { mode: 'walk' | 'fly' | null, face, kind, arrived, look } a trip around the screen
  *   fun        { action: 'duel' } from the right-click menu
+ *   chat       { open, strings } the panel opens / closes; { answer, intent } an answer;
+ *              { typing: false } the window lost the keyboard
  *
  * To the main process (window.buddy): ready(), capture(bool), drag(phase), menu(id),
- * crewLeft(id), fun(action) (a trip, or the right-click menu).
+ * crewLeft(id), fun(action) (a trip, or the right-click menu), chat(op, intent)
+ * (the panel; a typed question is matched to an intent here and never sent).
  *
  * Attributes this page sets on the character wrapper (the character's CSS
  * may use any of them; see characters/README.md):
@@ -52,6 +55,12 @@
   const duelHud = document.getElementById('duel-hud');
   const duelPad = document.getElementById('duel-pad');
   const fxTop = document.getElementById('fx-top');
+  const chatEl = document.getElementById('chat');
+  const chatTitle = document.getElementById('chat-title');
+  const chatList = document.getElementById('chat-list');
+  const chatClose = document.getElementById('chat-close');
+  const chatType = document.getElementById('chat-type');
+  const chatInput = document.getElementById('chat-input');
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   const CONFETTI_COLORS = ['#FFC857', '#FF8FA3', '#7EE0D2', '#8AB6FF', '#B49CFF', '#9BE564'];
@@ -78,6 +87,11 @@
   let paused = false;
   let loadToken = 0;
   let dev = false;
+  /** The chat panel is open; the user is typing in it; the answer in the bubble (see the chat section). */
+  let chatOpen = false;
+  let chatTyping = false;
+  let answerText = null;
+  let chatHold = false;
 
   /** Interaction trace, only with `npm run dev` (main forwards it to the console). */
   function trace(message) {
@@ -244,6 +258,8 @@
       pet.interrupt();
       dropQuip();
     }
+    // A chat answer gives way to work news at once (never the other way round).
+    if (answerText && next.text && (next.state !== previous.state || next.text !== previous.text)) dropAnswer();
     renderBubble();
 
     // Every event wakes the character; idle starts the rest countdown again.
@@ -337,14 +353,16 @@
   }
 
   function renderBubble() {
-    const text = settings.quiet ? '' : quipText || view.text;
+    // A chat answer shows even in quiet mode: the user asked for it.
+    const text = answerText || (settings.quiet ? '' : quipText || view.text);
+    bubble.classList.toggle('answer', Boolean(answerText));
     if (!text) {
       bubble.classList.remove('show');
       renderTrail();
       return;
     }
     bubbleText.textContent = text;
-    bubble.classList.toggle('mono', Boolean(view.mono) && !quipText);
+    bubble.classList.toggle('mono', Boolean(view.mono) && !quipText && !answerText);
     positionBubble();
     bubble.classList.add('show');
     renderTrail();
@@ -363,7 +381,7 @@
   let trailKey = '';
 
   function trailSteps() {
-    if (settings.quiet || quipText || !TRAIL_STATES.has(view.state)) return [];
+    if (settings.quiet || quipText || answerText || !TRAIL_STATES.has(view.state)) return [];
     const steps = (Array.isArray(view.steps) ? view.steps : []).filter((s) => s && STEP_ICONS[s.kind] && typeof s.text === 'string');
     const newest = steps[steps.length - 1];
     const shownNow = newest && view.text && view.text.includes(newest.text) ? 1 : 0;
@@ -476,13 +494,16 @@
   });
 
   /**
-   * 'character' | 'menu' | 'mini' | null for the element under the pointer.
-   * All three take the mouse (a mini can be picked up and moved); everything
-   * else lets clicks through to the window below.
+   * 'character' | 'menu' | 'mini' | 'duel' | 'chat' | 'bubble' | null for the
+   * element under the pointer. All of them take the mouse (a mini can be picked
+   * up and moved); everything else lets clicks through to the window below.
    */
   function zoneOf(el) {
     if (!el || !(el instanceof Element)) return null;
     if (el.closest('.duel-pad')) return 'duel';
+    // The open chat panel, and a chat answer in the bubble (a click puts it away).
+    if (el.closest('.chat.open .chat-card')) return 'chat';
+    if (el.closest('.bubble.answer.show')) return 'bubble';
     // An open menu's buttons; in a duel only the Play button (it ends the duel).
     if (el.closest('.menu.open .menu-button, .menu.duel .menu-button[data-id="play"]')) return 'menu';
     if (holder.contains(el) && el !== holder && el.closest('svg') && el.tagName.toLowerCase() !== 'svg') {
@@ -492,7 +513,8 @@
     return null;
   }
 
-  const takesMouse = (z) => z === 'character' || z === 'menu' || z === 'mini' || z === 'duel';
+  const MOUSE_ZONES = new Set(['character', 'menu', 'mini', 'duel', 'chat', 'bubble']);
+  const takesMouse = (z) => MOUSE_ZONES.has(z);
 
   let lastPointer = null;
   /** Where the cursor was last seen in this window (not reset while it rests): aim for duels. */
@@ -530,7 +552,9 @@
       trace(`pointer zone: ${next || 'none'}${at} (capturing=${capture.capturing})`);
     }
     zone = next;
-    hover.set(drag || duel.active ? null : next);
+    // The chat panel takes the menu's place: no hover menu while it is open.
+    hover.set(drag || duel.active || chatOpen ? null : next);
+    chatAway(next);
     flag('hover', next === 'character' || next === 'menu' ? true : null);
     if (enteredCharacter && !drag && !duel.active) greet();
     updateFun();
@@ -546,7 +570,10 @@
 
   document.addEventListener('mousemove', (e) => onPointerMove(e.clientX, e.clientY), { passive: true });
   document.addEventListener('mouseleave', onPointerLeave);
-  window.addEventListener('blur', onPointerLeave);
+  window.addEventListener('blur', (e) => {
+    endTyping(true);
+    onPointerLeave(e);
+  });
 
   window.buddy.onReleased(() => {
     capture.released();
@@ -915,6 +942,7 @@
     if (paused) {
       if (duel.active) duel.stop();
       hover.closeNow();
+      closeChat('paused');
       setZone(null);
       capture.released();
       rest.stop();
@@ -990,7 +1018,7 @@
    * no duel, not already on a trip. Trips only without helpers or the cat.
    */
   function updateFun() {
-    const calm = ambientOn() && !duel.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting;
+    const calm = ambientOn() && !duel.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen;
     ambient.update({ enabled: calm && AMBIENT_STATES.has(view.state), trips: crewCount === 0 && !pet.here, away });
   }
 
@@ -1179,6 +1207,7 @@
       return;
     }
     hover.closeNow();
+    closeChat('duel');
     flag('play', null);
     flag('greet', null);
     flag('cheer', null);
@@ -1284,6 +1313,8 @@
       moving = m.mode;
       // (No rest.activity(): a trip of its own must not keep it from resting.)
       capture.pointer(false);
+      // Off on a trip: the panel goes (a throw keeps it; the window keeps its size then).
+      if (m.kind !== 'fling') closeChat('trip');
       setZone(null);
       hover.closeNow();
       flag('play', null);
@@ -1308,6 +1339,185 @@
       trace(`trip: ${m.kind} ${m.arrived ? 'arrived' : 'stopped'}`);
     }
     updateFun();
+  }
+
+  // ---------------------------------------------------------------- chat
+
+  /**
+   * The chat panel (main.js opens it from the hover menu): ready-made
+   * questions; main answers from what the overlay already knows (app/chat.js)
+   * and the character says it in the bubble. "Type…" turns into a text field:
+   * only then may the window take the keyboard. A typed question is matched to
+   * one of the questions right here (lib/chat-match.js) and the field is
+   * emptied at once: the text is not kept, logged or sent anywhere.
+   *
+   * It closes with its x, Esc while typing, or when the pointer has been away
+   * for a moment (not while typing).
+   */
+  const { matchIntent, answerMs } = window.BuddyChatMatch;
+  const CHAT_AWAY_MS = 2500;
+  const NUDGE_MS = 1400;
+  const TALK_MAX_MS = 1800;
+  function applyChat(msg) {
+    if (!msg || typeof msg !== 'object') return;
+    if (typeof msg.answer === 'string') {
+      showAnswer(msg.answer, msg.intent);
+      return;
+    }
+    if (msg.strings) renderChat(msg.strings);
+    // The simulator opens it with no pointer around: it does not close by itself then.
+    if (msg.open === true) chatHold = msg.hold === true;
+    if (typeof msg.open === 'boolean') setChatOpen(msg.open);
+    if (msg.typing === false) endTyping(false);
+  }
+
+  function renderChat(strings) {
+    chatTitle.textContent = strings.title || '';
+    chatClose.setAttribute('aria-label', strings.close || '');
+    chatType.textContent = strings.type || '';
+    chatInput.placeholder = strings.placeholder || '';
+    const questions = Array.isArray(strings.questions) ? strings.questions : [];
+    chatList.replaceChildren(
+      ...questions.map((q) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.tabIndex = -1;
+        button.className = 'chat-q';
+        button.textContent = q.label;
+        button.addEventListener('click', () => ask(q.id));
+        return button;
+      }),
+    );
+  }
+
+  function setChatOpen(open) {
+    if (open === chatOpen) return;
+    chatOpen = open;
+    chatEl.classList.toggle('open', open);
+    chatEl.setAttribute('aria-hidden', String(!open));
+    crew.setMenuOpen(open || hover.open);
+    cancel('chat-away');
+    if (open) {
+      hover.closeNow();
+      hideTooltip();
+    } else {
+      endTyping(false);
+      chatEl.classList.remove('nudge');
+    }
+    trace(`chat ${open ? 'open' : 'closed'}`);
+    perfMark(open ? 'chat open' : 'chat close');
+    // What is under the pointer now (a closed panel lets clicks through at once).
+    const under = pointerAt && !drag ? zoneOf(document.elementFromPoint(pointerAt.x, pointerAt.y)) : null;
+    capture.pointer(takesMouse(under));
+    setZone(under);
+    updateFun();
+  }
+
+  /** Close from the page: hide at once, then tell main (the window narrows). */
+  function closeChat(why) {
+    if (!chatOpen) return;
+    trace(`chat: close (${why})`);
+    setChatOpen(false);
+    window.buddy.chat('close');
+  }
+
+  /** The pointer left the panel (and the character): close after a moment, unless typing. */
+  function chatAway(next) {
+    if (!chatOpen || chatHold) return;
+    if (chatTyping || next === 'chat' || next === 'bubble' || next === 'character' || next === 'mini') {
+      cancel('chat-away');
+    } else if (!timers.has('chat-away')) {
+      later('chat-away', CHAT_AWAY_MS, () => {
+        if (!chatTyping) closeChat('pointer away');
+      });
+    }
+  }
+
+  function ask(intent) {
+    if (!chatOpen) return;
+    rest.activity();
+    trace(`chat: ask ${intent}`);
+    window.buddy.chat('ask', intent);
+  }
+
+  function showAnswer(text, intent) {
+    if (!chatOpen || !text) return;
+    answerText = text;
+    renderBubble();
+    const ms = answerMs(text);
+    later('answer', ms, () => {
+      answerText = null;
+      renderBubble();
+    });
+    if (motionAllowed()) {
+      flag('talk', true, true);
+      later('talk', Math.min(TALK_MAX_MS, ms), () => flag('talk', null));
+    }
+    // "I don't know that, but you can ask me these": point at the questions.
+    if (intent === 'unknown') {
+      chatEl.classList.add('nudge');
+      later('chat-nudge', NUDGE_MS, () => chatEl.classList.remove('nudge'));
+    }
+    trace(`chat: answer (${intent})`);
+  }
+
+  function dropAnswer() {
+    cancel('answer');
+    cancel('talk');
+    flag('talk', null);
+    answerText = null;
+  }
+
+  // A click on the answer puts it away.
+  bubble.addEventListener('click', () => {
+    if (!answerText) return;
+    dropAnswer();
+    renderBubble();
+    const under = pointerAt ? zoneOf(document.elementFromPoint(pointerAt.x, pointerAt.y)) : null;
+    capture.pointer(takesMouse(under));
+    setZone(under);
+  });
+
+  chatClose.addEventListener('click', () => closeChat('x'));
+
+  chatType.addEventListener('click', () => {
+    if (!chatOpen || chatTyping) return;
+    chatTyping = true;
+    chatEl.classList.add('typing');
+    cancel('chat-away');
+    chatInput.value = '';
+    window.buddy.chat('type');
+    chatInput.focus();
+    trace('chat: typing');
+  });
+
+  // The window got the keyboard (main focused it): straight into the field.
+  window.addEventListener('focus', () => {
+    if (chatTyping) chatInput.focus();
+  });
+
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeChat('esc');
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const intent = matchIntent(chatInput.value);
+      chatInput.value = ''; // not kept, not even in the field
+      ask(intent || 'unknown');
+    }
+  });
+
+  /** Typing is over (Esc, closed, or the user clicked another window). */
+  function endTyping(tellMain) {
+    if (!chatTyping) return;
+    chatTyping = false;
+    chatInput.value = '';
+    chatInput.blur();
+    chatEl.classList.remove('typing');
+    trace('chat: typing done');
+    if (tellMain) window.buddy.chat('untype');
+    chatAway(zone);
   }
 
   // ---------------------------------------------------------------- wiring
@@ -1410,6 +1620,7 @@
   });
   window.buddy.onMove((m) => applyMove(m));
   window.buddy.onFlip((phase) => onFlip(phase));
+  window.buddy.onChat((msg) => applyChat(msg));
   window.buddy.onFun((msg) => {
     if (msg && msg.action === 'duel') startDuel();
     if (msg && msg.action === 'whip') setWeapon(msg.on ? 'whip' : 'hand');

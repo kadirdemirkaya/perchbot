@@ -2,11 +2,14 @@
 
 /**
  * The only bridge between the sandboxed page and the main process.
- * The page receives display data and can send back exactly seven things:
+ * The page receives display data and can send back exactly these things:
  * "ready", "capture the mouse: yes/no", a drag phase, a menu item id, the id
  * of a mini that finished its exit scene, a fun-mode request (a trip around
- * the screen, or the right-click menu), and "a frame was drawn" during a trip
- * (the window then moves in step with the display).
+ * the screen, or the right-click menu), "a frame was drawn" during a trip
+ * (the window then moves in step with the display), "hidden" while switching
+ * sides, and a chat request: open / close the panel, typing on / off, or a
+ * question as one of the chat's intents. Typed text never crosses this
+ * bridge: the page matches it to an intent itself (lib/chat-match.js).
  * The main process validates every value again.
  */
 
@@ -16,6 +19,8 @@ const on = (channel) => (callback) => ipcRenderer.on(channel, (_event, data) => 
 const DRAG_PHASES = new Set(['start', 'move', 'end', 'cancel']);
 const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
 const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off']);
+const CHAT_OPS = new Set(['open', 'close', 'type', 'untype', 'ask']);
+const INTENT_RE = /^[a-z]{2,12}$/;
 
 contextBridge.exposeInMainWorld('buddy', {
   onInit: on('buddy:init'),
@@ -31,6 +36,7 @@ contextBridge.exposeInMainWorld('buddy', {
   onFun: on('buddy:fun'),
   onReleased: on('buddy:released'),
   onFlip: on('buddy:flip'),
+  onChat: on('buddy:chat'),
   ready: () => ipcRenderer.send('buddy:ready'),
   capture: (wanted) => ipcRenderer.send('buddy:capture', wanted === true),
   drag: (phase) => {
@@ -44,6 +50,11 @@ contextBridge.exposeInMainWorld('buddy', {
   },
   tripFrame: () => ipcRenderer.send('buddy:trip-frame'),
   flipReady: () => ipcRenderer.send('buddy:flip-ready'),
+  chat: (op, intent) => {
+    if (!CHAT_OPS.has(op)) return;
+    if (op !== 'ask') ipcRenderer.send('buddy:chat', { op });
+    else if (typeof intent === 'string' && INTENT_RE.test(intent)) ipcRenderer.send('buddy:chat', { op, intent });
+  },
   crewLeft: (id) => {
     if (typeof id === 'string' && id.length <= 32 && AGENT_ID_RE.test(id)) ipcRenderer.send('buddy:crew-left', id);
   },

@@ -792,6 +792,23 @@
   transform: rotate(-22deg);
 }
 
+/* Answering a chat question (data-talk): the same talking mouth and a nod. */
+.buddy-character[data-talk]:not(:is([data-state='waiting'], [data-state='asking'], [data-state='greeting'], [data-state='goodbye'], [data-state='done']))
+  .rb-head {
+  animation: rb-brief-nod 0.9s ease-in-out 2;
+}
+
+.buddy-character[data-talk]:not(:is([data-state='waiting'], [data-state='asking'], [data-state='greeting'], [data-state='goodbye'], [data-state='done']))
+  .rb-mouth {
+  opacity: 0;
+}
+
+.buddy-character[data-talk]:not(:is([data-state='waiting'], [data-state='asking'], [data-state='greeting'], [data-state='goodbye'], [data-state='done']))
+  .rb-mouth-o {
+  opacity: 1;
+  animation: rb-talk 0.36s steps(2) 5;
+}
+
 .rb-mouth-o {
   transform-origin: 88px 80.5px;
 }

@@ -18,6 +18,9 @@
  *                                       exit, with PASS/FAIL checks. Uses stand-in "claude"
  *                                       processes. Run it against the test overlay, or with no
  *                                       Claude Code session open (it waits for the goodbye).
+ *   npm run simulate -- chat            a short turn, then the chat panel opens by itself and
+ *                                       two questions are answered from what the overlay knows
+ *                                       (with the mouse: the chat button in the hover menu).
  *   npm run simulate -- --fast          shorter pauses
  *   npm run simulate -- --keep          skip the final SessionEnd (overlay stays open)
  */
@@ -417,6 +420,21 @@ async function life() {
   if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
 }
 
+async function chatScenario() {
+  const s = `sim-chat-${randomId()}`;
+  console.log(`Session ${s}\n`);
+  await step('greeting', base(s, 'SessionStart', { source: 'startup' }), 2500);
+  await step('thinking', base(s, 'UserPromptSubmit', { prompt: '(simulated prompt)' }), 1200);
+  await step('reading core.js', tool(s, 'PreToolUse', 'Read', { file_path: path.join(ROOT, 'app', 'core.js') }, 'c1'), 900);
+  await step('back to thinking', tool(s, 'PostToolUse', 'Read', {}, 'c1'), 600);
+  await step('editing chat.js', tool(s, 'PreToolUse', 'Edit', { file_path: path.join(ROOT, 'app', 'chat.js') }, 'c2'), 600);
+  console.log('\n  The chat panel opens; it asks "What are you doing?", then "How many tools?".');
+  await act(s, 'chat', 'chat panel', 12500);
+  await step('back to thinking', tool(s, 'PostToolUse', 'Edit', {}, 'c2'), 600);
+  await step('done', base(s, 'Stop', {}), 3000);
+  if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
+}
+
 (async () => {
   const running = await health();
   console.log(
@@ -429,8 +447,9 @@ async function life() {
   else if (scenario === 'playground') await playground();
   else if (scenario === 'life') await life();
   else if (scenario === 'lifecycle') await lifecycle();
+  else if (scenario === 'chat') await chatScenario();
   else {
-    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life" or "lifecycle".`);
+    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life", "lifecycle" or "chat".`);
     process.exitCode = 1;
   }
 })();

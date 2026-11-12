@@ -151,8 +151,8 @@ test('characters written before a state existed fall back to an older state', ()
 
 test('hover menu items come from settings and are localised', () => {
   const ids = (s) => buildMenuItems({ ...DEFAULTS, ...s }).map((i) => i.id);
-  assert.deepEqual(ids({}), ['quiet', 'eyes', 'play', 'cat', 'settings', 'quit']);
-  assert.deepEqual(ids({ position: { x: 1, y: 2 } }), ['quiet', 'eyes', 'play', 'cat', 'corner', 'settings', 'quit']);
+  assert.deepEqual(ids({}), ['quiet', 'eyes', 'play', 'cat', 'chat', 'settings', 'quit']);
+  assert.deepEqual(ids({ position: { x: 1, y: 2 } }), ['quiet', 'eyes', 'play', 'cat', 'chat', 'corner', 'settings', 'quit']);
   // Two columns of 30 px buttons, rows 36 px apart from y = 70: four rows fit the 270 px window.
   assert.ok(Math.ceil(ids({ position: { x: 1, y: 2 } }).length / 2) <= 4, 'at most four rows');
   const quiet = buildMenuItems({ ...DEFAULTS, quiet: true, language: 'tr' }).find((i) => i.id === 'quiet');

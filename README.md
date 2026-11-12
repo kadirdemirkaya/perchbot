@@ -157,7 +157,8 @@ end of the turn the book goes back. Helpers do the same for the skills they use.
 ### Using the mouse
 
 The overlay window ignores the mouse, so clicks reach the windows below, except while the
-pointer is over a painted part of the character, a helper, or the open menu. A safety check in the
+pointer is over a painted part of the character, a helper, the open menu, the open chat
+panel or a chat answer. A safety check in the
 main process releases the mouse whenever the cursor is outside the window.
 
 | Do this | It does this |
@@ -176,8 +177,31 @@ main process releases the mouse whenever the cursor is outside the window.
 | Leave it alone for a minute while idle | It rests: eyes half closed, no animation. Any event or hover wakes it |
 
 The hover menu, two columns of round buttons: show/hide speech bubble, eyes on/off, Play
-(sword duel; click it again to stop), call or send away the cat, back to the corner (after a
-drag), more settings (the full tray menu), quit. Play and the cat switch on what they need.
+(sword duel; click it again to stop), call or send away the cat, chat, back to the corner
+(after a drag), more settings (the full tray menu), quit. Play and the cat switch on what
+they need.
+
+### Chat
+
+The chat button in the hover menu opens a small panel with ready-made questions: *What are
+you doing?*, *How long so far?*, *How many tools?*, *Any sub-agents?*, *Which skill?*, *What
+are you waiting for?*, *Is it done?*. Click one and the buddy answers in its speech bubble
+(a click on the answer puts it away). There is no conversation with Claude behind it: the
+answers are made up from what the overlay already knows from the hook events (the state,
+the current tool with its file name or shortened command, when the turn started, how many
+tools it used, the helpers' types, the skill, what a notification waits for), in English or
+Turkish. Every question always gets an answer, also "No sub-agents at the moment".
+
+*Type…* turns into a text field for a question in your own words (Turkish or English), sent
+with Enter. Only then does the overlay take the keyboard; Esc, or a click anywhere else,
+gives it back. The text is matched to one of the questions above inside the overlay's page,
+then the field is emptied: it is not kept, logged, written to disk or sent anywhere, not
+even to the overlay's own main process. A question it does not recognise gets "I don't know
+that, but you can ask me these".
+
+The question buttons never take the keyboard, and the panel takes the mouse only while it is
+open. It closes with its x, with Esc while typing, or a moment after the pointer leaves it.
+Work comes first: news from Claude Code replaces an answer at once.
 
 ## Requirements
 
@@ -381,6 +405,10 @@ The full format, the list of states and performance tips are in
   salted hashes so events can be matched up. The one value it records is the expansion type
   of a typed slash command (e.g. `slash_command`), never the command or its arguments.
   Delete both files to turn it off; without the salt the hashes mean nothing.
+- **Chat.** The answers are built from the same in-memory state as the bubble; no one is
+  asked. A question typed into the chat panel stays in the overlay's page: it is matched to
+  one of the ready-made questions there and the text is dropped at once. It is never stored,
+  logged or sent anywhere.
 - **On screen:** the bubble shows file names and shortened commands. Use Quiet mode while
   screen sharing.
 - **At install time** `npm install` downloads Electron from the npm registry and Electron's
@@ -456,6 +484,7 @@ npm run simulate -- playground      # idle buddy to try hover, menu, drag, click
 npm run simulate -- --fast --keep   # shorter pauses, leave the overlay open
 npm run simulate -- life             # every ambient-life behaviour, 3 pokes, the duel, the cat
 npm run simulate -- lifecycle        # start, /clear, /resume, quick restart, crash, exit (PASS/FAIL)
+npm run simulate -- chat             # a short turn, then the chat panel answers two questions
 AGENT_BUDDY_DEMO=duel npm run dev   # developers: duel | trips | plays | cheers | menu by itself
 AGENT_BUDDY_PERF=1 npm run dev      # developers: frame times per transition, window move timing ([perf])
 npm test                            # unit tests (node:test, no extra dependencies)
@@ -476,11 +505,13 @@ agent-buddy/
 │   ├── roam.js          trips around the screen (ambient life, being poked)
 │   ├── placement.js     corners, dragging, snapping, monitor fallback
 │   ├── menu-items.js    the hover menu (add features here)
+│   ├── chat.js          the chat panel's answers, from what the overlay already knows
 │   ├── server.js        127.0.0.1 HTTP endpoint
 │   ├── validate.js      event schema
 │   ├── renderer/        overlay page (HTML, CSS, JS); lib/ holds its pure, tested logic
 │   │                    (interaction.js: mouse, menu, rest; crew.js: the helpers' choreography;
-│   │                    fun.js: ambient life, pokes, cheers, the duel; pet.js: the cat)
+│   │                    fun.js: ambient life, pokes, cheers, the duel; pet.js: the cat;
+│   │                    chat-match.js: typed chat questions)
 │   └── locales/         en.json, tr.json
 ├── characters/robot/    the default character (SVG + CSS + manifest)
 ├── hooks/send.js        the hook script (Node built-ins only)

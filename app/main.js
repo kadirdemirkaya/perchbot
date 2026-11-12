@@ -48,6 +48,7 @@ const roam = require('./roam');
 const fling = require('./fling');
 const { buildTrayTemplate, buildFunMenuTemplate } = require('./tray');
 const { buildMenuItems, MENU_IDS, switchFor } = require('./menu-items');
+const chat = require('./chat');
 const { createLogger } = require('./log');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -115,11 +116,11 @@ const isDev = process.argv.includes('--dev');
  */
 const PERF = isDev && process.env.AGENT_BUDDY_PERF === '1';
 /**
- * Developers only (npm run dev): AGENT_BUDDY_DEMO=duel | trips | plays | cheers | menu
- * plays that part of fun mode by itself (menu: opens the hover menu), for
+ * Developers only (npm run dev): AGENT_BUDDY_DEMO=duel | trips | plays | cheers | menu | chat
+ * plays that part of fun mode by itself (menu: opens the hover menu; chat: asks two questions), for
  * screenshots and trying things out.
  */
-const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers', 'menu']);
+const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers', 'menu', 'chat']);
 const demo = isDev && DEMOS.has(process.env.AGENT_BUDDY_DEMO) ? process.env.AGENT_BUDDY_DEMO : null;
 const DEMO_TRIPS = ['stroll', 'hop', 'inspect', 'home'];
 /** Short lines in the speech bubble when it is hit or fights (locales: "quip"). */
@@ -188,6 +189,12 @@ function start() {
   let petTimer = null;
   /** The chat panel is open: the side column is wider (CHAT_WIDTH). */
   let chatOpen = false;
+  /**
+   * The user is typing a question: only then may the window take the keyboard
+   * (focusable). The rest of the time it never takes focus, also not for the
+   * question buttons.
+   */
+  let chatTyping = false;
 
   // ------------------------------------------------------------------ events
 
@@ -322,6 +329,13 @@ function start() {
   // Switching sides: the page is hidden now (see flipSides).
   ipcMain.on('buddy:flip-ready', (event) => {
     if (fromPage(event)) finishFlip();
+  });
+
+  // The chat panel (app/chat.js): open / close, typing on / off, a question (its intent only).
+  ipcMain.on('buddy:chat', (event, msg) => {
+    if (!fromPage(event)) return;
+    const req = chat.parseChatRequest(msg);
+    if (req) onChat(req);
   });
 
   ipcMain.on('buddy:crew-left', (event, id) => {
@@ -549,6 +563,8 @@ function start() {
     win.webContents.on('render-process-gone', (_event, details) => {
       rendererReady = false;
       setCapture(false);
+      stopTyping();
+      chatOpen = false;
       log.error(`renderer exited (${details.reason})`);
       if (!quitting && win && rendererRestarts++ < 3) {
         setTimeout(() => win && !win.isDestroyed() && win.reload(), 1000);
@@ -560,6 +576,12 @@ function start() {
     win.once('ready-to-show', () => {
       log.info(`window shown (${Math.round(process.uptime() * 1000)} ms after start)`);
       if (win) win.showInactive();
+    });
+    // The user clicked somewhere else while typing a question: the keyboard is theirs again.
+    win.on('blur', () => {
+      if (!chatTyping) return;
+      stopTyping();
+      if (canSend()) win.webContents.send('buddy:chat', { typing: false });
     });
     win.on('closed', () => {
       win = null;
@@ -946,6 +968,7 @@ function start() {
     else if (name === 'fling') demoFling();
     else if (name === 'cat') setPet(true, true); // the simulator shows it even with the setting off
     else if (name === 'cat-away') setPet(false);
+    else if (name === 'chat') demoChat();
     else if (canSend()) win.webContents.send('buddy:fun', { action: 'demo', name });
   }
 
@@ -962,6 +985,89 @@ function start() {
       settle: (point) => placement.settleAnchor(point, displays(), primaryDisplay(), scale()),
     });
     if (plan) startFling(plan, pageLayout.side);
+  }
+
+  /** The simulator: the panel opens, two questions are asked and answered, it closes. */
+  function demoChat() {
+    setChat(true, { hold: true });
+    const steps = [
+      [1200, () => onChat({ op: 'ask', intent: 'doing' })],
+      [6200, () => onChat({ op: 'ask', intent: 'tools' })],
+      [11200, () => setChat(false)],
+    ];
+    for (const [ms, fn] of steps) setTimeout(() => !quitting && chatOpen && fn(), ms);
+  }
+
+  // ------------------------------------------------------------------ chat panel
+
+  function onChat(req) {
+    switch (req.op) {
+      case 'open':
+        setChat(true);
+        break;
+      case 'close':
+        setChat(false);
+        break;
+      case 'type':
+        startTyping();
+        break;
+      case 'untype':
+        stopTyping();
+        break;
+      case 'ask': {
+        if (!chatOpen || !canSend()) return;
+        // Built from what the overlay already knows; only the intent is logged.
+        const text = chat.answer(req.intent, core.facts(Date.now()), settings.language);
+        log.devOnly(`chat: ${req.intent}`);
+        win.webContents.send('buddy:chat', { answer: text, intent: req.intent });
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  /** Open or close the panel: the side column widens first, then the page shows it. */
+  function setChat(open, { hold = false } = {}) {
+    if (open === chatOpen || !win || win.isDestroyed()) return;
+    chatOpen = open;
+    log.devOnly(`chat: ${open ? 'open' : 'closed'}`);
+    if (!open) stopTyping();
+    placeWindow();
+    sendChat(hold);
+    if (canSend()) win.webContents.send('buddy:menu-items', menuItems());
+  }
+
+  function sendChat(hold = false) {
+    if (canSend()) win.webContents.send('buddy:chat', { open: chatOpen, hold, strings: chat.panelStrings(settings.language) });
+  }
+
+  /** "Type…": the window may take the keyboard until the question is done. */
+  function startTyping() {
+    if (!chatOpen || chatTyping || !win || win.isDestroyed()) return;
+    chatTyping = true;
+    log.devOnly('chat: typing on (window focusable)');
+    win.setFocusable(true);
+    win.focus();
+    win.webContents.focus();
+  }
+
+  /**
+   * Typing is over: never focusable again. When the window still has the
+   * keyboard (Esc, the panel closed), hand it back to the window the user came
+   * from: Windows gives it to the next window down when ours lets go, and for
+   * a moment ours is not "always on top", so that is the top normal window
+   * (the one in use before), not the taskbar.
+   */
+  function stopTyping() {
+    if (!chatTyping) return;
+    chatTyping = false;
+    if (!win || win.isDestroyed()) return;
+    log.devOnly('chat: typing off (window not focusable)');
+    const lift = process.platform === 'win32';
+    if (lift) win.setAlwaysOnTop(false);
+    win.setFocusable(false);
+    if (lift) win.setAlwaysOnTop(true);
   }
 
   function setPaused(value) {
@@ -1030,7 +1136,7 @@ function start() {
   }
 
   function menuItems() {
-    return buildMenuItems(settings, { catHere: petOn, pet: hasPet() });
+    return buildMenuItems(settings, { catHere: petOn, pet: hasPet(), chatOpen });
   }
 
   function canSend() {
@@ -1054,6 +1160,7 @@ function start() {
       demo,
     });
     if (demo === 'trips' && !trip) setTimeout(() => nextDemoTrip(0), 1500);
+    if (demo === 'chat') setTimeout(demoChat, 1500);
   }
 
   function nextDemoTrip(index) {
@@ -1085,6 +1192,7 @@ function start() {
     if (!canSend()) return;
     win.webContents.send('buddy:settings', rendererSettings());
     win.webContents.send('buddy:menu-items', menuItems());
+    if (chatOpen) sendChat(); // the language may have changed
   }
 
   function sendLayout() {
@@ -1110,6 +1218,9 @@ function start() {
       case 'cat':
         if (petOn) setPet(false);
         else callCat();
+        break;
+      case 'chat':
+        setChat(!chatOpen);
         break;
       case 'settings':
         popUpSettings();
