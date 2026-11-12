@@ -170,6 +170,19 @@
       if (this.timer) this.clock.clearTimeout(this.timer);
       this.timer = null;
     }
+
+    /**
+     * Back from a pause (screen unlocked): resting stays resting (only an event
+     * or the pointer wakes it); awake and idle, the countdown starts again.
+     */
+    resume() {
+      if (this.resting || this.timer || !this.idle) return;
+      this.timer = this.clock.setTimeout(() => {
+        this.timer = null;
+        this.resting = true;
+        this.onChange(true);
+      }, this.delay);
+    }
   }
 
   /**

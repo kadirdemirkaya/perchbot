@@ -81,6 +81,27 @@ test('ambient life: trips only when allowed, "home" only when away; disabling en
   assert.equal(log.length, count, 'nothing while disabled');
 });
 
+test('ambient life and resting: nothing while it rests, a fresh countdown when it wakes', () => {
+  const { clock, a, log } = ambient(() => 0); // always the shortest wait: 20 s
+  a.update({ enabled: true });
+  clock.tick(15000);
+  // The page disables it the moment the character rests (a quiet minute)...
+  a.update({ enabled: false });
+  clock.tick(10 * 60 * 1000);
+  assert.deepEqual(log, [], 'no behaviour during a long rest');
+  // ...and enables it again when an event or the pointer wakes it: the wait starts over.
+  a.update({ enabled: true });
+  clock.tick(19999);
+  assert.deepEqual(log, [], 'not after the 5 s that were left before resting');
+  clock.tick(1);
+  assert.equal(log.length, 1);
+  // Further updates while awake do not restart the countdown.
+  a.update({ enabled: true });
+  a.update({ enabled: true, trips: true });
+  clock.tick(20000 + PLAYS[log[0][1]]);
+  assert.ok(log.length >= 3, 'the next one follows on schedule');
+});
+
 test('cheers: the classic jump about half of the time, the others otherwise', () => {
   assert.equal(pickCheer(() => 0.1), 'jump');
   assert.ok(CHEERS.slice(1).includes(pickCheer(() => 0.7)));

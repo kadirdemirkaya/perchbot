@@ -69,8 +69,13 @@ const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
 const LAUNCH_EVENTS = new Set(['SessionStart', 'UserPromptSubmit']);
 /** What the page may ask for (fun mode): a trip, or the right-click menu. */
 const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off']);
-/** Frame interval while the window travels. */
-const TRIP_FRAME_MS = 16;
+/**
+ * While the window travels, the page reports every frame it draws (vsync) and
+ * the window moves then. This timer only fills in if those reports stop: Node
+ * timers on Windows tick every ~15.6 ms, so a 16 ms interval alone moves the
+ * window in uneven 16 / 31 ms steps (about 45 per second): a visible stutter.
+ */
+const TRIP_FALLBACK_MS = 50;
 /** States that do not interrupt a trip; any other one (work) stops it at once. */
 const CALM_STATES = new Set(['idle', 'standby', 'greeting']);
 /** The cat's exit scene, before the window shrinks back. */
@@ -99,6 +104,11 @@ const MIME = {
 };
 
 const isDev = process.argv.includes('--dev');
+/**
+ * Developers only (npm run dev): AGENT_BUDDY_PERF=1 logs how often and how long the
+ * window is moved and resized, and turns on the page's frame trace ("[perf]" lines).
+ */
+const PERF = isDev && process.env.AGENT_BUDDY_PERF === '1';
 /**
  * Developers only (npm run dev): AGENT_BUDDY_DEMO=duel | trips | plays | cheers | menu
  * plays that part of fun mode by itself (menu: opens the hover menu), for
@@ -296,6 +306,11 @@ function start() {
   });
 
   // A mini finished its exit scene: forget the agent (the window may shrink).
+  // A trip: one step per frame the page draws.
+  ipcMain.on('buddy:trip-frame', (event) => {
+    if (fromPage(event) && trip) stepTrip();
+  });
+
   ipcMain.on('buddy:crew-left', (event, id) => {
     if (fromPage(event) && typeof id === 'string' && AGENT_ID_RE.test(id)) core.crew.release(id);
   });
@@ -511,7 +526,7 @@ function start() {
     });
 
     setCapture(false, true);
-    win.webContents.on('did-finish-load', applyZoom);
+    win.webContents.on('did-finish-load', () => applyZoom(true));
     win.webContents.on('render-process-gone', (_event, details) => {
       rendererReady = false;
       setCapture(false);
@@ -532,6 +547,10 @@ function start() {
       rendererReady = false;
       stopWatchdog();
     });
+    // At fractional display scales Windows creates the window a few pixels off
+    // (e.g. 358 x 342 instead of 355 x 338 at 125 %); the first resize would then
+    // shift the character by those pixels. Set the exact bounds once more.
+    win.setBounds(initial.bounds);
     win.loadURL(`${ORIGIN}/renderer/index.html`);
   }
 
@@ -540,7 +559,12 @@ function start() {
     const next = computePlacement();
     anchor = next.anchor;
     pageLayout = next.page;
-    win.setBounds(next.bounds);
+    const before = win.getBounds();
+    // Nothing to do when nothing changed (settings changes call this too).
+    if (!sameBounds(before, next.bounds)) {
+      const ms = timed(() => win.setBounds(next.bounds));
+      if (PERF) log.devOnly(`[perf] setBounds ${box(before)} -> ${box(next.bounds)}: ${ms.toFixed(1)} ms`);
+    }
     applyZoom();
     sendLayout();
     updateFlight(flightAt(anchor));
@@ -563,8 +587,12 @@ function start() {
     if (canSend()) win.webContents.send('buddy:flight', flight);
   }
 
-  function applyZoom() {
-    if (win && !win.isDestroyed()) win.webContents.setZoomFactor(scale());
+  let zoomApplied = null;
+  function applyZoom(force = false) {
+    if (!win || win.isDestroyed()) return;
+    if (!force && zoomApplied === scale()) return;
+    zoomApplied = scale();
+    win.webContents.setZoomFactor(zoomApplied);
   }
 
   // ------------------------------------------------------------------ mouse: capture, watchdog, drag
@@ -608,7 +636,7 @@ function start() {
     if (phase === 'start') {
       if (trip) endTrip(true); // picked up mid-trip
       const cursor = screen.getCursorScreenPoint();
-      drag = { cursor, anchor: { ...anchor }, side: pageLayout.side, live: { ...anchor }, lastX: cursor.x, tilt: 0, settle: null };
+      drag = { cursor, anchor: { ...anchor }, side: pageLayout.side, live: { ...anchor }, lastX: cursor.x, tilt: 0, settle: null, stats: moveStats() };
       log.devOnly(`drag start: cursor ${drag.cursor.x},${drag.cursor.y} anchor ${anchor.x},${anchor.y}`);
       updateFlight(flightAt(drag.live, true));
       return;
@@ -617,7 +645,8 @@ function start() {
     if (phase === 'move') {
       const cursor = screen.getCursorScreenPoint();
       drag.live = { x: drag.anchor.x + cursor.x - drag.cursor.x, y: drag.anchor.y + cursor.y - drag.cursor.y };
-      win.setBounds(placement.windowLayout(drag.live, drag.side, scale(), pageLayout.sideWidth).bounds);
+      const ms = timed(() => win.setBounds(placement.windowLayout(drag.live, drag.side, scale(), pageLayout.sideWidth).bounds));
+      if (PERF) drag.stats.add(ms);
       // Flames lean against the direction of travel; smoothed, and settle when the cursor rests.
       const speed = Math.max(-1, Math.min(1, (cursor.x - drag.lastX) / TILT_SPEED));
       drag.lastX = cursor.x;
@@ -636,6 +665,7 @@ function start() {
     const end = screen.getCursorScreenPoint();
     log.devOnly(`drag ${phase}: cursor ${end.x},${end.y} anchor ${dropped.x},${dropped.y}`);
     clearTimeout(drag.settle);
+    if (PERF) log.devOnly(`[perf] drag: setBounds ${drag.stats.summary()}`);
     drag = null;
     if (phase === 'cancel') {
       placeWindow();
@@ -674,7 +704,14 @@ function start() {
     // Never hold the mouse while the window moves under a cursor that does not.
     setCapture(false);
     if (canSend()) win.webContents.send('buddy:released');
-    trip = { plan, start: Date.now(), side: pageLayout.side, timer: setInterval(stepTrip, TRIP_FRAME_MS) };
+    trip = {
+      plan,
+      start: Date.now(),
+      side: pageLayout.side,
+      lastStep: Date.now(),
+      timer: setInterval(() => trip && Date.now() - trip.lastStep >= TRIP_FALLBACK_MS && stepTrip(), TRIP_FALLBACK_MS),
+      stats: moveStats(),
+    };
     if (canSend()) win.webContents.send('buddy:move', { mode: plan.mode, face: plan.face, kind });
     if (plan.mode === 'fly') {
       flight = { airborne: true, boost: true, tilt: plan.face === 'left' ? -0.6 : 0.6 };
@@ -684,11 +721,16 @@ function start() {
 
   function stepTrip() {
     if (!trip || !win || win.isDestroyed()) return;
-    const t = Date.now() - trip.start;
+    const now = Date.now();
+    const t = now - trip.start;
+    trip.lastStep = now;
     anchor = roam.positionAt(trip.plan, t);
-    // Only the position changes on the way: cheaper (and smoother) than setBounds.
-    const { x, y } = placement.windowLayout(anchor, trip.side, scale(), pageLayout.sideWidth).bounds;
-    win.setPosition(x, y);
+    // setBounds with the size, not setPosition: at fractional display scales
+    // setPosition grows the window by about a pixel per call on Windows, which
+    // shifted the character along the way and made it jump back on arrival.
+    const bounds = placement.windowLayout(anchor, trip.side, scale(), pageLayout.sideWidth).bounds;
+    const ms = timed(() => win.setBounds(bounds));
+    if (PERF) trip.stats.add(ms);
     if (t >= trip.plan.ms) endTrip(false);
   }
 
@@ -696,6 +738,7 @@ function start() {
   function endTrip(cancelled) {
     if (!trip) return;
     clearInterval(trip.timer);
+    if (PERF) log.devOnly(`[perf] trip ${trip.plan.kind}: setBounds ${trip.stats.summary()}`);
     const { plan } = trip;
     trip = null;
     const home = homeAnchor();
@@ -875,6 +918,7 @@ function start() {
       pet: petOn,
       paused,
       dev: isDev,
+      perf: PERF,
       demo,
     });
     if (demo === 'trips' && !trip) setTimeout(() => nextDemoTrip(0), 1500);
@@ -1088,6 +1132,45 @@ function start() {
     }
     app.quit();
   }
+}
+
+/** Run fn; with PERF, return how long it took in ms (0 otherwise). */
+function timed(fn) {
+  if (!PERF) {
+    fn();
+    return 0;
+  }
+  const t0 = process.hrtime.bigint();
+  fn();
+  return Number(process.hrtime.bigint() - t0) / 1e6;
+}
+
+const box = (b) => (b ? `${b.width}x${b.height}@${b.x},${b.y}` : '?');
+const sameBounds = (a, b) => a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+
+/** Calls per second, call times and the gaps between calls (timer jitter), for PERF. */
+function moveStats() {
+  const start = process.hrtime.bigint();
+  let last = start;
+  let calls = 0;
+  let total = 0;
+  let worst = 0;
+  let gap = 0;
+  return {
+    add(ms) {
+      const now = process.hrtime.bigint();
+      if (calls > 0) gap = Math.max(gap, Number(now - last) / 1e6);
+      last = now;
+      calls += 1;
+      total += ms;
+      worst = Math.max(worst, ms);
+    },
+    summary() {
+      const secs = Number(last - start) / 1e9;
+      const rate = secs > 0 ? Math.round(calls / secs) : 0;
+      return `${calls} calls (${rate}/s), avg ${(total / Math.max(1, calls)).toFixed(2)} ms, worst ${worst.toFixed(1)} ms, longest gap ${Math.round(gap)} ms`;
+    },
+  };
 }
 
 /** The hook passes the first event as --initial-event=<base64url JSON>. */

@@ -322,22 +322,54 @@ function processName(name) {
 
 /**
  * Walk up from the hook's parent through shells: the first process that is
- * not a shell is Claude Code if it is called claude / node / bun. Anything
- * else (a terminal, an IDE, a gap in the chain): null, and no pid is sent.
+ * not a shell is Claude Code if it is called "claude" (the native binary),
+ * or "node" / "bun" (the CLI installed with npm) when the hook knows it runs
+ * under Claude Code (CLAUDECODE=1). Anything else (a terminal, an IDE, a
+ * script that runs the hook, a gap in the chain): null, no pid is sent.
  * @param {number} start  the hook's parent pid
  * @param {Map<number, { ppid: number, name: string }>} chain  ancestors by pid
+ * @param {{ runtime?: boolean }} [allow]  runtime: accept node / bun
  * @returns {number|null}
  */
-function claudePidFrom(start, chain) {
+function claudePidFrom(start, chain, allow = {}) {
   let pid = start;
   for (let depth = 0; depth < PID_DEPTH; depth += 1) {
     const info = chain.get(pid);
     if (!info) return null;
     const name = processName(info.name);
-    if (!SHELL_NAMES.has(name)) return CLAUDE_NAMES.has(name) && validPid(pid) ? pid : null;
+    if (!SHELL_NAMES.has(name)) {
+      const ok = name === 'claude' || (allow.runtime === true && CLAUDE_NAMES.has(name));
+      return ok && validPid(pid) ? pid : null;
+    }
     pid = info.ppid;
   }
   return null;
+}
+
+/**
+ * Claude Code puts its own process id into its children's environment
+ * (CLAUDE_PID; seen in Claude Code 2.1, not documented for hooks). Use it when
+ * it really is one of the hook's ancestors; otherwise walk up (claudePidFrom).
+ * If the ancestors cannot be read at all, a live CLAUDE_PID is used as it is.
+ * @param {number} start
+ * @param {Map<number, { ppid: number, name: string }>} chain
+ * @param {object} env
+ * @param {(pid: number) => boolean} isAlive
+ */
+function chooseClaudePid(start, chain, env, isAlive) {
+  const fromEnv = /^\d{1,10}$/.test(String(env.CLAUDE_PID || '')) ? Number(env.CLAUDE_PID) : null;
+  if (validPid(fromEnv) && chain.has(fromEnv)) return fromEnv;
+  if (validPid(fromEnv) && chain.size === 0 && isAlive(fromEnv)) return fromEnv;
+  return claudePidFrom(start, chain, { runtime: env.CLAUDECODE === '1' });
+}
+
+function processAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return Boolean(err && err.code === 'EPERM');
+  }
 }
 
 /** "pid|ppid|name" lines -> Map. */
@@ -402,9 +434,9 @@ function readAncestors(start, platform = process.platform) {
 }
 
 /** Claude Code's process id, or null if it cannot be found reliably. Never rejects. */
-async function findClaudePid(start = process.ppid, platform = process.platform) {
+async function findClaudePid(start = process.ppid, platform = process.platform, env = process.env) {
   try {
-    return claudePidFrom(start, await readAncestors(start, platform));
+    return chooseClaudePid(start, await readAncestors(start, platform), env, processAlive);
   } catch {
     return null;
   }
@@ -677,6 +709,7 @@ module.exports = {
   PAYLOAD_FIELDS,
   accountName,
   claudePidFrom,
+  chooseClaudePid,
   parseChain,
   findClaudePid,
   allowlisted,

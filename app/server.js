@@ -38,7 +38,10 @@ function isAllowedHost(hostHeader, port) {
 function startServer({ port, onEvent, getHealth = () => ({}) }) {
   const server = http.createServer((req, res) => {
     const reply = (status, body) => {
-      const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
+      // One request per connection: a hook sends one event and exits. A client
+      // that kept the connection (Windows PowerShell does) would otherwise reuse
+      // it after keepAliveTimeout, find it closed and lose that event.
+      const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', Connection: 'close' };
       if (body !== undefined) headers['Content-Type'] = 'application/json; charset=utf-8';
       res.writeHead(status, headers);
       res.end(body === undefined ? undefined : JSON.stringify(body));

@@ -12,6 +12,8 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $send = Join-Path $repo 'hooks\send.js'
 $MainPid = [int](Get-Content (Join-Path $TestHome 'overlay.pid'))
 $env:AGENT_BUDDY_PORT = "$Port"; $env:AGENT_BUDDY_HOME = $TestHome
+# Not a real Claude Code process: no pid, so these sessions live until their SessionEnd.
+$env:AGENT_BUDDY_NO_PID = '1'
 
 function Hook($obj) {
   # Base64: Windows PowerShell 5.1 strips double quotes from native-command arguments.

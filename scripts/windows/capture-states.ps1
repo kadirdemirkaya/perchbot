@@ -13,6 +13,8 @@ $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $send = Join-Path $repo 'hooks\send.js'
 $env:AGENT_BUDDY_PORT = "$Port"; $env:AGENT_BUDDY_HOME = $TestHome
+# Not a real Claude Code process: no pid, so these sessions live until their SessionEnd.
+$env:AGENT_BUDDY_NO_PID = '1'
 $overlay = FindOverlay ([int](Get-Content (Join-Path $TestHome 'overlay.pid')))
 if ($overlay -eq [IntPtr]::Zero) { 'test overlay window not found; start it with start-test-overlay.ps1'; exit 1 }
 New-Item -ItemType Directory -Force $OutDir | Out-Null

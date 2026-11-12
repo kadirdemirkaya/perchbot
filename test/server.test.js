@@ -61,6 +61,30 @@ test('accepts a valid event and passes on only whitelisted fields', async () => 
   assert.deepEqual(received.at(-1), { v: 1, event: 'Stop', session: 'abc', ts: 1 });
 });
 
+test('one request per connection: a client that keeps connections never loses an event', async () => {
+  const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
+  const send = (n) =>
+    new Promise((resolve) => {
+      const data = JSON.stringify({ ...valid, ts: 100 + n });
+      const req = http.request(
+        { host: '127.0.0.1', port, method: 'POST', path: '/event', agent, headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } },
+        (res) => {
+          res.resume();
+          res.on('end', () => resolve({ status: res.statusCode, connection: res.headers.connection }));
+        },
+      );
+      req.on('error', (err) => resolve({ status: 0, error: err.code }));
+      req.end(data);
+    });
+  const first = await send(1);
+  assert.deepEqual(first, { status: 204, connection: 'close' });
+  await new Promise((resolve) => setTimeout(resolve, 1200)); // longer than keepAliveTimeout
+  const second = await send(2);
+  assert.equal(second.status, 204);
+  assert.ok(received.some((e) => e.ts === 102), 'the second event arrived');
+  agent.destroy();
+});
+
 test('health endpoint', async () => {
   const r = await request({ method: 'GET', path: '/health' });
   assert.equal(r.status, 200);

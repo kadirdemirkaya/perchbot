@@ -63,6 +63,7 @@ const DEMOS = new Set([
   'duel',
   'cat',
   'cat-away',
+  'menu',
 ]);
 
 const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse', 'PostToolUseFailure']);

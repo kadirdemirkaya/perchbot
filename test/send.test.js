@@ -568,8 +568,10 @@ test('pid: walk up through shells to Claude Code, or give up', () => {
   assert.equal(send.claudePidFrom(30, gitBash), 10, 'stops at claude.exe, not at the shell above it');
   // PowerShell instead of Git Bash; cmd in between.
   assert.equal(send.claudePidFrom(31, chain([31, 21, 'powershell.exe'], [21, 11, 'cmd.exe'], [11, 2, 'Claude.EXE'])), 11);
-  // Installed with npm: node runs the CLI.
-  assert.equal(send.claudePidFrom(32, chain([32, 12, 'bash'], [12, 3, 'node'])), 12);
+  // Installed with npm: node runs the CLI. Only accepted when the hook knows it runs
+  // under Claude Code; otherwise a script that runs the hook would be taken for it.
+  assert.equal(send.claudePidFrom(32, chain([32, 12, 'bash'], [12, 3, 'node'])), null);
+  assert.equal(send.claudePidFrom(32, chain([32, 12, 'bash'], [12, 3, 'node']), { runtime: true }), 12);
   // VS Code: the extension host starts claude.exe.
   assert.equal(send.claudePidFrom(33, chain([33, 13, 'bash.exe'], [13, 4, 'claude.exe'], [4, 1, 'Code.exe'])), 13);
   // Run by hand from a terminal: the first non-shell is the terminal, not Claude Code.
@@ -579,6 +581,16 @@ test('pid: walk up through shells to Claude Code, or give up', () => {
   assert.equal(send.claudePidFrom(36, chain([36, 99, 'bash.exe'])), null);
   assert.equal(send.claudePidFrom(37, chain([37, 37, 'sh'])), null);
   assert.equal(send.claudePidFrom(0, chain([0, 1, 'claude'])), null);
+  // CLAUDE_PID from the environment wins when it is an ancestor.
+  const alive = () => true;
+  const wrapped = chain([40, 41, 'node'], [41, 42, 'powershell.exe'], [42, 43, 'cmd.exe'], [43, 1, 'claude.exe']);
+  assert.equal(send.chooseClaudePid(40, wrapped, { CLAUDE_PID: '43' }, alive), 43, 'a script in between does not matter');
+  assert.equal(send.chooseClaudePid(40, wrapped, {}, alive), null, 'without it: the script is not Claude Code');
+  assert.equal(send.chooseClaudePid(40, wrapped, { CLAUDE_PID: '999' }, alive), null, 'not an ancestor: ignored');
+  assert.equal(send.chooseClaudePid(30, gitBash, { CLAUDE_PID: 'x10' }, alive), 10, 'junk: walk instead');
+  assert.equal(send.chooseClaudePid(30, new Map(), { CLAUDE_PID: '10' }, alive), 10, 'ancestors unreadable: trust a live one');
+  assert.equal(send.chooseClaudePid(30, new Map(), { CLAUDE_PID: '10' }, () => false), null);
+  assert.equal(send.chooseClaudePid(32, chain([32, 12, 'bash'], [12, 3, 'node']), { CLAUDECODE: '1' }, alive), 12);
   // The PowerShell output format.
   const parsed = send.parseChain('30|20|bash.exe\r\n20|10|bash.exe\n10|5|claude.exe\n\njunk\n');
   assert.deepEqual([...parsed.keys()], [30, 20, 10]);
@@ -590,5 +602,5 @@ test('pid: the real lookup never throws and answers in time', async () => {
   const pid = await send.findClaudePid();
   assert.ok(pid === null || (Number.isInteger(pid) && pid > 0));
   assert.ok(Date.now() - started < 2500);
-  assert.equal(await send.findClaudePid(0), null);
+  assert.equal(await send.findClaudePid(0, process.platform, {}), null, 'nothing to go on');
 });

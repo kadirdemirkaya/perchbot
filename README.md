@@ -447,7 +447,8 @@ npm run simulate -- playground      # idle buddy to try hover, menu, drag, click
 npm run simulate -- --fast --keep   # shorter pauses, leave the overlay open
 npm run simulate -- life             # every ambient-life behaviour, 3 pokes, the duel, the cat
 npm run simulate -- lifecycle        # start, /clear, /resume, quick restart, crash, exit (PASS/FAIL)
-AGENT_BUDDY_DEMO=duel npm run dev   # developers: duel | trips | plays | cheers by itself
+AGENT_BUDDY_DEMO=duel npm run dev   # developers: duel | trips | plays | cheers | menu by itself
+AGENT_BUDDY_PERF=1 npm run dev      # developers: frame times per transition, window move timing ([perf])
 npm test                            # unit tests (node:test, no extra dependencies)
 npm run make-icons                  # regenerate the tray icons
 ```

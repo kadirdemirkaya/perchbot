@@ -83,6 +83,33 @@
     if (dev) console.log(`[ui] ${message}`);
   }
 
+  /**
+   * Developers (npm run dev with AGENT_BUDDY_PERF=1): frame times around every
+   * transition, long tasks and long animation frames, as "[perf]" lines in the
+   * dev log (lib/perf.js). Not created otherwise.
+   */
+  let perfTrace = null;
+  function perfMark(label) {
+    if (perfTrace) perfTrace.mark(label);
+  }
+
+  function startPerf() {
+    if (perfTrace || !window.BuddyPerf) return;
+    perfTrace = new window.BuddyPerf.PerfTrace({
+      now: () => performance.now(),
+      raf: (cb) => requestAnimationFrame(cb),
+      log: (line) => console.log(`[perf] ${line}`),
+    });
+    for (const type of ['longtask', 'long-animation-frame']) {
+      try {
+        new PerformanceObserver((list) => list.getEntries().forEach((e) => perfTrace.longEntry(e))).observe({ type });
+      } catch {
+        // not supported by this Chromium
+      }
+    }
+    console.log('[perf] trace on');
+  }
+
   // ---------------------------------------------------------------- small helpers
 
   const timers = new Map();
@@ -194,6 +221,8 @@
   function applyView(next) {
     const previous = view;
     view = next;
+    // A new state: what the old one was animating eases into the new pose (see blendFrom).
+    const parts = holder.dataset.state !== (next.cssState || next.state) ? snapshotAnimated() : null;
     holder.dataset.state = next.cssState || next.state;
     flag('mood', next.mood === 'worried' ? 'worried' : null);
     stage.classList.toggle('leaving', next.state === 'goodbye');
@@ -220,6 +249,7 @@
     rest.setIdle(next.state === 'idle');
 
     if (next.state !== previous.state) {
+      perfMark(`${previous.state}→${next.state}`);
       swayAntenna();
       if (next.state === 'done') {
         burstConfetti();
@@ -230,6 +260,61 @@
     }
     updateTyping();
     updateFun();
+    blendFrom(parts);
+  }
+
+  // ---------------------------------------------------------------- easing out interrupted animations
+
+  /**
+   * A state change removes the old state's CSS animations at once, so whatever
+   * they were doing (a hop in mid-air, a forearm waving at a low frame rate, a
+   * play cut short by work) would jump straight to the new pose. Before the
+   * change, note the transform of every part with a running CSS animation;
+   * after it, play a short additive animation that starts exactly there and
+   * fades into whatever the new state does (its transition or its own
+   * animation). Works for any character; nothing with reduced motion.
+   */
+  const BLEND_MS = 220;
+  const IDENTITY = 'matrix(1, 0, 0, 1, 0, 0)';
+
+  function snapshotAnimated() {
+    if (!motionAllowed() || typeof holder.getAnimations !== 'function') return null;
+    const parts = new Map();
+    for (const anim of holder.getAnimations({ subtree: true })) {
+      const el = anim.effect && anim.effect.target;
+      // CSS animations only (not transitions, not our own blends).
+      if (!el || parts.has(el) || !anim.animationName || anim.playState !== 'running') continue;
+      parts.set(el, getComputedStyle(el).transform);
+    }
+    return parts;
+  }
+
+  function blendFrom(parts) {
+    if (!parts || !parts.size) return;
+    let blended = 0;
+    for (const [el, from] of parts) {
+      if (!el.isConnected) continue;
+      const now = getComputedStyle(el).transform;
+      if (now === from) continue;
+      let offset;
+      try {
+        // The part is drawn as now x offset: start at the old pose, end at the new one.
+        offset = new DOMMatrix(now === 'none' ? IDENTITY : now).inverse().multiply(new DOMMatrix(from === 'none' ? IDENTITY : from));
+      } catch {
+        continue;
+      }
+      const still = Math.abs(offset.a - 1) + Math.abs(offset.b) + Math.abs(offset.c) + Math.abs(offset.d - 1) < 0.004 && Math.abs(offset.e) + Math.abs(offset.f) < 0.3;
+      if (still) continue;
+      el.animate(
+        [
+          { transform: offset.toString(), composite: 'add' },
+          { transform: IDENTITY, composite: 'add' },
+        ],
+        { duration: BLEND_MS, easing: 'ease-out' },
+      );
+      blended += 1;
+    }
+    if (blended) trace(`blend: ${blended} part(s) eased out`);
   }
 
   /** A short line of its own (hit, duel) that shows for a moment instead of the state's text. */
@@ -310,6 +395,7 @@
 
   function applyLayout(next) {
     if (!next) return;
+    perfMark(`layout ${next.width}x${next.height}`);
     layout = next;
     stage.classList.toggle('side-left', next.side === 'left');
     stage.classList.toggle('side-right', next.side !== 'left');
@@ -327,6 +413,7 @@
   const hover = new HoverMenu({
     onChange: (open) => {
       trace(`menu ${open ? 'open' : 'closed'}`);
+      perfMark(open ? 'menu open' : 'menu close');
       menuEl.classList.toggle('open', open);
       crew.setMenuOpen(open);
       if (!open) hideTooltip();
@@ -694,6 +781,7 @@
   const rest = new RestTimer({
     onChange: (resting) => {
       trace(resting ? 'resting' : 'awake');
+      perfMark(resting ? 'rest' : 'wake');
       flag('rest', resting ? true : null);
       crew.setRest(resting || paused);
       pet.setRest(resting || paused);
@@ -776,7 +864,8 @@
       capture.released();
       rest.stop();
     } else {
-      rest.activity();
+      // Unlocking the screen does not wake it: only an event or the pointer does.
+      rest.resume();
       scheduleBlink();
     }
     updateTyping();
@@ -823,7 +912,11 @@
   const ambient = new AmbientScheduler({
     onPlay: (name) => {
       if (name) trace(`ambient: ${name}`);
+      perfMark(name ? `ambient ${name}` : 'ambient end');
+      // Cut short (work came in): ease out of it instead of jumping back.
+      const parts = name ? null : snapshotAnimated();
       flag('play', name);
+      blendFrom(parts);
     },
     onTrip: (kind) => {
       trace(`ambient: trip ${kind}`);
@@ -1041,8 +1134,10 @@
     trace(`duel: ${phase}`);
     rest.activity();
     if (phase === 'end') {
+      const parts = snapshotAnimated();
       flag('duel', null);
       flag('face', null);
+      blendFrom(parts);
       delete root.dataset.duel;
       duelHud.classList.remove('show');
       syncMenuDuel();
@@ -1097,10 +1192,19 @@
     flag('face', pointerAt.x < rect.left + rect.width * 0.49 ? 'left' : null);
   }
 
+  function tripTick() {
+    if (!moving) return;
+    window.buddy.tripFrame();
+    requestAnimationFrame(tripTick);
+  }
+
   /** A trip around the screen starts (mode) or ends (mode null). */
   function applyMove(m) {
     if (!m) return;
+    perfMark(`trip ${m.kind} ${m.mode ? 'start' : 'end'}`);
     if (m.mode) {
+      // The window moves in step with the frames drawn here (see main.js stepTrip).
+      if (!moving) requestAnimationFrame(tripTick);
       moving = m.mode;
       // (No rest.activity(): a trip of its own must not keep it from resting.)
       capture.pointer(false);
@@ -1144,6 +1248,10 @@
       [0, 300, 600].forEach((ms, i) => later(`anger-${i}`, ms, () => onClick(null)));
     } else if (name === 'duel') {
       runDemo('duel');
+    } else if (name === 'menu') {
+      // The hover menu, open for a moment, without a mouse.
+      hover.setOpen(true);
+      later('demo-menu', 2500, () => hover.closeNow());
     } else if (motionAllowed()) {
       ambient.run(name);
     }
@@ -1191,6 +1299,7 @@
 
   window.buddy.onInit(async (data) => {
     dev = data.dev === true;
+    if (data.perf === true) startPerf();
     if (data.demo) later('demo-run', 500, () => runDemo(data.demo));
     settings = { ...settings, ...(data.settings || {}) };
     crew.setStrings(settings.strings);
@@ -1216,7 +1325,9 @@
   window.buddy.onCrew((list) => {
     // Sub-agents at work keep the main character awake.
     rest.activity();
-    crewCount = Array.isArray(list) ? list.length : 0;
+    const count = Array.isArray(list) ? list.length : 0;
+    if (count !== crewCount) perfMark(`crew ${crewCount}→${count}`);
+    crewCount = count;
     crew.setAgents(list);
     updateFun();
   });

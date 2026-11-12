@@ -2,10 +2,11 @@
 
 /**
  * The only bridge between the sandboxed page and the main process.
- * The page receives display data and can send back exactly six things:
+ * The page receives display data and can send back exactly seven things:
  * "ready", "capture the mouse: yes/no", a drag phase, a menu item id, the id
- * of a mini that finished its exit scene, and a fun-mode request (a trip
- * around the screen, or the right-click menu).
+ * of a mini that finished its exit scene, a fun-mode request (a trip around
+ * the screen, or the right-click menu), and "a frame was drawn" during a trip
+ * (the window then moves in step with the display).
  * The main process validates every value again.
  */
 
@@ -40,6 +41,7 @@ contextBridge.exposeInMainWorld('buddy', {
   fun: (action) => {
     if (FUN_ACTIONS.has(action)) ipcRenderer.send('buddy:fun', action);
   },
+  tripFrame: () => ipcRenderer.send('buddy:trip-frame'),
   crewLeft: (id) => {
     if (typeof id === 'string' && id.length <= 32 && AGENT_ID_RE.test(id)) ipcRenderer.send('buddy:crew-left', id);
   },

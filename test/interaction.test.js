@@ -121,6 +121,32 @@ test('rest: after a quiet idle minute; any activity or new state wakes at once',
   assert.deepEqual(changes, [true, false, true, false]);
 });
 
+test('rest: unlocking the screen does not wake it; awake, the countdown starts again', () => {
+  const clock = new FakeClock();
+  const changes = [];
+  const r = new RestTimer({ clock, delay: 60000, onChange: (v) => changes.push(v) });
+  r.setIdle(true);
+  clock.tick(60000);
+  assert.equal(r.resting, true);
+  r.stop(); // screen locked
+  r.resume(); // unlocked
+  assert.equal(r.resting, true, 'still resting: only an event or the pointer wakes it');
+  assert.deepEqual(changes, [true]);
+
+  // Locked while awake: after unlocking it rests a full minute later.
+  const s = new RestTimer({ clock, delay: 60000 });
+  s.setIdle(true);
+  clock.tick(30000);
+  s.stop();
+  clock.tick(600000);
+  assert.equal(s.resting, false, 'nothing runs while locked');
+  s.resume();
+  clock.tick(59999);
+  assert.equal(s.resting, false);
+  clock.tick(1);
+  assert.equal(s.resting, true);
+});
+
 test('eyes: direction normalised, full deflection at the radius, dead zone in the middle', () => {
   assert.deepEqual(lookVector(2, 2), { x: 0, y: 0 });
   const right = lookVector(320, 0, 160);

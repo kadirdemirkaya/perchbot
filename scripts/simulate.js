@@ -229,7 +229,8 @@ const FAKE_CLAUDE = `
 const { spawn } = require('node:child_process');
 const lines = require('node:readline').createInterface({ input: process.stdin });
 lines.on('line', (line) => {
-  const env = { ...process.env };
+  // What Claude Code gives its hooks: its own pid, and CLAUDECODE=1.
+  const env = { ...process.env, CLAUDE_PID: String(process.pid), CLAUDECODE: '1' };
   delete env.AGENT_BUDDY_NO_PID;
   const event = JSON.parse(line).hook_event_name;
   const child = spawn(process.execPath, [${JSON.stringify(SEND)}, event], { stdio: ['pipe', 'ignore', 'ignore'], env });
