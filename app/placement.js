@@ -195,6 +195,27 @@ function isAirborne(altitude, scale, hoverMode) {
   return hoverMode !== 'stand' && altitude > HOVER_THRESHOLD * scale;
 }
 
+/**
+ * The cat (when called): it plays right next to the main character, then
+ * naps further out, beyond the helpers. Same outward offsets as the crew.
+ */
+const PET = Object.freeze({
+  /** Drawn in a box this big. */
+  size: 96,
+  /** Its play spot: this far beyond the report point. */
+  play: 56,
+  /** Its nap spot: this far beyond the play spot, or beyond the outermost helper. */
+  nap: 80,
+  /** Room behind it. */
+  tail: 46,
+});
+
+function petSpots(crewCount, side) {
+  const play = CREW.report[side === 'right' ? 'right' : 'left'] + PET.play;
+  const nap = crewCount > 0 ? crewWidth(crewCount, side) + PET.nap / 2 : play + PET.nap;
+  return { play, nap, width: nap + PET.tail, size: PET.size };
+}
+
 /** Outward offset of work spot `index` (0 = next to the report point). */
 function crewSpot(index, side) {
   return CREW.report[side === 'right' ? 'right' : 'left'] + CREW.firstGap + index * CREW.spacing;
@@ -237,6 +258,8 @@ module.exports = {
   SNAP_DISTANCE,
   HOVER_THRESHOLD,
   CREW,
+  PET,
+  petSpots,
   crewSpot,
   crewWidth,
   crewCapacity,

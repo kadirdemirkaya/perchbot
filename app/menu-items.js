@@ -29,18 +29,25 @@ const ITEMS = [
     label: () => 'backToCorner',
     visible: (s) => Boolean(s.position),
   },
+  // Play mode: a sword duel. Cat: call it, or send it off again.
+  { id: 'play', icon: () => 'sword', label: () => 'play', visible: (s) => Boolean(s.playMode) },
+  { id: 'cat', icon: () => 'cat', label: (s, x) => (x && x.catHere ? 'catAway' : 'catCall'), visible: (s) => Boolean(s.cat) },
   { id: 'settings', icon: () => 'gear', label: () => 'moreSettings' },
   { id: 'quit', icon: () => 'power', label: () => 'quit' },
 ];
 
 const MENU_IDS = new Set(ITEMS.map((item) => item.id));
 
-/** @returns {Array<{ id: string, icon: string, label: string, active: boolean }>} */
-function buildMenuItems(settings) {
+/**
+ * @param {object} settings
+ * @param {{ catHere?: boolean }} [extra]  runtime state that changes a label
+ * @returns {Array<{ id: string, icon: string, label: string }>}
+ */
+function buildMenuItems(settings, extra = {}) {
   return ITEMS.filter((item) => !item.visible || item.visible(settings)).map((item) => ({
     id: item.id,
     icon: item.icon(settings),
-    label: translate(settings.language, 'hover', item.label(settings)),
+    label: translate(settings.language, 'hover', item.label(settings, extra)),
   }));
 }
 

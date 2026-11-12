@@ -63,6 +63,7 @@ whose license is unclear.
 | `confetti` | no | `true` (default) shows the app's confetti on "done" |
 | `states` | no | Maps each app state to the value written into `data-state`. Missing entries use the state name. Lets two states share one animation |
 | `mini` | no | `{ "svg", "css", "tints" }`: a small helper drawn once per sub-agent (see [Sub-agent helpers](#sub-agent-helpers)). Without it the app shows a "N helpers" badge instead |
+| `pet` | no | `{ "svg", "css" }`: a pet the user can call from the menu (see [A pet](#a-pet)). Without it the cat menu items stay disabled |
 
 ### States
 
@@ -123,7 +124,8 @@ Use whatever you like; ignore the rest.
 | `--fly-tilt` | while flying: -1 to 1, the drag direction (positive = moving right); 0 at rest |
 | `data-skill` | `open` while a skill is in use (show a book, a scroll, ...), `stow` for ~0.8 s when it is put away. The app draws the tag with the skill name itself |
 | `data-brief`, `data-receive` | present for ~1.7 s when a helper is briefed / reports back. The value (`left` / `right`) is the side the helper stands on |
-| `data-play` | fun mode, while idle: `stretch`, `look`, `peek` or `hum` for ~3 s |
+| `data-play` | ambient life, while idle: `stretch`, `look`, `peek`, `hum`, `jump`, `ball` or `antenna` for 1.5-4 s |
+| `data-pet` | `play` while the pet plays next to the character (it joins in) |
 | `data-cheer` | with `data-state="done"`: `jump` (the classic), `spin`, `dance` or `fist` |
 | `data-annoyed`, `data-ouch` | clicked twice in a row (~1.5 s) / hit with the whip (~0.5 s) |
 | `data-move` | on a trip around the screen: `walk` or `fly` (the app also sets `data-fly` while flying) |
@@ -157,6 +159,22 @@ The app wraps each copy in `<div class="buddy-mini">` and sets:
 
 Use classes to recolour shapes per tint (Robo's kids use `--rbm-body` and friends, see
 `mini.css`). Mark props, shadows and flames `data-nohit`, as for the main character.
+
+### A pet
+
+Add `"pet": { "svg": "cat.svg", "css": "cat.css" }` to give the character a pet (Robo has a
+cat). The app draws it at 96 px, feet on y = 182 of the 200 × 200 box, centred at x = 100,
+facing right; it walks it in, mirrors it and places it. It never takes the mouse. The app
+sets on its wrapper `<div class="buddy-pet">`:
+
+| Attribute | Meaning |
+|---|---|
+| `data-phase` | `enter` (walks in), `play`, `aside` (walks to its nap spot), `nap`, `leave` |
+| `data-walk` | present while it walks |
+| `data-travel` | `walk` / `fly`: the whole buddy is on a trip and the pet comes along |
+| `data-rest` | the main character rests or the screen is locked: no animation |
+
+Napping can last long: keep it to a few frames per second and nothing under `data-rest`.
 
 ### Hovering
 

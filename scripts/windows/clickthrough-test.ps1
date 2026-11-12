@@ -5,8 +5,15 @@ param(
 # Click-through regression test for the ISOLATED test overlay
 # (start it first with start-test-overlay.ps1).
 #
-# THIS MOVES THE MOUSE AND SENDS REAL CLICKS for about 40 seconds. Do not touch
+# THIS MOVES THE MOUSE AND SENDS REAL CLICKS for about 50 seconds. Do not touch
 # the mouse or keyboard while it runs.
+#
+# Run it from a normal PowerShell window. Inside a sandboxed tool (for example
+# a coding agent's shell) mouse input may be blocked: the cursor then never
+# arrives and the safety check below stops the test before any click.
+#
+# The last part starts a walk (ambient life) and clicks on the walking
+# character: those clicks must reach the window below.
 #
 # A plain "target" window is placed directly behind the overlay (TopMost, then
 # the overlay is put back above it). Every click that passes through the
@@ -29,7 +36,11 @@ $overlay = FindOverlay $MainPid
 if ($overlay -eq [IntPtr]::Zero) { 'test overlay window not found. Nothing done.'; exit 1 }
 
 $r = New-Object U+RECT; [U]::GetWindowRect($overlay, [ref]$r) | Out-Null
-$W = $r.R - $r.L; $H = $r.B - $r.T; $k = $H / 270.0
+$W = $r.R - $r.L; $H = $r.B - $r.T
+# Device pixels per CSS px: the window's DPI (the test overlay is "medium", zoom 1).
+# The window's own height is not exact enough: Windows rounds the bounds.
+$dpi = 0; try { $dpi = [U]::GetDpiForWindow($overlay) } catch { $dpi = 0 }
+$k = if ($dpi -gt 0) { $dpi / 96.0 } else { $H / 270.0 }
 $sideRight = ($r.L + $W / 2) -lt ([U]::GetSystemMetrics(0) / 2)
 $slotLeft = if ($sideRight) { 0 } else { 64 }
 $menuLeft = if ($sideRight) { 220 } else { 0 }
@@ -44,7 +55,7 @@ $P = @{
 }
 $farX = if ($sideRight) { $r.R + 100 } else { $r.L - 100 }
 $P.far = @([int]$farX, [int]($r.T + $H / 2))
-"overlay ($($r.L),$($r.T)) ${W}x${H}, $([math]::Round($k,3)) px per CSS px, menu on the $(if ($sideRight) {'right'} else {'left'})"
+"overlay ($($r.L),$($r.T)) ${W}x${H}, $([math]::Round($k,3)) px per CSS px (dpi $dpi), menu on the $(if ($sideRight) {'right'} else {'left'})"
 
 $form = New-Object System.Windows.Forms.Form
 $form.FormBorderStyle = 'None'; $form.StartPosition = 'Manual'; $form.ShowInTaskbar = $false; $form.TopMost = $true
@@ -126,6 +137,37 @@ for ($i = 1; $i -le 15; $i++) { [U]::Move($P.body[0] + 10 * $i, $P.body[1] - 4 *
 $r1 = New-Object U+RECT; [U]::GetWindowRect($overlay, [ref]$r1) | Out-Null
 Check 'drag moves the window with the cursor (+150, -60 px)' ([math]::Abs(($r1.L - $r0.L) - 150) -le 6 -and [math]::Abs(($r1.T - $r0.T) + 60) -le 6) "moved ($($r1.L - $r0.L), $($r1.T - $r0.T))"
 Check 'dropped position is saved' ($null -ne (Get-Content $settingsFile -Raw | ConvertFrom-Json).position) ''
+
+# A moving window (ambient life: a walk along the taskbar) never takes the mouse:
+# clicks on the walking character reach the window below, and the mouse is free
+# again when it arrives. The simulator's Demo event starts the walk.
+$wa = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+# The target window now covers the whole width, down to the taskbar (a walk in the
+# air first flies down to the ground).
+$form.Bounds = New-Object System.Drawing.Rectangle $wa.X, ($r1.T - 40), $wa.Width, ($wa.Bottom - ($r1.T - 40))
+Pump 300
+[U]::SetWindowPos($overlay, [U]::TOPMOST, 0, 0, 0, 0, 0x0001 -bor 0x0002 -bor 0x0010) | Out-Null
+Pump 200
+$demo = '{"v":1,"event":"Demo","session":"clickthrough","ts":' + [DateTimeOffset]::Now.ToUnixTimeMilliseconds() + ',"demo":"walk"}'
+try { Invoke-RestMethod "http://127.0.0.1:$Port/event" -Method Post -ContentType 'application/json' -Body $demo -TimeoutSec 1 | Out-Null } catch { }
+Pump 500
+$walking = (Health).trip -eq 'stroll'
+Check 'a walk starts (Demo event)' $walking "health.trip=$((Health).trip)"
+if ($walking) {
+  for ($i = 0; $i -lt 3; $i++) {
+    $rm = New-Object U+RECT; [U]::GetWindowRect($overlay, [ref]$rm) | Out-Null
+    # The robot's belly, wherever the window is right now (the slot is on the outer side).
+    $slotCss = if ($sideRight) { 0 } else { ($rm.R - $rm.L) / $k - 220 }
+    $pt = @([int]($rm.L + ($slotCss + 98) * $k), [int]($rm.T + 195 * $k))
+    Go $pt 120
+    $before = $script:clicks; SafeClick $pt
+    Check "click on the walking character passes through ($($i + 1))" ($script:clicks -eq $before + 1) "target +$($script:clicks - $before)"
+    Pump 250
+  }
+  for ($i = 0; $i -lt 40 -and (Health).trip -eq 'stroll'; $i++) { Pump 200 }
+  Pump 300
+  Check 'after the walk the mouse is free' ((Health).mouse -eq 'passthrough') "health.mouse=$((Health).mouse)"
+}
 
 $ex = [U]::GetWindowLong($overlay, -20)
 Check 'tool window (not in Alt+Tab), never activates' ((($ex -band 0x80) -ne 0) -and (($ex -band 0x8000000) -ne 0)) ('exstyle 0x{0:X8}' -f $ex)

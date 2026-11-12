@@ -10,6 +10,9 @@
  *   npm run simulate -- two-sessions    two overlapping sessions (checks the session counter)
  *   npm run simulate -- playground      keeps the buddy idle so you can try the mouse:
  *                                       hover menu, drag, click, eyes, resting after a minute
+ *   npm run simulate -- life            every ambient-life behaviour in turn, then three quick
+ *                                       taps (it gets angry and moves: the new place is saved),
+ *                                       the sword duel and the cat. No mouse needed.
  *   npm run simulate -- --fast          shorter pauses
  *   npm run simulate -- --keep          skip the final SessionEnd (overlay stays open)
  */
@@ -75,6 +78,39 @@ async function step(label, input, waitMs) {
   } else {
     console.log(`  ${''.padEnd(18)}    ${label}`);
   }
+  await sleep(waitMs);
+}
+
+/**
+ * Ask the overlay for one of the character's own behaviours ("Demo" event,
+ * accepted from local processes only; Claude Code's hook never sends it).
+ */
+function demo(session, name) {
+  return new Promise((resolve) => {
+    const body = JSON.stringify({ v: 1, event: 'Demo', session, ts: Date.now(), demo: name });
+    const req = http.request(
+      {
+        host: '127.0.0.1',
+        port: PORT,
+        method: 'POST',
+        path: '/event',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+        timeout: 1000,
+      },
+      (res) => {
+        res.resume();
+        resolve(res.statusCode);
+      },
+    );
+    req.on('timeout', () => req.destroy());
+    req.on('error', () => resolve(0));
+    req.end(body);
+  });
+}
+
+async function act(session, name, label, waitMs) {
+  const status = await demo(session, name);
+  console.log(`  ${'Demo'.padEnd(18)} -> ${label.padEnd(30)} (${status === 204 ? 'ok' : `HTTP ${status || 'error'}`})`);
   await sleep(waitMs);
 }
 
@@ -199,6 +235,33 @@ async function playground() {
   }
 }
 
+async function life() {
+  const s = `sim-life-${randomId()}`;
+  console.log(`Session ${s}\n`);
+  await step('greeting', base(s, 'SessionStart', { source: 'startup' }), 3000);
+  await step('done, then idle', base(s, 'Stop', {}), 4000);
+  console.log('\n  Ambient life, one behaviour at a time:');
+  await act(s, 'stretch', 'stretch and yawn', 3500);
+  await act(s, 'look', 'look around', 3000);
+  await act(s, 'jump', 'a little hop', 2200);
+  await act(s, 'ball', 'play with a ball', 5000);
+  await act(s, 'antenna', 'play with its antenna', 3500);
+  await act(s, 'hum', 'hum a tune', 4000);
+  await act(s, 'walk', 'walk along the taskbar', 7000);
+  await act(s, 'fly', 'a short flight on its thrusters', 5000);
+  await act(s, 'inspect', 'fly over to the cursor, have a look', 7000);
+  await act(s, 'home', 'back home', 5000);
+  console.log('\n  Three quick taps (no mouse): it gets angry and moves; the new place is saved.');
+  console.log('  ("Back to the corner" in its menu brings it back.)');
+  await act(s, 'anger', 'tap, tap, tap', 7000);
+  console.log('\n  Play: the sword duel (plays itself here; with the mouse, every click is a swing).');
+  await act(s, 'duel', 'sword duel', 26000);
+  console.log('\n  The cat: walks in, plays with the buddy, then naps aside.');
+  await act(s, 'cat', 'call the cat', 16000);
+  await act(s, 'cat-away', 'send the cat away', 3500);
+  if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
+}
+
 (async () => {
   const running = await health();
   console.log(
@@ -209,8 +272,9 @@ async function playground() {
   if (scenario === 'two-sessions') await twoSessions();
   else if (scenario === 'tour') await tour();
   else if (scenario === 'playground') await playground();
+  else if (scenario === 'life') await life();
   else {
-    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions" or "playground".`);
+    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground" or "life".`);
     process.exitCode = 1;
   }
 })();

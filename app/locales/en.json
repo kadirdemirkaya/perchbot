@@ -51,7 +51,9 @@
     "account": "Account",
     "allAccounts": "All accounts",
     "noAccountEvents": "No events from this account yet",
-    "funMode": "Fun mode (plays, walks, mischief)"
+    "ambientLife": "Ambient life",
+    "playMode": "Play mode",
+    "cat": "Cat"
   },
   "hover": {
     "hideBubble": "Hide speech bubble",
@@ -60,18 +62,23 @@
     "eyesOn": "Follow the cursor with my eyes",
     "backToCorner": "Back to the corner",
     "moreSettings": "More settings…",
-    "quit": "Quit now"
+    "quit": "Quit now",
+    "play": "Play: sword duel",
+    "catCall": "Call the cat",
+    "catAway": "Send the cat away"
   },
   "page": {
     "helpers": "{count} helpers",
     "you": "You"
   },
   "fun": {
-    "duel": "Draw swords!",
+    "duel": "Play: sword duel",
     "walk": "Go for a walk",
     "fly": "Fly somewhere",
     "home": "Come back home",
-    "whip": "Take the whip"
+    "whip": "Take the whip",
+    "catCall": "Call the cat",
+    "catAway": "Send the cat away"
   },
   "quip": {
     "ouch": "Ouch!",

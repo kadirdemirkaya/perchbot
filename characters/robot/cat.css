@@ -1,0 +1,160 @@
+/*
+ * "Pip", Robo's cat.
+ *
+ * The app wraps the SVG in <div class="buddy-pet" data-phase="...">:
+ *   data-phase   enter | play | aside | nap | leave
+ *   data-walk    present while it walks (enter, aside, leave)
+ *   data-travel  "walk" | "fly": the whole buddy is on a trip and the cat comes along
+ *   data-rest    the main character rests (or the screen is locked): no animation
+ * The app moves and mirrors the wrapper; this file only animates the cat.
+ * Napping is the long state: it breathes at a low frame rate.
+ */
+
+.buddy-pet .rbc * {
+  transform-box: view-box;
+}
+
+.rbc-curl,
+.rbc-zzz,
+.rbc-ball {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.rbc-stand {
+  transition: opacity 0.3s ease;
+}
+
+.rbc-leg-bl,
+.rbc-leg-br {
+  transform-origin: 80px 150px;
+}
+
+.rbc-leg-fl,
+.rbc-leg-fr {
+  transform-origin: 131px 150px;
+}
+
+.rbc-tail {
+  transform-origin: 62px 144px;
+}
+
+.rbc-head {
+  transform-origin: 140px 128px;
+  transition: transform 0.3s ease;
+}
+
+.rbc-stand,
+.rbc-ball {
+  transform-origin: 100px 182px;
+}
+
+/* ------------------------------------------------------------ walking */
+
+.buddy-pet:is([data-walk], [data-travel='walk']) :is(.rbc-leg-bl, .rbc-leg-fr) {
+  animation: rbc-step 0.5s ease-in-out infinite;
+}
+
+.buddy-pet:is([data-walk], [data-travel='walk']) :is(.rbc-leg-br, .rbc-leg-fl) {
+  animation: rbc-step 0.5s ease-in-out -0.25s infinite;
+}
+
+.buddy-pet:is([data-walk], [data-travel]) .rbc-tail {
+  animation: rbc-tail 1s ease-in-out infinite;
+}
+
+/* Carried along through the air: a startled pose, legs out. */
+.buddy-pet[data-travel='fly'] :is(.rbc-leg-bl, .rbc-leg-fl) {
+  transform: rotate(18deg);
+}
+
+.buddy-pet[data-travel='fly'] :is(.rbc-leg-br, .rbc-leg-fr) {
+  transform: rotate(-18deg);
+}
+
+@keyframes rbc-step {
+  0%, 100% { transform: rotate(14deg); }
+  50% { transform: rotate(-14deg); }
+}
+
+@keyframes rbc-tail {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(8deg); }
+}
+
+/* ------------------------------------------------------------ play: crouch, pounce, bat the ball */
+
+.buddy-pet[data-phase='play'] .rbc-ball {
+  opacity: 1;
+  animation: rbc-roll 1.4s ease-in-out infinite;
+}
+
+.buddy-pet[data-phase='play'] .rbc-stand {
+  animation: rbc-pounce 1.4s cubic-bezier(0.4, 0, 0.4, 1) infinite;
+}
+
+.buddy-pet[data-phase='play'] .rbc-tail {
+  animation: rbc-tail 0.5s ease-in-out infinite;
+}
+
+.buddy-pet[data-phase='play'] .rbc-head {
+  transform: rotate(8deg);
+}
+
+@keyframes rbc-roll {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  45% { transform: translateX(46px) rotate(260deg); }
+  55% { transform: translateX(46px) rotate(260deg); }
+}
+
+@keyframes rbc-pounce {
+  0%, 100% { transform: translateY(3px) scale(1.04, 0.94); }
+  20% { transform: translateY(-10px) translateX(6px); }
+  40% { transform: none; }
+}
+
+/* ------------------------------------------------------------ nap */
+
+.buddy-pet[data-phase='nap'] .rbc-stand {
+  opacity: 0;
+}
+
+.buddy-pet[data-phase='nap'] :is(.rbc-curl, .rbc-zzz) {
+  opacity: 1;
+}
+
+.buddy-pet[data-phase='nap']:not([data-rest]) .rbc-curl {
+  transform-origin: 100px 184px;
+  animation: rbc-breathe 3.2s steps(4) infinite alternate;
+}
+
+.buddy-pet[data-phase='nap']:not([data-rest]) :is(.rbc-z1, .rbc-z2, .rbc-z3) {
+  animation: rbc-z 3.6s steps(6) infinite;
+}
+
+.buddy-pet[data-phase='nap']:not([data-rest]) .rbc-z2 {
+  animation-delay: 1.2s;
+}
+
+.buddy-pet[data-phase='nap']:not([data-rest]) .rbc-z3 {
+  animation-delay: 2.4s;
+}
+
+@keyframes rbc-breathe {
+  to { transform: scaleY(1.04); }
+}
+
+@keyframes rbc-z {
+  0% { opacity: 0; transform: translate(0, 4px); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(4px, -8px); }
+}
+
+/* ------------------------------------------------------------ reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .buddy-pet .rbc * {
+    animation: none !important;
+    transition-duration: 0s !important;
+  }
+}

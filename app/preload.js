@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('buddy', {
   onFlight: on('buddy:flight'),
   onCrew: on('buddy:crew'),
   onMove: on('buddy:move'),
+  onPet: on('buddy:pet'),
   onFun: on('buddy:fun'),
   onReleased: on('buddy:released'),
   ready: () => ipcRenderer.send('buddy:ready'),

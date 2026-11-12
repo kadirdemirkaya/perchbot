@@ -59,8 +59,9 @@ comes out while a skill is in use; a page turns now and then.
 
 ### Fun-mode props
 
-- **Toy sword:** a short lilac-white blade with a rounded tip, a mint guard and an indigo
-  grip. Deliberately a toy, not a glowing beam: no lightsaber look.
+- **Toy sword:** a short wooden blade (light wood with a grain line) with a rounded tip, a
+  mint guard and an indigo grip. Deliberately a toy, not a glowing beam: no lightsaber look.
+- **Ball:** a small pink ball with a cream stripe, for bouncing.
 - **Sparks and hits:** a yellow diamond with a few short dashes, rings and plain strokes.
   No many-rayed starbursts (that shape is close to Anthropic's mark).
 - **Annoyed mark** (four little curved veins), **dizzy ring** with three dots going round,
@@ -81,6 +82,16 @@ Robo's size, so the family resemblance is obvious and the two are never confused
 
 They walk, hop over each other on their thrusters, chat and pass notes, hold their own skill
 book, and dangle and kick their legs when the user picks them up.
+
+## Pip, Robo's cat
+
+A small cream cat with **lilac stripes** on its back, tail and forehead, pink inner ears, a
+**mint collar with a round yellow tag**. It walks, crouches and pounces at a yellow ball,
+then naps curled up like a loaf with little zigzag "z" marks (drawn, not text).
+
+Kept clear of well-known cats: not orange (Garfield; also Anthropic's colour), not a
+black-and-white tuxedo (Felix, Sylvester), not white with a bow (Hello Kitty), not blue or
+with a bell (Doraemon), not a chubby grey tabby (Pusheen), no grin that floats (Cheshire Cat).
 
 ## What it must not look like
 

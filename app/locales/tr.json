@@ -51,7 +51,9 @@
     "account": "Hesap",
     "allAccounts": "Tüm hesaplar",
     "noAccountEvents": "Bu hesaptan henüz olay gelmedi",
-    "funMode": "Eğlence modu (oyunlar, gezinti, yaramazlık)"
+    "ambientLife": "Canlılık",
+    "playMode": "Oyun modu",
+    "cat": "Kedi"
   },
   "hover": {
     "hideBubble": "Baloncuğu gizle",
@@ -60,18 +62,23 @@
     "eyesOn": "Gözlerimle imleci takip et",
     "backToCorner": "Köşeye geri dön",
     "moreSettings": "Diğer ayarlar…",
-    "quit": "Şimdi kapat"
+    "quit": "Şimdi kapat",
+    "play": "Oyna: kılıç düellosu",
+    "catCall": "Kediyi çağır",
+    "catAway": "Kediyi gönder"
   },
   "page": {
     "helpers": "{count} yardımcı",
     "you": "Sen"
   },
   "fun": {
-    "duel": "Kılıçları çek!",
+    "duel": "Oyna: kılıç düellosu",
     "walk": "Yürüyüşe çık",
     "fly": "Bir yere uç",
     "home": "Evine dön",
-    "whip": "Kırbacı al"
+    "whip": "Kırbacı al",
+    "catCall": "Kediyi çağır",
+    "catAway": "Kediyi gönder"
   },
   "quip": {
     "ouch": "Ay!",

@@ -96,6 +96,7 @@ function loadCharacter(dir, id) {
       bubbleAnchor: { x: fraction(anchor.x, 0.5), y: fraction(anchor.y, 0.1) },
       lookAnchor: { x: fraction(eyes.x, 0.5), y: fraction(eyes.y, 0.35) },
       mini: loadMini(dir, manifest.mini),
+      pet: loadPet(dir, manifest.pet),
     },
   };
 }
@@ -115,6 +116,13 @@ function assetProblem(dir, file, field) {
     return `${field} file "${file}" must be a file under ${MAX_ASSET_BYTES / 1024} KB`;
   }
   return null;
+}
+
+/** Optional "pet": { "svg", "css" }: the cat (or any pet) that can be called from the menu. */
+function loadPet(dir, pet) {
+  if (!pet || typeof pet !== 'object') return null;
+  if (assetProblem(dir, pet.svg, 'pet.svg') || assetProblem(dir, pet.css, 'pet.css')) return null;
+  return { svg: pet.svg, css: pet.css };
 }
 
 /**

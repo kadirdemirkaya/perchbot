@@ -35,7 +35,7 @@
 
 (() => {
   const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm } = window.BuddyInteraction;
-  const { ClickMeter, PlayScheduler, RoamScheduler, pickCheer, Duel } = window.BuddyFun;
+  const { ClickMeter, AmbientScheduler, pickCheer, Duel } = window.BuddyFun;
 
   const root = document.documentElement;
   const stage = document.getElementById('stage');
@@ -71,7 +71,7 @@
   const RECEIVE_MS = 1600;
 
   let character = null;
-  let settings = { quiet: false, eyeTracking: true, funMode: true };
+  let settings = { quiet: false, eyeTracking: true, ambientLife: true, playMode: false };
   let view = { state: 'idle', cssState: 'idle', text: '', mono: false };
   let layout = { side: 'left', slotLeft: 64 };
   let paused = false;
@@ -164,9 +164,22 @@
       console.error(`Agent Buddy: mini artwork: ${err.message}`);
       await crew.setCharacter(null);
     }
+    try {
+      await pet.setPet(next.pet || null);
+    } catch (err) {
+      console.error(`Agent Buddy: pet artwork: ${err.message}`);
+    }
   }
 
   // ---------------------------------------------------------------- crew view (sub-agents)
+
+  const pet = window.BuddyPetView.createPetView({
+    actors,
+    sanitizeSvg,
+    // The cat plays: the main character joins in (data-pet="play").
+    onCue: (name, on) => flag('pet', on && motionAllowed() ? name : null),
+    trace,
+  });
 
   const crew = window.BuddyCrewView.createCrewView({
     actors,
@@ -186,8 +199,16 @@
     stage.classList.toggle('leaving', next.state === 'goodbye');
     applySkill(next.skill || null);
     renderBubble();
-    // Claude Code needs the character: any event ends a duel at once.
+    // Claude Code needs the character: any event ends a duel at once, and
+    // work (anything but a calm state) ends ambient life, anger and the cat's play.
     if (duel.active) duel.stop();
+    if (!CALM.has(next.state)) {
+      cancel('flee');
+      cancel('anger');
+      flag('annoyed', null);
+      meter.reset();
+      pet.interrupt();
+    }
 
     // Every event wakes the character; idle starts the rest countdown again.
     rest.setIdle(next.state === 'idle');
@@ -197,7 +218,7 @@
       if (next.state === 'done') {
         burstConfetti();
         // Fun mode: not always the same celebration.
-        flag('cheer', funOn() ? pickCheer() : 'jump');
+        flag('cheer', ambientOn() ? pickCheer() : 'jump');
       }
       if (BUSY.has(next.state)) flag('greet', null);
     }
@@ -282,6 +303,7 @@
     stage.classList.toggle('side-left', next.side === 'left');
     stage.classList.toggle('side-right', next.side !== 'left');
     crew.setLayout(next);
+    pet.setLayout(next);
   }
 
   // ---------------------------------------------------------------- mouse: hit testing and capture
@@ -330,8 +352,9 @@
     pointerAt = lastPointer;
     // Synchronous on purpose: releasing the mouse must not wait for a frame.
     const holding = crew.isPressing();
-    const el = drag || holding ? null : document.elementFromPoint(clientX, clientY);
-    const next = drag ? 'character' : holding ? 'mini' : zoneOf(el);
+    const el = drag || holding || moving ? null : document.elementFromPoint(clientX, clientY);
+    // On a trip the window moves under the cursor: never take the mouse then.
+    const next = drag ? 'character' : holding ? 'mini' : moving ? null : zoneOf(el);
     capture.pointer(takesMouse(next));
     setZone(next);
     if (next === 'mini' && !crew.isHolding()) {
@@ -632,6 +655,7 @@
       trace(resting ? 'resting' : 'awake');
       flag('rest', resting ? true : null);
       crew.setRest(resting || paused);
+      pet.setRest(resting || paused);
       if (!resting) swayAntenna();
       updateFun();
     },
@@ -703,6 +727,7 @@
     if (paused) root.dataset.paused = '1';
     else delete root.dataset.paused;
     crew.setRest(paused || rest.resting);
+    pet.setRest(paused || rest.resting);
     if (paused) {
       if (duel.active) duel.stop();
       hover.closeNow();
@@ -736,35 +761,42 @@
     }
   }
 
-  // ---------------------------------------------------------------- fun mode
+  // ---------------------------------------------------------------- ambient life, play mode
 
-  const funOn = () => settings.funMode !== false && motionAllowed();
-  const ROAM_STATES = new Set(['idle', 'thinking', 'standby']);
+  /** Ambient life: off with the setting, reduced motion or a locked screen. */
+  const ambientOn = () => settings.ambientLife !== false && motionAllowed();
+  /** Play mode: the duel and the whip. */
+  const playOn = () => Boolean(settings.playMode) && motionAllowed();
+  /** States that are not work: ambient life may run, nothing gets interrupted. */
+  const CALM = new Set(['idle', 'standby', 'greeting']);
+  const AMBIENT_STATES = new Set(['idle', 'standby']);
   const ANNOYED_MS = 1500;
   const INSPECT_MS = 3800;
   let moving = null;
   let crewCount = 0;
+  let away = false;
 
   const meter = new ClickMeter();
-  const plays = new PlayScheduler({
+  const ambient = new AmbientScheduler({
     onPlay: (name) => {
-      if (name) trace(`play: ${name}`);
+      if (name) trace(`ambient: ${name}`);
       flag('play', name);
     },
-  });
-  const roamer = new RoamScheduler({
     onTrip: (kind) => {
-      trace(`trip wanted: ${kind}`);
+      trace(`ambient: trip ${kind}`);
       window.buddy.fun(kind);
     },
   });
   const duel = new Duel({ onPhase: onDuelPhase });
 
-  /** Idle plays and trips only when nothing else is going on. */
+  /**
+   * Ambient life runs in short bursts, only while nothing else goes on: idle
+   * (or standby), awake (not resting), no pointer on the character, no drag,
+   * no duel, not already on a trip. Trips only without helpers or the cat.
+   */
   function updateFun() {
-    const calm = funOn() && !duel.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting;
-    plays.set(calm && view.state === 'idle');
-    roamer.set(calm && ROAM_STATES.has(view.state) && crewCount === 0);
+    const calm = ambientOn() && !duel.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting;
+    ambient.update({ enabled: calm && AMBIENT_STATES.has(view.state), trips: crewCount === 0 && !pet.here, away });
   }
 
   /**
@@ -774,14 +806,14 @@
    */
   function onClick(e) {
     rest.activity();
-    const whip = funOn() && weapon === 'whip';
+    const whip = playOn() && weapon === 'whip';
     if (whip && e) {
       effect('crack', e.clientX, e.clientY);
       flag('ouch', true, true);
       later('ouch', OUCH_MS, () => flag('ouch', null));
       armWhip();
     }
-    const verdict = funOn() ? meter.click() : 'boop';
+    const verdict = ambientOn() ? meter.click() : 'boop';
     if (verdict === 'boop') {
       if (whip) quip('ouch', 900);
       else boop();
@@ -803,13 +835,13 @@
   const miniMeters = new Map();
   function onMiniClick(id, x, y) {
     rest.activity();
-    const whip = funOn() && weapon === 'whip';
+    const whip = playOn() && weapon === 'whip';
     if (whip) {
       effect('crack', x, y);
       crew.react(id, 'ouch');
       armWhip();
     }
-    if (!funOn()) {
+    if (!ambientOn()) {
       crew.react(id, 'boop');
       return;
     }
@@ -1019,19 +1051,24 @@
     if (!m) return;
     if (m.mode) {
       moving = m.mode;
-      rest.activity();
+      // (No rest.activity(): a trip of its own must not keep it from resting.)
+      capture.pointer(false);
+      setZone(null);
       hover.closeNow();
       flag('play', null);
       flag('inspect', null);
       flag('move', m.mode === 'walk' ? 'walk' : 'fly');
       flag('face', m.face === 'left' ? 'left' : null);
       crew.setTravel(m.mode, m.face);
+      pet.setTravel(m.mode, m.face);
       trace(`trip: ${m.kind} (${m.mode})`);
     } else {
       moving = null;
+      away = Boolean(m.away);
       flag('move', null);
       flag('face', null);
       crew.setTravel(null);
+      pet.setTravel(null);
       if (m.kind === 'inspect' && m.arrived && motionAllowed()) {
         flag('inspect', m.look === 'left' ? 'left' : 'right');
         later('inspect', INSPECT_MS, () => flag('inspect', null));
@@ -1047,6 +1084,20 @@
    * Developers only (main sends data.demo in npm run dev with AGENT_BUDDY_DEMO):
    * play a duel, the idle plays or the cheers by themselves, no mouse needed.
    */
+  /** The simulator (npm run simulate -- life) asks for one behaviour. */
+  function onDemo(name) {
+    trace(`demo: ${name}`);
+    rest.activity();
+    if (name === 'anger') {
+      // Three quick taps, without a mouse.
+      [0, 300, 600].forEach((ms, i) => later(`anger-${i}`, ms, () => onClick(null)));
+    } else if (name === 'duel') {
+      runDemo('duel');
+    } else if (motionAllowed()) {
+      ambient.run(name);
+    }
+  }
+
   function runDemo(name) {
     if (name === 'duel') {
       // Round 1: no answer (the robot hits). Then parry + hit until it loses.
@@ -1065,7 +1116,7 @@
       };
       later('demo-start', 1200, startDuel);
     } else if (name === 'plays' || name === 'cheers') {
-      const list = name === 'plays' ? ['stretch', 'look', 'peek', 'hum'] : ['jump', 'spin', 'dance', 'fist'];
+      const list = name === 'plays' ? ['stretch', 'look', 'peek', 'hum', 'jump', 'ball', 'antenna'] : ['jump', 'spin', 'dance', 'fist'];
       list.forEach((item, i) =>
         later(`demo-${i}`, 1500 + i * 3600, () => {
           trace(`demo: ${item}`);
@@ -1096,6 +1147,7 @@
     }
     applyView(data.view || view);
     crew.setAgents(data.crew);
+    pet.setOn(data.pet);
   });
 
   window.buddy.onView((next) => applyView(next));
@@ -1114,6 +1166,11 @@
   window.buddy.onFun((msg) => {
     if (msg && msg.action === 'duel') startDuel();
     if (msg && msg.action === 'whip') setWeapon(msg.on ? 'whip' : 'hand');
+    if (msg && msg.action === 'demo' && typeof msg.name === 'string') onDemo(msg.name);
+  });
+  window.buddy.onPet((msg) => {
+    pet.setOn(Boolean(msg && msg.on));
+    updateFun();
   });
   window.buddy.onSettings((next) => {
     settings = { ...settings, ...next };

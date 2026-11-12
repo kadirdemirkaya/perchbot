@@ -14,7 +14,8 @@ const { translate, languageOptions } = require('./i18n');
  * @param {number} p.sessionCount
  * @param {(account: string) => boolean} [p.seenAccount]  did that account send events in this run?
  * @param {object} p.on  callbacks: setCorner, setSize, setHoverMode, setCharacter, setLanguage,
- *   setQuiet, setEyeTracking, setAccount, backToCorner, openSettings, quit
+ *   setQuiet, setEyeTracking, setAmbientLife, setPlayMode, setCat, setAccount, backToCorner,
+ *   openSettings, quit
  */
 function buildTrayTemplate({ settings, characters, sessionCount, seenAccount = () => true, on }) {
   const t = (key, vars) => translate(settings.language, 'menu', key, vars);
@@ -74,12 +75,7 @@ function buildTrayTemplate({ settings, characters, sessionCount, seenAccount = (
       checked: settings.eyeTracking,
       click: (item) => on.setEyeTracking(Boolean(item && item.checked)),
     },
-    {
-      label: t('funMode'),
-      type: 'checkbox',
-      checked: settings.funMode !== false,
-      click: (item) => on.setFunMode(Boolean(item && item.checked)),
-    },
+    ...lifeToggles(settings, t, on),
     ...(settings.position ? [{ label: t('backToCorner'), click: () => on.backToCorner() }] : []),
     { type: 'separator' },
     { label: t('openSettings'), click: () => on.openSettings() },
@@ -104,38 +100,49 @@ function accountMenu(settings, seenAccount, t, radio, on) {
   return items;
 }
 
+/** The three switches for the buddy's own life, shared by the tray and the right-click menu. */
+function lifeToggles(settings, t, on) {
+  const box = (key, checked, set) => ({ label: t(key), type: 'checkbox', checked, click: (item) => set(Boolean(item && item.checked)) });
+  return [
+    box('ambientLife', settings.ambientLife !== false, on.setAmbientLife),
+    box('playMode', Boolean(settings.playMode), on.setPlayMode),
+    box('cat', Boolean(settings.cat), on.setCat),
+  ];
+}
+
 /**
- * The right-click menu on the character: a duel, the whip, a walk, a flight,
- * back home, and fun mode on / off.
+ * The right-click menu on the character: Play (the duel) and the whip (play
+ * mode), a walk, a flight, back home (ambient life), the cat, and the three
+ * switches.
  * @param {object} p
  * @param {object} p.settings
  * @param {boolean} p.away  the character is somewhere else than its home spot
  * @param {boolean} [p.whip]  the whip is in the user's hand
- * @param {object} p.on  callbacks: duel, setWhip(bool), trip(kind), setFunMode
+ * @param {boolean} [p.catHere]  the cat is on screen
+ * @param {object} p.on  callbacks: duel, setWhip(bool), trip(kind), cat(bool),
+ *   setAmbientLife, setPlayMode, setCat
  */
-function buildFunMenuTemplate({ settings, away, whip = false, on }) {
+function buildFunMenuTemplate({ settings, away, whip = false, catHere = false, on }) {
   const t = (key) => translate(settings.language, 'fun', key);
-  const fun = settings.funMode !== false;
+  const life = settings.ambientLife !== false;
+  const play = Boolean(settings.playMode);
   return [
-    { label: t('duel'), click: () => on.duel() },
+    { label: t('duel'), enabled: play, click: () => on.duel() },
     {
       label: t('whip'),
       type: 'checkbox',
-      checked: Boolean(whip) && fun,
-      enabled: fun,
+      checked: Boolean(whip) && play,
+      enabled: play,
       click: (item) => on.setWhip(Boolean(item && item.checked)),
     },
     { type: 'separator' },
-    { label: t('walk'), enabled: fun, click: () => on.trip('stroll') },
-    { label: t('fly'), enabled: fun && settings.hoverMode !== 'stand', click: () => on.trip('hop') },
+    { label: t('walk'), enabled: life, click: () => on.trip('stroll') },
+    { label: t('fly'), enabled: life && settings.hoverMode !== 'stand', click: () => on.trip('hop') },
     { label: t('home'), enabled: Boolean(away), click: () => on.trip('home') },
     { type: 'separator' },
-    {
-      label: translate(settings.language, 'menu', 'funMode'),
-      type: 'checkbox',
-      checked: fun,
-      click: (item) => on.setFunMode(Boolean(item && item.checked)),
-    },
+    { label: t(catHere ? 'catAway' : 'catCall'), enabled: Boolean(settings.cat), click: () => on.cat(!catHere) },
+    { type: 'separator' },
+    ...lifeToggles(settings, (key) => translate(settings.language, 'menu', key), on),
   ];
 }
 

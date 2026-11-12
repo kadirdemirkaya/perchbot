@@ -3,8 +3,8 @@ param(
   [string]$TestHome = (Join-Path $env:TEMP 'agent-buddy-test-home'),
   [int]$X = 0,
   [int]$Y = 0,
-  # Fun mode (idle plays, trips, mischief) is OFF here by default: a trip in the
-  # middle of a test would move the window. -Fun turns it on to try it out.
+  # Ambient life, play mode and the cat are OFF here by default: a trip in the
+  # middle of a test would move the window. -Fun turns all three on.
   [switch]$Fun
 )
 # Starts an ISOLATED overlay for interactive tests: its own port and its own
@@ -14,7 +14,7 @@ param(
 #
 #   .\scripts\windows\start-test-overlay.ps1                 # bottom-right corner
 #   .\scripts\windows\start-test-overlay.ps1 -X 520 -Y 880   # free position (screen DIPs)
-#   .\scripts\windows\start-test-overlay.ps1 -Fun            # with fun mode on
+#   .\scripts\windows\start-test-overlay.ps1 -Fun            # ambient life, play mode and the cat on
 #
 # Writes <TestHome>\overlay.pid and logs to <TestHome>\dev.log (with [ui] traces).
 $ErrorActionPreference = 'Stop'
@@ -23,7 +23,7 @@ $electron = Join-Path $repo ('node_modules\electron\dist\' + (Get-Content (Join-
 if (-not (Test-Path $electron)) { throw "Electron binary not found. Run: npm install (or node node_modules/electron/install.js)" }
 
 New-Item -ItemType Directory -Force $TestHome | Out-Null
-$settings = @{ quiet = $false; funMode = [bool]$Fun }
+$settings = @{ quiet = $false; ambientLife = [bool]$Fun; playMode = [bool]$Fun; cat = [bool]$Fun }
 if ($X -or $Y) { $settings.position = @{ x = $X; y = $Y } }
 $settings | ConvertTo-Json -Compress | Out-File -Encoding ascii (Join-Path $TestHome 'settings.json')
 

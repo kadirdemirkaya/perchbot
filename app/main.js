@@ -69,6 +69,10 @@ const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
 const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off']);
 /** Frame interval while the window travels. */
 const TRIP_FRAME_MS = 16;
+/** States that do not interrupt a trip; any other one (work) stops it at once. */
+const CALM_STATES = new Set(['idle', 'standby', 'greeting']);
+/** The cat's exit scene, before the window shrinks back. */
+const PET_EXIT_MS = 2200;
 
 const CSP = [
   "default-src 'none'",
@@ -159,6 +163,9 @@ function start() {
   let demoIndex = -1;
   /** The whip from the right-click menu is in the user's hand (the page shows it). */
   let whipOn = false;
+  /** The cat is on screen (called from the menu; needs the "Cat" setting). */
+  let petOn = false;
+  let petTimer = null;
 
   // ------------------------------------------------------------------ events
 
@@ -168,7 +175,11 @@ function start() {
       log.warn(`ignored invalid event (${source})`);
       return;
     }
-    log.info(`event ${evt.event}${evt.tool ? ` tool=${evt.tool}` : ''} (${source})`);
+    log.info(`event ${evt.event}${evt.tool ? ` tool=${evt.tool}` : ''}${evt.demo ? ` ${evt.demo}` : ''} (${source})`);
+    if (evt.event === 'Demo') {
+      onDemo(evt.demo);
+      return;
+    }
     core.handle(evt);
     refreshTrayIfNeeded();
   }
@@ -176,6 +187,12 @@ function start() {
   core.on('state', (snap) => {
     log.info(`state ${snap.state}`);
     log.devOnly(`bubble: ${bubbleText(snap) || '(none)'}`);
+    // Work comes first: a trip stops where it is the moment Claude Code needs the buddy.
+    if (trip && !CALM_STATES.has(snap.state)) {
+      log.devOnly(`trip: stopped by ${snap.state}`);
+      endTrip(true);
+      placeWindow();
+    }
     sendView();
   });
 
@@ -240,12 +257,12 @@ function start() {
     if (fromPage(event) && MENU_IDS.has(id)) onMenu(id);
   });
 
-  // Fun mode: the page asks for a trip or the right-click menu.
+  // Ambient life / play mode: the page asks for a trip or the right-click menu.
   ipcMain.on('buddy:fun', (event, action) => {
     if (!fromPage(event) || !FUN_ACTIONS.has(action)) return;
     if (action === 'context') popUpFunMenu();
     else if (action === 'whip-off') whipOn = false;
-    else if (action === 'home' || settings.funMode) startTrip(action);
+    else if (action === 'home' || settings.ambientLife) startTrip(action);
   });
 
   // A mini finished its exit scene: forget the agent (the window may shrink).
@@ -416,9 +433,12 @@ function start() {
     const side = placement.sideFor(resolved.anchor, resolved.workArea);
     const capacity =
       character && character.mini ? placement.crewCapacity(resolved.anchor, side, resolved.workArea, scale()) : 0;
-    const sideWidth = Math.max(placement.SIDE_WIDTH, placement.crewWidth(Math.min(crew.length, capacity), side));
+    const shown = Math.min(crew.length, capacity);
+    const pet = petOn && character && character.pet ? placement.petSpots(shown, side) : null;
+    const sideWidth = Math.max(placement.SIDE_WIDTH, placement.crewWidth(shown, side), pet ? pet.width : 0);
     const layout = placement.windowLayout(resolved.anchor, side, scale(), sideWidth);
     layout.page.crew = placement.crewGeometry(side, capacity);
+    layout.page.pet = pet;
     return { anchor: resolved.anchor, ...layout };
   }
 
@@ -603,6 +623,7 @@ function start() {
   function startTrip(kind) {
     if (!win || win.isDestroyed() || drag || trip || paused || !anchor || !pageLayout) return;
     const workArea = placement.nearestDisplay(anchor, displays()).workArea;
+    const b = win.getBounds();
     const plan = roam.planTrip({
       kind,
       from: anchor,
@@ -611,6 +632,9 @@ function start() {
       cursor: screen.getCursorScreenPoint(),
       scale: scale(),
       hoverMode: settings.hoverMode,
+      // The whole window (helpers, the cat) must stay on the screen, not only the slot.
+      spanLeft: anchor.x - b.x,
+      spanRight: b.x + b.width - anchor.x,
     });
     if (!plan) return;
     log.devOnly(`trip: ${kind} by ${plan.mode}, ${plan.ms} ms`);
@@ -644,35 +668,76 @@ function start() {
     const home = homeAnchor();
     roamAnchor = Math.hypot(anchor.x - home.x, anchor.y - home.y) < 3 ? null : { ...anchor };
     const cursor = screen.getCursorScreenPoint();
+    // Fled after being hit: that place is its new home (saved, like a drag).
+    const moved = plan.kind === 'flee' && !cancelled;
+    if (moved) roamAnchor = null;
     if (canSend()) {
       win.webContents.send('buddy:move', {
         mode: null,
         kind: plan.kind,
         arrived: !cancelled,
         look: cursor.x < anchor.x ? 'left' : 'right',
+        away: Boolean(roamAnchor),
       });
     }
-    if (!cancelled) placeWindow();
+    if (moved) {
+      const patch = placement.dropPlacement(anchor, displays(), primaryDisplay(), scale());
+      log.info('moved after being hit: new place saved');
+      updateSettings(patch, placeWindow);
+    } else if (!cancelled) {
+      placeWindow();
+    }
     if (demo === 'trips' && demoIndex >= 0) setTimeout(() => nextDemoTrip(demoIndex + 1), 4500);
   }
 
-  /** The right-click menu: duel, walk, fly, home, fun mode. */
+  /** The right-click menu: play (duel, whip), walk, fly, home, the cat, the three switches. */
   function popUpFunMenu() {
     const template = buildFunMenuTemplate({
       settings,
       away: Boolean(roamAnchor),
       whip: whipOn,
+      catHere: petOn,
       on: {
-        duel: () => canSend() && win.webContents.send('buddy:fun', { action: 'duel' }),
+        ...actions,
+        duel: () => startDuel(),
         trip: (kind) => startTrip(kind),
         setWhip: (value) => {
           whipOn = value;
           if (canSend()) win.webContents.send('buddy:fun', { action: 'whip', on: value });
         },
-        setFunMode: (value) => actions.setFunMode(value),
+        cat: (on) => setPet(on),
       },
     });
     popUpAtCursor(Menu.buildFromTemplate(template));
+  }
+
+  function startDuel() {
+    if (settings.playMode && canSend()) win.webContents.send('buddy:fun', { action: 'duel' });
+  }
+
+  /**
+   * The cat comes (the window makes room first) or goes (the page plays its
+   * exit, then the window shrinks back).
+   */
+  function setPet(on, force = false) {
+    const want = Boolean(on && (settings.cat || force) && character && character.pet);
+    if (want === petOn) return;
+    clearTimeout(petTimer);
+    petOn = want;
+    log.devOnly(`cat: ${want ? 'called' : 'sent away'}`);
+    if (want) placeWindow();
+    if (canSend()) win.webContents.send('buddy:pet', { on: want });
+    if (!want) petTimer = setTimeout(placeWindow, PET_EXIT_MS);
+    sendSettings();
+  }
+
+  /** The simulator (scripts/simulate.js "life") asks for one behaviour. */
+  function onDemo(name) {
+    const trips = { walk: 'stroll', fly: 'hop', inspect: 'inspect', home: 'home' };
+    if (trips[name]) startTrip(trips[name]);
+    else if (name === 'cat') setPet(true, true); // the simulator shows it even with the setting off
+    else if (name === 'cat-away') setPet(false);
+    else if (canSend()) win.webContents.send('buddy:fun', { action: 'demo', name });
   }
 
   function setPaused(value) {
@@ -712,6 +777,12 @@ function start() {
       confetti: character.confetti,
       bubbleAnchor: character.bubbleAnchor,
       lookAnchor: character.lookAnchor,
+      pet: character.pet
+        ? {
+            svgUrl: `${base}/${encodeURIComponent(character.pet.svg)}`,
+            cssUrl: `${base}/${encodeURIComponent(character.pet.css)}`,
+          }
+        : null,
       mini: character.mini
         ? {
             svgUrl: `${base}/${encodeURIComponent(character.mini.svg)}`,
@@ -723,7 +794,17 @@ function start() {
   }
 
   function rendererSettings() {
-    return { quiet: settings.quiet, eyeTracking: settings.eyeTracking, funMode: settings.funMode, strings: pageStrings() };
+    return {
+      quiet: settings.quiet,
+      eyeTracking: settings.eyeTracking,
+      ambientLife: settings.ambientLife,
+      playMode: settings.playMode,
+      strings: pageStrings(),
+    };
+  }
+
+  function menuItems() {
+    return buildMenuItems(settings, { catHere: petOn });
   }
 
   function canSend() {
@@ -737,9 +818,10 @@ function start() {
       settings: rendererSettings(),
       view: viewPayload(),
       layout: pageLayout,
-      menu: buildMenuItems(settings),
+      menu: menuItems(),
       flight,
       crew,
+      pet: petOn,
       paused,
       dev: isDev,
       demo,
@@ -775,7 +857,7 @@ function start() {
   function sendSettings() {
     if (!canSend()) return;
     win.webContents.send('buddy:settings', rendererSettings());
-    win.webContents.send('buddy:menu-items', buildMenuItems(settings));
+    win.webContents.send('buddy:menu-items', menuItems());
   }
 
   function sendLayout() {
@@ -794,6 +876,12 @@ function start() {
         break;
       case 'corner':
         actions.backToCorner();
+        break;
+      case 'play':
+        startDuel();
+        break;
+      case 'cat':
+        setPet(!petOn);
         break;
       case 'settings':
         popUpSettings();
@@ -885,10 +973,23 @@ function start() {
         refreshTrayIfNeeded();
       }),
     setEyeTracking: (eyeTracking) => updateSettings({ eyeTracking }),
-    // Fun mode off: no more trips; if it is away, it walks (or flies) home.
-    setFunMode: (funMode) =>
-      updateSettings({ funMode }, () => {
-        if (!funMode && roamAnchor) startTrip('home');
+    // Ambient life off: no more trips; if it is away, it walks (or flies) home.
+    setAmbientLife: (ambientLife) =>
+      updateSettings({ ambientLife }, () => {
+        if (!ambientLife && roamAnchor) startTrip('home');
+      }),
+    // Play mode off: the whip goes too.
+    setPlayMode: (playMode) =>
+      updateSettings({ playMode }, () => {
+        if (!playMode && whipOn) {
+          whipOn = false;
+          if (canSend()) win.webContents.send('buddy:fun', { action: 'whip', on: false });
+        }
+      }),
+    // Cat off: if it is here, it leaves.
+    setCat: (cat) =>
+      updateSettings({ cat }, () => {
+        if (!cat) setPet(false);
       }),
     backToCorner: () => {
       roamAnchor = null;

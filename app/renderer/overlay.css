@@ -537,6 +537,36 @@ html[data-duel] .duel-pad {
   opacity: 1;
 }
 
+/* The cat: placed like a mini, never takes the mouse, in front of the minis. */
+.buddy-pet {
+  position: absolute;
+  z-index: 15;
+  bottom: calc(18px - var(--pet-size, 96px) * 0.09);
+  left: calc(var(--pet-size, 96px) * -0.5);
+  width: var(--pet-size, 96px);
+  height: var(--pet-size, 96px);
+  pointer-events: none;
+  transform: translateX(calc(var(--dir) * var(--off, 0px)));
+  transition: transform var(--walk, 0ms) linear;
+}
+
+.buddy-pet > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+}
+
+.buddy-pet[data-flip] > svg {
+  transform: scaleX(-1);
+}
+
+.buddy-pet svg * {
+  pointer-events: none;
+}
+
 /* "+N" (more agents than fit) or "N helpers" (character without minis). */
 .crew-badge {
   position: absolute;
@@ -619,7 +649,8 @@ html[data-paused] *::after {
   .menu-button,
   .tooltip,
   .skill-tag,
-  .buddy-mini {
+  .buddy-mini,
+  .buddy-pet {
     transition: none;
   }
   .stage.leaving {

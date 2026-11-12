@@ -39,8 +39,12 @@ const DEFAULTS = Object.freeze({
   account: 'all',
   /** Accounts seen so far, offered in the tray menu (at most 8, most recent first). */
   knownAccounts: [],
-  /** Idle plays, varied cheers, trips around the screen, running off when clicked too often. */
-  funMode: true,
+  /** Ambient life: idle plays, walks and flights, varied cheers, getting annoyed when poked. */
+  ambientLife: true,
+  /** Play mode: the sword duel ("Play") and the whip. */
+  playMode: false,
+  /** The cat: it can be called from the menu, plays with the buddy, then naps. */
+  cat: false,
 });
 
 const COORD_LIMIT = 1e6;
@@ -78,7 +82,11 @@ function normalizeSettings(raw) {
   }
   if (typeof raw.debug === 'boolean') s.debug = raw.debug;
   if (typeof raw.eyeTracking === 'boolean') s.eyeTracking = raw.eyeTracking;
-  if (typeof raw.funMode === 'boolean') s.funMode = raw.funMode;
+  // "funMode" (before 0.3) became "ambientLife".
+  if (typeof raw.ambientLife === 'boolean') s.ambientLife = raw.ambientLife;
+  else if (typeof raw.funMode === 'boolean') s.ambientLife = raw.funMode;
+  if (typeof raw.playMode === 'boolean') s.playMode = raw.playMode;
+  if (typeof raw.cat === 'boolean') s.cat = raw.cat;
   s.position = normalizePosition(raw.position);
   if (HOVER_MODES.includes(raw.hoverMode)) s.hoverMode = raw.hoverMode;
   if (typeof raw.account === 'string' && (raw.account === 'all' || ACCOUNT_RE.test(raw.account))) s.account = raw.account;

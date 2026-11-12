@@ -20,18 +20,21 @@ you want the test overlay's files somewhere else, for example in the git-ignored
 `.test-artifacts/` folder of the repo. Start the test overlay with `-X`/`-Y` above the
 taskbar to see the hovering pose, or without them for the corner (on the ground).
 
-The test overlay starts with **fun mode off** (no idle plays, trips or mischief), so the
-screenshots and the click-through test are repeatable. Add `-Fun` to try fun mode. Set
-`$env:AGENT_BUDDY_DEMO` to `duel`, `trips`, `plays` or `cheers` before starting it to have
-that part play by itself.
+The test overlay starts with **ambient life, play mode and the cat off**, so the
+screenshots and the click-through test are repeatable. Add `-Fun` to turn all three on;
+`npm run simulate -- life` (with `$env:AGENT_BUDDY_PORT = '7790'` and `$env:AGENT_BUDDY_HOME`
+set to the test home) then plays every behaviour in turn. Developers can also set
+`$env:AGENT_BUDDY_DEMO` to `duel`, `trips`, `plays` or `cheers` before starting it.
 
 If PowerShell refuses to run scripts, use
 `powershell -NoProfile -ExecutionPolicy Bypass -File <script>`.
 
 ## clickthrough-test.ps1
 
-**It moves the mouse and sends real clicks for about 40 seconds. Do not touch the
-mouse or keyboard while it runs.**
+**It moves the mouse and sends real clicks for about 50 seconds. Do not touch the
+mouse or keyboard while it runs.** Run it from a normal PowerShell window: inside a
+sandboxed tool shell mouse input may be blocked, and the test then stops at its first
+safety check without clicking.
 
 It puts a plain target window directly behind the test overlay and checks:
 - clicks on empty parts of the overlay window (including where the closed menu sits)
@@ -41,6 +44,8 @@ It puts a plain target window directly behind the test overlay and checks:
 - moving off the character releases the mouse at once (also with a click 0-100 ms later);
 - the hover menu opens, its buttons work, and its spot passes clicks again once closed;
 - dragging moves the window and saves the position;
+- while the window moves (a walk along the taskbar), clicks on the character reach the
+  window below, and the mouse is free again when it arrives;
 - the window is a non-activating tool window (not in Alt+Tab).
 
 Safety: before **every** click it checks that the cursor is where the test put it

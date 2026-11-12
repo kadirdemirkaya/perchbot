@@ -2,9 +2,8 @@
  * Fun mode logic for the overlay page. Pure, injectable clock and random, so
  * the same file runs in the renderer (window.BuddyFun) and in node:test.
  *
- *   ClickMeter     quick clicks in a row: "annoyed", then "flee" (a whip!)
- *   PlayScheduler  short idle plays (stretch, look around, peek at the laptop, hum)
- *   RoamScheduler  now and then a trip around the screen (stroll, hop, inspect, home)
+ *   ClickMeter        quick hits in a row: "annoyed", then "flee"
+ *   AmbientScheduler  ambient life: short plays and trips, every 20-90 s
  *   pickCheer      a different celebration for "done" now and then
  *   Duel           the sword fight started from the right-click menu
  *
@@ -58,40 +57,72 @@
     }
   }
 
-  // ------------------------------------------------------------------ idle plays
+  // ------------------------------------------------------------------ ambient life
 
+  /** Short plays (ms): what the character does by itself, on the spot. */
   const PLAYS = Object.freeze({
     stretch: 2600,
     look: 2400,
     peek: 2800,
     hum: 3200,
+    jump: 1400,
+    ball: 4200,
+    antenna: 2600,
   });
 
+  /** Trips around the screen (main.js plans them, see app/roam.js). */
+  const TRIPS = Object.freeze({ walk: 'stroll', fly: 'hop', inspect: 'inspect', home: 'home' });
+
+  /** Relative chances. Every play counts 1. */
+  const WEIGHTS = Object.freeze({ walk: 1.6, fly: 1.1, inspect: 0.8, home: 1.4 });
+
   /**
-   * While the character is idle (and awake), now and then a short play:
-   * onPlay(name) at the start, onPlay(null) when it is over. Anything else
-   * (an event, the pointer, rest) calls stop() and the play ends at once.
+   * Ambient life: while allowed (idle, awake, nothing else going on), every
+   * 20-90 s one short behaviour, never the same one twice in a row:
+   *   a play on the spot   onPlay(name), then onPlay(null) when it is over
+   *   a trip               onTrip(kind) asks the main process to move
+   * update() with enabled = false (an event, the pointer, rest, a drag, a
+   * duel...) ends a play at once and cancels the next one.
    */
-  class PlayScheduler {
-    constructor({ clock = realClock, random = Math.random, minMs = 12000, maxMs = 28000, onPlay = () => {} } = {}) {
+  class AmbientScheduler {
+    constructor({ clock = realClock, random = Math.random, minMs = 20000, maxMs = 90000, onPlay = () => {}, onTrip = () => {} } = {}) {
       this.clock = clock;
       this.random = random;
       this.minMs = minMs;
       this.maxMs = maxMs;
       this.onPlay = onPlay;
-      this.enabled = false;
+      this.onTrip = onTrip;
+      this.allowed = { enabled: false, trips: false, away: false };
       this.playing = null;
-      this.timer = null;
       this.last = null;
+      this.timer = null;
     }
 
-    /** idle && awake && fun mode: plays may start; anything else stops them. */
-    set(enabled) {
-      enabled = Boolean(enabled);
-      if (enabled === this.enabled) return;
-      this.enabled = enabled;
-      this.stop();
-      if (enabled) this.schedule();
+    /**
+     * @param {{ enabled: boolean, trips?: boolean, away?: boolean }} next
+     *   trips: moving around is allowed (no helpers, no cat); away: not at home
+     */
+    update({ enabled, trips = false, away = false }) {
+      const was = this.allowed.enabled;
+      this.allowed = { enabled: Boolean(enabled), trips: Boolean(trips), away: Boolean(away) };
+      if (!this.allowed.enabled) {
+        this.stop();
+        this.cancel();
+        return;
+      }
+      if (!was || (!this.timer && !this.playing)) this.schedule();
+    }
+
+    /** The behaviours possible right now, without the previous one. */
+    choices() {
+      const out = Object.keys(PLAYS).map((name) => [name, 1]);
+      if (this.allowed.trips) {
+        for (const kind of Object.keys(TRIPS)) {
+          if (kind === 'home' && !this.allowed.away) continue;
+          out.push([kind, WEIGHTS[kind]]);
+        }
+      }
+      return out.filter(([name]) => name !== this.last);
     }
 
     schedule() {
@@ -99,32 +130,36 @@
       const delay = this.minMs + this.random() * (this.maxMs - this.minMs);
       this.timer = this.clock.setTimeout(() => {
         this.timer = null;
-        if (this.enabled) this.play();
+        if (this.allowed.enabled) this.run(pickWeighted(this.choices(), this.random));
       }, delay);
     }
 
-    play() {
-      const names = Object.keys(PLAYS).filter((n) => n !== this.last);
-      const name = names[Math.floor(this.random() * names.length)];
+    /** Start one behaviour now (also used by the simulator). */
+    run(name) {
+      this.cancel();
       this.last = name;
+      if (TRIPS[name]) {
+        this.onTrip(TRIPS[name]);
+        if (this.allowed.enabled) this.schedule();
+        return;
+      }
+      if (!PLAYS[name]) return;
       this.playing = name;
       this.onPlay(name);
       this.timer = this.clock.setTimeout(() => {
         this.timer = null;
         this.playing = null;
         this.onPlay(null);
-        if (this.enabled) this.schedule();
+        if (this.allowed.enabled) this.schedule();
       }, PLAYS[name]);
     }
 
-    /** End a play at once (and wait for the next chance). */
+    /** End the current play at once. */
     stop() {
+      if (!this.playing) return;
       this.cancel();
-      if (this.playing) {
-        this.playing = null;
-        this.onPlay(null);
-      }
-      if (this.enabled) this.schedule();
+      this.playing = null;
+      this.onPlay(null);
     }
 
     cancel() {
@@ -133,54 +168,7 @@
     }
   }
 
-  // ------------------------------------------------------------------ trips
-
-  /** Relative chance of each trip kind (see app/roam.js). */
-  const TRIP_WEIGHTS = Object.freeze({ stroll: 4, hop: 2, inspect: 2, home: 2 });
-
-  /**
-   * While roaming is allowed (fun mode, a calm state, nobody else on screen,
-   * not resting), now and then onTrip(kind) asks the main process for a trip.
-   * Where to go, and whether it makes sense (already home?), is decided there.
-   */
-  class RoamScheduler {
-    constructor({ clock = realClock, random = Math.random, minMs = 40000, maxMs = 110000, onTrip = () => {} } = {}) {
-      this.clock = clock;
-      this.random = random;
-      this.minMs = minMs;
-      this.maxMs = maxMs;
-      this.onTrip = onTrip;
-      this.enabled = false;
-      this.timer = null;
-    }
-
-    set(enabled) {
-      enabled = Boolean(enabled);
-      if (enabled === this.enabled) return;
-      this.enabled = enabled;
-      this.cancel();
-      if (enabled) this.schedule();
-    }
-
-    schedule() {
-      this.cancel();
-      const delay = this.minMs + this.random() * (this.maxMs - this.minMs);
-      this.timer = this.clock.setTimeout(() => {
-        this.timer = null;
-        if (!this.enabled) return;
-        this.onTrip(pickWeighted(TRIP_WEIGHTS, this.random));
-        this.schedule();
-      }, delay);
-    }
-
-    cancel() {
-      if (this.timer) this.clock.clearTimeout(this.timer);
-      this.timer = null;
-    }
-  }
-
-  function pickWeighted(weights, random) {
-    const entries = Object.entries(weights);
+  function pickWeighted(entries, random) {
     let pick = random() * entries.reduce((sum, [, w]) => sum + w, 0);
     for (const [name, w] of entries) if ((pick -= w) < 0) return name;
     return entries[entries.length - 1][0];
@@ -332,5 +320,5 @@
     }
   }
 
-  return { ClickMeter, PlayScheduler, PLAYS, RoamScheduler, TRIP_WEIGHTS, pickCheer, CHEERS, Duel, DUEL_TIMINGS };
+  return { ClickMeter, AmbientScheduler, PLAYS, TRIPS, pickCheer, CHEERS, Duel, DUEL_TIMINGS };
 });

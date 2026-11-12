@@ -21,7 +21,8 @@
       rb-arm-*   shoulder;  rb-forearm-*  elbow
       rb-laptop  open in front / tucked under the arm;  rb-lid  hinge
       rb-book    skill book: out of the pocket while a skill is in use;  rb-book-page  turns
-      rb-sword   toy sword in the near hand (duel);  rb-clang  block / parry spark
+      rb-sword   toy wooden sword in the near hand (duel);  rb-clang  block / parry spark
+      rb-ball    a ball to bounce (ambient life)
       rb-anger, rb-dizzy, rb-notes  annoyed mark, dizzy ring, humming notes
     Elements marked data-nohit never count as "the character" for the mouse.
   -->
@@ -218,6 +219,12 @@
           <circle cx="58" cy="112" r="7" fill="#4FD6B4" stroke="#2A2650" stroke-width="2.6"/>
         </g>
 
+        <!-- a little ball to play with (ambient life): bounced by the far hand -->
+        <g class="rb-ball" data-nohit="">
+          <circle cx="72" cy="160" r="7.5" fill="#FF9DB0" stroke="#2A2650" stroke-width="2.2"/>
+          <path d="M65 158 Q72 163 79 158" fill="none" stroke="#FFF6E8" stroke-width="2.2" stroke-linecap="round"/>
+        </g>
+
         <!-- skill book: comes out of the pocket, held open in front of the chest -->
         <g class="rb-book" data-nohit="">
           <path d="M65 113 Q74 109 84 112.5 V136 Q74 132.5 65 136.5 Z" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.4" stroke-linejoin="round"/>
@@ -294,8 +301,9 @@
             <g class="rb-sword" data-nohit="">
               <rect x="115" y="141" width="6" height="14" rx="2" fill="#2A2650"/>
               <rect x="108.5" y="154.5" width="19" height="5" rx="2.5" fill="#4FD6B4" stroke="#2A2650" stroke-width="2.2"/>
-              <path d="M114.3 159.5 H121.7 V192 Q121.7 198.5 118 201.5 Q114.3 198.5 114.3 192 Z" fill="#EEEAFE" stroke="#2A2650" stroke-width="2.4" stroke-linejoin="round"/>
-              <path d="M116.6 163 V191" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>
+              <path d="M114.3 159.5 H121.7 V192 Q121.7 198.5 118 201.5 Q114.3 198.5 114.3 192 Z" fill="#D9BC8C" stroke="#2A2650" stroke-width="2.4" stroke-linejoin="round"/>
+              <path d="M116.4 163 V190" stroke="#EDD9B3" stroke-width="1.8" stroke-linecap="round"/>
+              <path d="M119.2 166 Q118.4 171 119.4 175 M118.6 181 Q119.6 185 118.8 189" fill="none" stroke="#A98A5C" stroke-width="1.2" stroke-linecap="round"/>
             </g>
             <circle cx="118" cy="148" r="6.8" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.6"/>
           </g>

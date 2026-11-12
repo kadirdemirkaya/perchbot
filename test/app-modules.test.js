@@ -60,6 +60,20 @@ test('bundled robot character is valid and maps every state', () => {
   }
 });
 
+test('the bundled robot brings its kids (minis) and its cat (pet), all scripts-free', () => {
+  const { characters } = discoverCharacters([path.join(ROOT, 'characters')]);
+  const robot = characters.get('robot');
+  assert.deepEqual(robot.mini, { svg: 'mini.svg', css: 'mini.css', tints: 5 });
+  assert.deepEqual(robot.pet, { svg: 'cat.svg', css: 'cat.css' });
+  for (const file of [robot.mini.svg, robot.pet.svg]) {
+    const svg = fs.readFileSync(path.join(robot.dir, file), 'utf8');
+    assert.ok(!/<script|\son\w+\s*=|style\s*=|<image|<text/i.test(svg), file);
+  }
+  for (const file of [robot.mini.css, robot.pet.css]) {
+    assert.ok(!/url\(|@import/i.test(fs.readFileSync(path.join(robot.dir, file), 'utf8')), file);
+  }
+});
+
 test('character manifests cannot point outside their folder', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-buddy-chars-'));
   const make = (id, manifest) => {
@@ -89,6 +103,15 @@ test('every locale has the same keys and placeholders as English', () => {
   }
   assert.equal(translate('tr', 'bubble', 'typing', { file: 'a.js' }), 'a.js düzenleniyor');
   assert.equal(translate('xx', 'bubble', 'done'), 'Done!', 'unknown language falls back to English');
+});
+
+test('Demo events: only known behaviours; the hook never sends them', () => {
+  const ok = validateEvent({ v: 1, event: 'Demo', session: 'sim', ts: 1, demo: 'anger', extra: 'x' });
+  assert.deepEqual(ok, { v: 1, event: 'Demo', session: 'sim', ts: 1, demo: 'anger' });
+  assert.equal(validateEvent({ v: 1, event: 'Demo', session: 'sim', ts: 1, demo: 'rm -rf' }), null);
+  assert.equal(validateEvent({ v: 1, event: 'Demo', session: 'sim', ts: 1 }), null);
+  const send = require('../hooks/send.js');
+  assert.equal(send.buildPayload({ hook_event_name: 'Demo', session_id: 's', demo: 'duel' }), null);
 });
 
 test('settings: free position and eye tracking are validated', () => {
@@ -216,36 +239,60 @@ test('tray menu: account submenu, with a note while the chosen account is silent
   assert.equal(tr.find((i) => i.label === 'Hesap').submenu.at(-1).label, 'Bu hesaptan henüz olay gelmedi');
 });
 
-test('fun mode: setting, tray checkbox and the right-click menu', () => {
-  assert.equal(normalizeSettings({}).funMode, true, 'on by default');
-  assert.equal(normalizeSettings({ funMode: false }).funMode, false);
-  assert.equal(normalizeSettings({ funMode: 'no' }).funMode, true);
+test('ambient life, play mode and the cat: settings, tray, right-click and hover menus', () => {
+  assert.equal(normalizeSettings({}).ambientLife, true, 'ambient life on by default');
+  assert.equal(normalizeSettings({}).playMode, false, 'play mode off by default');
+  assert.equal(normalizeSettings({}).cat, false, 'no cat by default');
+  assert.equal(normalizeSettings({ funMode: false }).ambientLife, false, 'the old funMode setting carries over');
+  assert.equal(normalizeSettings({ funMode: false, ambientLife: true }).ambientLife, true);
+  assert.equal(normalizeSettings({ playMode: 'yes' }).playMode, false);
 
   const calls = [];
   const on = new Proxy({}, { get: (_t, name) => (...args) => calls.push([name, ...args]) });
   const tray = buildTrayTemplate({ settings: { ...DEFAULTS }, characters: new Map(), sessionCount: 0, on });
-  const item = tray.find((i) => i.label === 'Fun mode (plays, walks, mischief)');
-  assert.equal(item.checked, true);
-  item.click({ checked: false });
-  assert.deepEqual(calls.pop(), ['setFunMode', false]);
+  const box = (label) => tray.find((i) => i.label === label);
+  assert.equal(box('Ambient life').checked, true);
+  assert.equal(box('Play mode').checked, false);
+  assert.equal(box('Cat').checked, false);
+  box('Ambient life').click({ checked: false });
+  box('Play mode').click({ checked: true });
+  box('Cat').click({ checked: true });
+  assert.deepEqual(calls.splice(0), [['setAmbientLife', false], ['setPlayMode', true], ['setCat', true]]);
 
+  // Defaults: no play, no cat; walks and flights from ambient life.
   const menu = buildFunMenuTemplate({ settings: { ...DEFAULTS }, away: false, on });
-  const byLabel = (label) => menu.find((i) => i.label === label);
-  byLabel('Draw swords!').click();
-  byLabel('Go for a walk').click();
-  byLabel('Fly somewhere').click();
-  assert.equal(byLabel('Come back home').enabled, false, 'already home');
-  assert.equal(byLabel('Take the whip').checked, false);
-  byLabel('Take the whip').click({ checked: true });
-  assert.deepEqual(calls.splice(0), [['duel'], ['trip', 'stroll'], ['trip', 'hop'], ['setWhip', true]]);
-  const armed = buildFunMenuTemplate({ settings: { ...DEFAULTS }, away: false, whip: true, on });
-  assert.equal(armed.find((i) => i.label === 'Take the whip').checked, true);
-  const away = buildFunMenuTemplate({ settings: { ...DEFAULTS, funMode: false, hoverMode: 'stand' }, away: true, on });
-  assert.equal(away.find((i) => i.label === 'Come back home').enabled, true);
-  assert.equal(away.find((i) => i.label === 'Go for a walk').enabled, false, 'no trips with fun mode off');
-  assert.equal(away.find((i) => i.label === 'Fly somewhere').enabled, false);
-  assert.equal(away.find((i) => i.label === 'Take the whip').enabled, false, 'no whip with fun mode off');
-  assert.equal(away.find((i) => i.label === 'Draw swords!').enabled, undefined, 'a duel is always possible');
+  const byLabel = (m, label) => m.find((i) => i.label === label);
+  assert.equal(byLabel(menu, 'Play: sword duel').enabled, false);
+  assert.equal(byLabel(menu, 'Take the whip').enabled, false);
+  assert.equal(byLabel(menu, 'Call the cat').enabled, false);
+  byLabel(menu, 'Go for a walk').click();
+  byLabel(menu, 'Fly somewhere').click();
+  assert.equal(byLabel(menu, 'Come back home').enabled, false, 'already home');
+  assert.deepEqual(calls.splice(0), [['trip', 'stroll'], ['trip', 'hop']]);
+
+  const play = buildFunMenuTemplate({ settings: { ...DEFAULTS, playMode: true, cat: true }, away: true, whip: true, catHere: false, on });
+  byLabel(play, 'Play: sword duel').click();
+  assert.equal(byLabel(play, 'Take the whip').checked, true);
+  byLabel(play, 'Take the whip').click({ checked: false });
+  byLabel(play, 'Call the cat').click();
+  byLabel(play, 'Come back home').click();
+  assert.deepEqual(calls.splice(0), [['duel'], ['setWhip', false], ['cat', true], ['trip', 'home']]);
+  const catHere = buildFunMenuTemplate({ settings: { ...DEFAULTS, cat: true }, away: false, catHere: true, on });
+  byLabel(catHere, 'Send the cat away').click();
+  assert.deepEqual(calls.splice(0), [['cat', false]]);
+
+  const still = buildFunMenuTemplate({ settings: { ...DEFAULTS, ambientLife: false, hoverMode: 'stand' }, away: false, on });
+  assert.equal(byLabel(still, 'Go for a walk').enabled, false, 'no trips without ambient life');
+  assert.equal(byLabel(still, 'Fly somewhere').enabled, false);
   const tr = buildFunMenuTemplate({ settings: { ...DEFAULTS, language: 'tr' }, away: false, on });
-  assert.equal(tr[0].label, 'Kılıçları çek!');
+  assert.equal(tr[0].label, 'Oyna: kılıç düellosu');
+
+  // Hover menu: a Play button in play mode, a cat button when the cat is enabled.
+  const ids = (s, x) => buildMenuItems({ ...DEFAULTS, ...s }, x).map((i) => i.id);
+  assert.ok(!ids({}).includes('play') && !ids({}).includes('cat'));
+  assert.ok(ids({ playMode: true }).includes('play'));
+  assert.ok(MENU_IDS.has('play') && MENU_IDS.has('cat'));
+  const cat = (x) => buildMenuItems({ ...DEFAULTS, cat: true }, x).find((i) => i.id === 'cat').label;
+  assert.equal(cat({}), 'Call the cat');
+  assert.equal(cat({ catHere: true }), 'Send the cat away');
 });

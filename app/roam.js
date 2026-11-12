@@ -16,7 +16,9 @@
  *            the screen, well away from where it was hit
  *
  * All positions are ANCHORS (bottom-centre of the slot, screen DIP), as in
- * placement.js. A trip never leaves the work area of the display it starts on.
+ * placement.js. A trip never leaves the work area of the display it starts
+ * on: not the target, not any point on the way (flights arc upwards, and the
+ * whole window counts, helpers and the cat included: spanLeft / spanRight).
  */
 
 const { SLOT } = require('./placement');
@@ -34,14 +36,22 @@ const FLEE_GAP = 320;
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-function bounds(workArea, scale) {
+/**
+ * Where the anchor may be so the whole window stays in the work area.
+ * spanLeft / spanRight: how far the window reaches left / right of the anchor (DIP).
+ */
+function bounds(workArea, scale, spanLeft, spanRight) {
   const half = (SLOT.width / 2) * scale;
   const height = SLOT.height * scale;
+  const left = Math.max(half, Number(spanLeft) || 0);
+  const right = Math.max(half, Number(spanRight) || 0);
+  const minX = workArea.x + left + EDGE;
+  const maxX = Math.max(minX, workArea.x + workArea.width - right - EDGE);
   return {
     half,
     height,
-    minX: workArea.x + half + EDGE,
-    maxX: workArea.x + workArea.width - half - EDGE,
+    minX,
+    maxX,
     minY: workArea.y + height,
     ground: workArea.y + workArea.height,
   };
@@ -67,12 +77,14 @@ function covers(anchor, cursor, b, margin) {
  * @param {{x:number,y:number}|null} p.cursor
  * @param {number} p.scale
  * @param {string} p.hoverMode  'auto' | 'stand' (stand: never in the air)
+ * @param {number} [p.spanLeft]  window width left of the anchor (DIP); default half a slot
+ * @param {number} [p.spanRight]  window width right of the anchor (DIP)
  * @param {() => number} [p.random]
- * @returns {null | { kind, from, to, mode: 'walk'|'fly', ms, face: 'left'|'right' }}
+ * @returns {null | { kind, from, to, mode: 'walk'|'fly', ms, face: 'left'|'right', limits }}
  */
-function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverMode = 'auto', random = Math.random }) {
+function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverMode = 'auto', spanLeft = 0, spanRight = 0, random = Math.random }) {
   if (!KINDS.has(kind) || !from || !workArea) return null;
-  const b = bounds(workArea, scale);
+  const b = bounds(workArea, scale, spanLeft, spanRight);
   const canFly = hoverMode !== 'stand';
   const onGround = from.y >= b.ground - 2;
   const gap = CURSOR_GAP * scale;
@@ -89,7 +101,7 @@ function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverM
       break;
     }
     case 'hop': {
-      if (!canFly) return planTrip({ kind: 'stroll', from, home, workArea, cursor, scale, hoverMode, random });
+      if (!canFly) return planTrip({ kind: 'stroll', from, home, workArea, cursor, scale, hoverMode, spanLeft, spanRight, random });
       to = { x: from.x + (random() - 0.5) * 700 * scale, y: b.ground - (60 + random() * 260) * scale };
       break;
     }
@@ -141,6 +153,7 @@ function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverM
     mode,
     ms: Math.max(MIN_TRIP_MS, Math.round(distance / (speed * scale))),
     face: to.x < from.x ? 'left' : 'right',
+    limits: { minX: b.minX, maxX: b.maxX, minY: b.minY, maxY: b.ground },
   };
 }
 
@@ -156,7 +169,14 @@ function positionAt(trip, t) {
   }
   const e = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
   const arc = Math.min(90, Math.hypot(to.x - from.x, to.y - from.y) * 0.25) * Math.sin(Math.PI * p);
-  return { x: Math.round(from.x + (to.x - from.x) * e), y: Math.round(from.y + (to.y - from.y) * e - arc) };
+  const point = { x: Math.round(from.x + (to.x - from.x) * e), y: Math.round(from.y + (to.y - from.y) * e - arc) };
+  // The arc must not lift the window above the top of the work area.
+  const l = trip.limits;
+  if (l) {
+    point.x = Math.round(clamp(point.x, Math.min(l.minX, from.x), Math.max(l.maxX, from.x)));
+    point.y = Math.round(clamp(point.y, Math.min(l.minY, from.y), Math.max(l.maxY, from.y)));
+  }
+  return point;
 }
 
 module.exports = { planTrip, positionAt, TRIP_KINDS: KINDS, CURSOR_GAP, FLEE_GAP, WALK_SPEED, FLY_SPEED };

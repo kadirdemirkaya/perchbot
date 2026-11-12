@@ -24,7 +24,8 @@
  *     skill?: string,           // skill / slash-command name (PreToolUse of Skill, UserPromptExpansion)
  *     account?: string,         // Claude config folder name, e.g. "claude-work" (any event)
  *   }
- *   SubagentStart / SubagentStop / UserPromptExpansion are also accepted.
+ *   SubagentStart / SubagentStop / UserPromptExpansion are also accepted, and
+ *   Demo ({ demo: one of DEMOS }) from the simulator.
  */
 
 const EVENTS = new Set([
@@ -39,6 +40,28 @@ const EVENTS = new Set([
   'SubagentStart',
   'SubagentStop',
   'UserPromptExpansion',
+  // Not a hook event: the simulator (scripts/simulate.js) asks for one of the
+  // character's own behaviours. hooks/send.js never sends it.
+  'Demo',
+]);
+
+/** What a Demo event may ask for. */
+const DEMOS = new Set([
+  'stretch',
+  'look',
+  'peek',
+  'hum',
+  'jump',
+  'ball',
+  'antenna',
+  'walk',
+  'fly',
+  'inspect',
+  'home',
+  'anger',
+  'duel',
+  'cat',
+  'cat-away',
 ]);
 
 const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse', 'PostToolUseFailure']);
@@ -117,6 +140,10 @@ function validateEvent(raw) {
     }
   }
   if (AGENT_EVENTS.has(raw.event) && !evt.agent) return null;
+  if (raw.event === 'Demo') {
+    if (typeof raw.demo !== 'string' || !DEMOS.has(raw.demo)) return null;
+    evt.demo = raw.demo;
+  }
   if (raw.event === 'PreToolUse' || raw.event === 'UserPromptExpansion') {
     const skill = pick(raw.skill, SKILL_RE);
     if (skill) evt.skill = skill;
@@ -125,4 +152,4 @@ function validateEvent(raw) {
   return evt;
 }
 
-module.exports = { validateEvent, cleanText, EVENTS, MAX_BODY_BYTES, ACCOUNT_RE };
+module.exports = { validateEvent, cleanText, EVENTS, DEMOS, MAX_BODY_BYTES, ACCOUNT_RE };

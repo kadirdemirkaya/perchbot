@@ -95,6 +95,24 @@ test('home: walks back along the ground when close, flies otherwise; nothing to 
   assert.equal(planTrip({ kind: 'teleport', from: home, home, workArea }), null);
 });
 
+test('the whole window stays inside: wide windows (helpers, cat), and the arc of a flight', () => {
+  // Helpers make the window reach 460 DIP to the left of the anchor.
+  for (let seed = 1; seed < 40; seed += 1) {
+    const trip = planTrip({ kind: 'flee', from: home, home, workArea, spanLeft: 460, spanRight: 110, random: randoms(seed) });
+    assert.ok(trip.to.x - 460 >= workArea.x, `seed ${seed}: left edge ${trip.to.x - 460}`);
+    assert.ok(trip.to.x + 110 <= workArea.x + workArea.width);
+    for (let t = 0; t <= trip.ms; t += trip.ms / 20) {
+      const p = positionAt(trip, t);
+      assert.ok(p.y - SLOT.height >= workArea.y, `seed ${seed}: top at ${t}`);
+      assert.ok(p.x - 460 >= workArea.x - 1 && p.x + 110 <= workArea.x + workArea.width + 1, `seed ${seed}: x at ${t}`);
+    }
+  }
+  // A flight close to the top of the work area: the arc is cut off at the top.
+  const high = { x: 400, y: SLOT.height + 20 };
+  const trip = planTrip({ kind: 'hop', from: high, home, workArea, random: () => 0.9 });
+  for (let t = 0; t <= trip.ms; t += 20) assert.ok(positionAt(trip, t).y >= SLOT.height, `t ${t}`);
+});
+
 test('positions along a trip: steady walk, arced flight, exact ends; scaled sizes stay inside', () => {
   const walk = { mode: 'walk', from: { x: 0, y: 900 }, to: { x: 100, y: 900 }, ms: 1000 };
   assert.deepEqual(positionAt(walk, 0), { x: 0, y: 900 });

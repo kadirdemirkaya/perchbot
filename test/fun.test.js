@@ -4,7 +4,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { ClickMeter, PlayScheduler, PLAYS, RoamScheduler, TRIP_WEIGHTS, pickCheer, CHEERS, Duel, DUEL_TIMINGS: D } = require('../app/renderer/lib/fun');
+const { ClickMeter, AmbientScheduler, PLAYS, TRIPS, pickCheer, CHEERS, Duel, DUEL_TIMINGS: D } = require('../app/renderer/lib/fun');
 const { FakeClock } = require('./helpers/fake-clock');
 
 
@@ -24,44 +24,61 @@ test('quick hits: the second annoys, the third makes it leave; a pause starts ov
   assert.equal(meter.click(), 'boop', 'too slow: not a streak');
 });
 
-test('idle plays: only while enabled, one at a time, never the same twice in a row; stop() ends one', () => {
+function ambient(random = Math.random) {
   const clock = new FakeClock();
-  const seen = [];
-  const plays = new PlayScheduler({ clock, random: () => 0, minMs: 1000, maxMs: 1000, onPlay: (n) => seen.push(n) });
-  clock.tick(5000);
-  assert.deepEqual(seen, [], 'off by default');
-  plays.set(true);
-  clock.tick(1000);
-  assert.equal(seen.length, 1);
-  const first = seen[0];
-  assert.ok(Object.keys(PLAYS).includes(first));
-  clock.tick(PLAYS[first]);
-  assert.deepEqual(seen, [first, null]);
-  clock.tick(1000);
-  assert.notEqual(seen[2], first, 'a different play next');
-  plays.stop();
-  assert.equal(seen.at(-1), null, 'ended at once');
-  plays.set(false);
-  const count = seen.length;
-  clock.tick(60000);
-  assert.equal(seen.length, count, 'nothing while disabled');
+  const log = [];
+  const a = new AmbientScheduler({
+    clock,
+    random,
+    onPlay: (name) => log.push(['play', name, clock.now]),
+    onTrip: (kind) => log.push(['trip', kind, clock.now]),
+  });
+  return { clock, a, log };
+}
+
+test('ambient life: one behaviour every 20-90 s, never the same twice in a row', () => {
+  let r = 0;
+  const { clock, a, log } = ambient(() => ((r = (r + 0.377) % 1), r));
+  clock.tick(120000);
+  assert.deepEqual(log, [], 'nothing until allowed');
+  a.update({ enabled: true, trips: true, away: true });
+  clock.tick(3600000);
+  const starts = log.filter(([, name]) => name !== null);
+  assert.ok(starts.length > 40, `${starts.length} behaviours in an hour`);
+  const names = starts.map(([kind, name]) => (kind === 'trip' ? Object.keys(TRIPS).find((k) => TRIPS[k] === name) : name));
+  for (let i = 1; i < names.length; i += 1) assert.notEqual(names[i], names[i - 1], `repeat at ${i}`);
+  assert.deepEqual([...new Set(names)].sort(), [...Object.keys(PLAYS), ...Object.keys(TRIPS)].sort(), 'every behaviour turns up');
+  // Gaps between behaviours: at least 20 s after the previous one ended (or since enabling), at most 90 s.
+  let end = 120000;
+  for (const [kind, name, at] of log) {
+    if (name === null) {
+      end = at;
+      continue;
+    }
+    assert.ok(at - end >= 20000 && at - end <= 90000 + 1, `gap ${at - end}`);
+    if (kind === 'trip') end = at;
+  }
 });
 
-test('trips: asked for now and then while allowed, every kind turns up, none while not allowed', () => {
-  const clock = new FakeClock();
-  const trips = [];
-  let r = 0;
-  const roam = new RoamScheduler({ clock, random: () => ((r = (r + 0.173) % 1), r), minMs: 1000, maxMs: 2000, onTrip: (k) => trips.push(k) });
-  clock.tick(60000);
-  assert.deepEqual(trips, [], 'off by default');
-  roam.set(true);
-  clock.tick(60000);
-  assert.ok(trips.length >= 30 && trips.length <= 60);
-  assert.deepEqual([...new Set(trips)].sort(), Object.keys(TRIP_WEIGHTS).sort());
-  roam.set(false);
-  const count = trips.length;
-  clock.tick(60000);
-  assert.equal(trips.length, count);
+test('ambient life: trips only when allowed, "home" only when away; disabling ends a play at once', () => {
+  const { clock, a, log } = ambient(() => 0.999);
+  a.update({ enabled: true, trips: false });
+  clock.tick(3600000);
+  assert.ok(log.every(([kind]) => kind === 'play'), 'no trips while helpers or the cat are around');
+  log.length = 0;
+  a.update({ enabled: true, trips: true, away: false });
+  clock.tick(3600000);
+  assert.ok(!log.some(([, name]) => name === 'home'), 'not when already home');
+  a.update({ enabled: false });
+  a.run('stretch');
+  a.update({ enabled: true });
+  a.run('ball');
+  assert.deepEqual(log.at(-1).slice(0, 2), ['play', 'ball']);
+  a.update({ enabled: false });
+  assert.deepEqual(log.at(-1).slice(0, 2), ['play', null], 'ended at once');
+  const count = log.length;
+  clock.tick(3600000);
+  assert.equal(log.length, count, 'nothing while disabled');
 });
 
 test('cheers: the classic jump about half of the time, the others otherwise', () => {

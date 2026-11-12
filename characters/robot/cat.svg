@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" class="rbc" role="img" aria-label="A small cream cat with lilac stripes">
+  <!--
+    "Pip", Robo's cat. Original artwork drawn for this project. License: MIT.
+    A cream cat with lilac stripes, a mint collar and a round yellow tag.
+    Kept clear of well-known cats (see characters/robot/DESIGN.md).
+
+    Rig (pivots in cat.css):
+      rbc-stand   standing / walking / playing pose
+        rbc-tail, rbc-leg-*, rbc-head
+      rbc-ball    the ball it plays with (rolls towards the robot and back)
+      rbc-curl    curled up, napping;  rbc-zzz  sleepy marks
+    Everything faces right (towards the robot); the app mirrors it when needed.
+  -->
+  <ellipse class="rbc-shadow" data-nohit="" cx="100" cy="186" rx="44" ry="5" fill="#2A2650" opacity=".15"/>
+
+  <g class="rbc-stand">
+    <!-- tail, behind the body -->
+    <g class="rbc-tail">
+      <path d="M62 146 Q30 140 32 110 Q33 97 43 98 Q37 114 45 129 Q53 140 66 140 Z" fill="#F1E2C6" stroke="#2A2650" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M36 112 Q41 110 44 112 M37 123 Q42 121 46 124" fill="none" stroke="#B3A8F7" stroke-width="3" stroke-linecap="round"/>
+    </g>
+
+    <!-- back legs -->
+    <g class="rbc-leg rbc-leg-bl">
+      <rect x="67" y="148" width="12" height="34" rx="6" fill="#E6D4B4" stroke="#2A2650" stroke-width="3"/>
+    </g>
+    <g class="rbc-leg rbc-leg-br">
+      <rect x="82" y="148" width="12" height="34" rx="6" fill="#F1E2C6" stroke="#2A2650" stroke-width="3"/>
+    </g>
+    <!-- front legs -->
+    <g class="rbc-leg rbc-leg-fl">
+      <rect x="118" y="148" width="12" height="34" rx="6" fill="#E6D4B4" stroke="#2A2650" stroke-width="3"/>
+    </g>
+    <g class="rbc-leg rbc-leg-fr">
+      <rect x="133" y="148" width="12" height="34" rx="6" fill="#F1E2C6" stroke="#2A2650" stroke-width="3"/>
+    </g>
+
+    <!-- body with lilac stripes on the back -->
+    <path class="rbc-body" d="M60 146 Q58 120 86 116 H124 Q148 116 148 140 Q148 158 132 160 H76 Q60 160 60 146 Z" fill="#F1E2C6" stroke="#2A2650" stroke-width="3.2" stroke-linejoin="round"/>
+    <path d="M78 119 Q80 126 77 132 M94 117 Q96 124 93 130 M110 117 Q112 124 109 130" fill="none" stroke="#B3A8F7" stroke-width="3.2" stroke-linecap="round"/>
+    <path d="M84 156 Q104 160 126 156" fill="none" stroke="#FFF6E8" stroke-width="5" stroke-linecap="round"/>
+
+    <!-- head -->
+    <g class="rbc-head">
+      <path d="M134 96 Q132 74 141 72 L152 86 Z" fill="#F1E2C6" stroke="#2A2650" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M137 92 Q137 80 141 79 L147 87 Z" fill="#FF9DB0"/>
+      <path d="M156 86 L168 72 Q177 74 175 96 Z" fill="#F1E2C6" stroke="#2A2650" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M161 86 L168 79 Q172 80 172 92 Z" fill="#FF9DB0"/>
+      <path d="M130 112 Q128 86 154 84 Q180 86 178 112 Q178 134 154 136 Q130 134 130 112 Z" fill="#F1E2C6" stroke="#2A2650" stroke-width="3.2" stroke-linejoin="round"/>
+      <path d="M150 89 V96 M155 88 V97 M160 89 V96" stroke="#B3A8F7" stroke-width="2.4" stroke-linecap="round"/>
+      <ellipse cx="156" cy="122" rx="13" ry="9" fill="#FFF6E8"/>
+      <g class="rbc-eyes" fill="#2A2650">
+        <ellipse cx="146" cy="109" rx="3.2" ry="4.4"/>
+        <ellipse cx="164" cy="109" rx="3.2" ry="4.4"/>
+        <circle cx="147.2" cy="107.4" r="1.2" fill="#FFFFFF"/>
+        <circle cx="165.2" cy="107.4" r="1.2" fill="#FFFFFF"/>
+      </g>
+      <path d="M152.5 117 H158.5 L155.5 120.5 Z" fill="#FF9DB0" stroke="#2A2650" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M155.5 120.5 Q153 125 150 123 M155.5 120.5 Q158 125 161 123" fill="none" stroke="#2A2650" stroke-width="2" stroke-linecap="round"/>
+      <path d="M142 121 L130 118 M142 125 L130 126 M169 121 L181 118 M169 125 L181 126" stroke="#2A2650" stroke-width="1.6" stroke-linecap="round"/>
+      <!-- collar and its round tag -->
+      <path d="M136 130 Q154 140 172 130" fill="none" stroke="#4FD6B4" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="154" cy="139" r="4" fill="#FFD25A" stroke="#2A2650" stroke-width="1.8"/>
+    </g>
+  </g>
+
+  <!-- the ball it plays with -->
+  <g class="rbc-ball" data-nohit="">
+    <circle cx="176" cy="175" r="7" fill="#FFD25A" stroke="#2A2650" stroke-width="2.2"/>
+    <path d="M169.5 173 Q176 178 182.5 173" fill="none" stroke="#B3A8F7" stroke-width="2.2" stroke-linecap="round"/>
+  </g>
+
+  <!-- curled up, napping -->
+  <g class="rbc-curl">
+    <path d="M58 172 Q56 146 96 142 Q140 140 146 166 Q148 184 100 184 Q60 184 58 172 Z" fill="#F1E2C6" stroke="#2A2650" stroke-width="3.2" stroke-linejoin="round"/>
+    <path d="M78 146 Q80 152 77 158 M96 143 Q98 150 95 156 M114 144 Q116 151 113 157" fill="none" stroke="#B3A8F7" stroke-width="3.2" stroke-linecap="round"/>
+    <path d="M60 176 Q72 186 112 184 Q134 183 140 176" fill="none" stroke="#2A2650" stroke-width="3" stroke-linecap="round"/>
+    <path d="M62 174 Q76 182 110 181" fill="none" stroke="#B3A8F7" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M124 150 Q123 134 130 133 L137 142 Z" fill="#F1E2C6" stroke="#2A2650" stroke-width="2.8" stroke-linejoin="round"/>
+    <path d="M140 142 L149 133 Q155 135 153 150 Z" fill="#F1E2C6" stroke="#2A2650" stroke-width="2.8" stroke-linejoin="round"/>
+    <path d="M118 162 Q117 142 138 141 Q158 142 157 162 Q156 176 138 177 Q119 176 118 162 Z" fill="#F1E2C6" stroke="#2A2650" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M127 160 Q131 163 135 160 M141 160 Q145 163 149 160" fill="none" stroke="#2A2650" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M136 167 H140 L138 169.5 Z" fill="#FF9DB0"/>
+    <path d="M124 172 Q138 179 152 172" fill="none" stroke="#4FD6B4" stroke-width="4" stroke-linecap="round"/>
+  </g>
+
+  <!-- sleepy marks: three small zigzags, drawn (no text) -->
+  <g class="rbc-zzz" data-nohit="" fill="none" stroke="#7462D6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path class="rbc-z1" d="M160 128 H167 L160 135 H167"/>
+    <path class="rbc-z2" d="M170 112 H178 L170 120 H178"/>
+    <path class="rbc-z3" d="M181 95 H190 L181 104 H190"/>
+  </g>
+</svg>

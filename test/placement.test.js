@@ -112,6 +112,16 @@ test('crew: spots grow outwards from the report point, width covers the outermos
   assert.equal(geo.report, p.CREW.report.right);
 });
 
+test('cat: plays next to the main character, naps beyond the helpers; the column makes room for it', () => {
+  const alone = p.petSpots(0, 'left');
+  assert.equal(alone.play, p.CREW.report.left + p.PET.play);
+  assert.ok(alone.nap > alone.play);
+  assert.ok(alone.width > alone.nap);
+  const crowded = p.petSpots(3, 'right');
+  assert.ok(crowded.nap > p.crewWidth(3, 'right'), 'naps beyond the outermost helper');
+  assert.equal(crowded.play, p.CREW.report.right + p.PET.play, 'still plays next to the main character');
+});
+
 test('crew: the window grows inwards and keeps the anchor; capacity follows the free room', () => {
   const anchor = p.cornerAnchor(primary.workArea, 'bottom-right', 1);
   const base = p.windowLayout(anchor, 'left', 1);
