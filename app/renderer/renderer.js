@@ -1192,6 +1192,23 @@
     flag('face', pointerAt.x < rect.left + rect.width * 0.49 ? 'left' : null);
   }
 
+  const MOVE_MODES = new Set(['walk', 'fly', 'toss', 'settle']);
+
+  /**
+   * The menu column switches sides: main moves the window under the page, which
+   * can only redraw a moment later. Hidden for that moment ('hide': answer
+   * once the hidden frame is on screen; 'show': back once the new layout is drawn).
+   */
+  function onFlip(phase) {
+    if (phase === 'hide') {
+      stage.classList.add('flipping');
+      requestAnimationFrame(() => requestAnimationFrame(() => window.buddy.flipReady()));
+    } else if (phase === 'show') {
+      requestAnimationFrame(() => requestAnimationFrame(() => stage.classList.remove('flipping')));
+    }
+    trace(`layout: flip ${phase}`);
+  }
+
   function tripTick() {
     if (!moving) return;
     window.buddy.tripFrame();
@@ -1212,7 +1229,8 @@
       hover.closeNow();
       flag('play', null);
       flag('inspect', null);
-      flag('move', m.mode === 'walk' ? 'walk' : 'fly');
+      // walk / fly: trips; toss (thrown, "Always stand"), settle (easing into place after a drop).
+      flag('move', MOVE_MODES.has(m.mode) ? m.mode : 'fly');
       flag('face', m.face === 'left' ? 'left' : null);
       crew.setTravel(m.mode, m.face);
       pet.setTravel(m.mode, m.face);
@@ -1332,6 +1350,7 @@
     updateFun();
   });
   window.buddy.onMove((m) => applyMove(m));
+  window.buddy.onFlip((phase) => onFlip(phase));
   window.buddy.onFun((msg) => {
     if (msg && msg.action === 'duel') startDuel();
     if (msg && msg.action === 'whip') setWeapon(msg.on ? 'whip' : 'hand');

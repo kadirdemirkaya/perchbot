@@ -64,6 +64,8 @@ const DEMOS = new Set([
   'cat',
   'cat-away',
   'menu',
+  // A throw from where it is (no mouse needed), towards the middle of the screen.
+  'fling',
 ]);
 
 const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse', 'PostToolUseFailure']);

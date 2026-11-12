@@ -50,6 +50,16 @@ body {
   height: 270px;
 }
 
+/* Switching sides (main.js flipSides): gone for a frame or two, then back softly. */
+.stage {
+  transition: opacity 110ms ease-out;
+}
+
+.stage.flipping {
+  opacity: 0;
+  transition: none;
+}
+
 .slot {
   position: absolute;
   top: 0;

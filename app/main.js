@@ -45,6 +45,7 @@ const { discoverCharacters } = require('./characters');
 const { translate } = require('./i18n');
 const placement = require('./placement');
 const roam = require('./roam');
+const fling = require('./fling');
 const { buildTrayTemplate, buildFunMenuTemplate } = require('./tray');
 const { buildMenuItems, MENU_IDS, switchFor } = require('./menu-items');
 const { createLogger } = require('./log');
@@ -80,6 +81,10 @@ const TRIP_FALLBACK_MS = 50;
 const CALM_STATES = new Set(['idle', 'standby', 'greeting']);
 /** The cat's exit scene, before the window shrinks back. */
 const PET_EXIT_MS = 2200;
+/** Switching sides: the longest wait for the page to hide before the window moves anyway. */
+const FLIP_WAIT_MS = 150;
+/** The side column while the chat panel is open (CSS px; see overlay.css .chat). */
+const CHAT_WIDTH = 176;
 
 const CSP = [
   "default-src 'none'",
@@ -181,6 +186,8 @@ function start() {
   /** The cat is on screen (called from a menu, which turns the "Cat" setting on). */
   let petOn = false;
   let petTimer = null;
+  /** The chat panel is open: the side column is wider (CHAT_WIDTH). */
+  let chatOpen = false;
 
   // ------------------------------------------------------------------ events
 
@@ -207,7 +214,8 @@ function start() {
     log.info(`state ${snap.state}`);
     log.devOnly(`bubble: ${bubbleText(snap) || '(none)'}`);
     // Work comes first: a trip stops where it is the moment Claude Code needs the buddy.
-    if (trip && !CALM_STATES.has(snap.state)) {
+    // (Not a throw: it only takes a moment, and the bubble shows the work at once anyway.)
+    if (trip && trip.plan.kind !== 'fling' && !CALM_STATES.has(snap.state)) {
       log.devOnly(`trip: stopped by ${snap.state}`);
       endTrip(true);
       placeWindow();
@@ -309,6 +317,11 @@ function start() {
   // A trip: one step per frame the page draws.
   ipcMain.on('buddy:trip-frame', (event) => {
     if (fromPage(event) && trip) stepTrip();
+  });
+
+  // Switching sides: the page is hidden now (see flipSides).
+  ipcMain.on('buddy:flip-ready', (event) => {
+    if (fromPage(event)) finishFlip();
   });
 
   ipcMain.on('buddy:crew-left', (event, id) => {
@@ -475,12 +488,18 @@ function start() {
       if (display) Object.assign(resolved, { anchor: { ...roamAnchor }, workArea: display.workArea });
       else roamAnchor = null;
     }
-    const side = placement.sideFor(resolved.anchor, resolved.workArea);
+    // The current side stays while everything fits there (switching sides moves the window).
+    const wanted = Math.max(
+      placement.SIDE_WIDTH,
+      chatOpen ? CHAT_WIDTH : 0,
+      crew.length && pageLayout ? placement.crewWidth(Math.min(crew.length, placement.CREW.max), pageLayout.side) : 0,
+    );
+    const side = placement.sideWithRoom(resolved.anchor, resolved.workArea, scale(), pageLayout ? pageLayout.side : null, wanted);
     const capacity =
       character && character.mini ? placement.crewCapacity(resolved.anchor, side, resolved.workArea, scale()) : 0;
     const shown = Math.min(crew.length, capacity);
     const pet = petOn && character && character.pet ? placement.petSpots(shown, side) : null;
-    const sideWidth = Math.max(placement.SIDE_WIDTH, placement.crewWidth(shown, side), pet ? pet.width : 0);
+    const sideWidth = Math.max(placement.SIDE_WIDTH, placement.crewWidth(shown, side), pet ? pet.width : 0, chatOpen ? CHAT_WIDTH : 0);
     const layout = placement.windowLayout(resolved.anchor, side, scale(), sideWidth);
     layout.page.crew = placement.crewGeometry(side, capacity);
     layout.page.pet = pet;
@@ -555,8 +574,38 @@ function start() {
   }
 
   function placeWindow() {
-    if (!win || win.isDestroyed() || drag || trip) return;
+    if (!win || win.isDestroyed() || drag || trip || flipping) return;
     const next = computePlacement();
+    // The menu column changes sides: the window moves under the character, and the
+    // page redraws its new layout a frame or two later. Hide the page for that
+    // moment instead of letting the character jump (see flipSides).
+    if (pageLayout && next.page.side !== pageLayout.side && canSend()) {
+      flipSides();
+      return;
+    }
+    applyPlacement(next);
+  }
+
+  /** In the middle of switching sides: { timer }. */
+  let flipping = null;
+
+  function flipSides() {
+    log.devOnly('layout: switching sides');
+    flipping = { timer: setTimeout(finishFlip, FLIP_WAIT_MS) };
+    win.webContents.send('buddy:flip', 'hide');
+  }
+
+  /** The page is hidden (or did not answer in time): move the window, then show it again. */
+  function finishFlip() {
+    if (!flipping) return;
+    clearTimeout(flipping.timer);
+    flipping = null;
+    if (!win || win.isDestroyed()) return;
+    applyPlacement(computePlacement());
+    if (canSend()) win.webContents.send('buddy:flip', 'show');
+  }
+
+  function applyPlacement(next) {
     anchor = next.anchor;
     pageLayout = next.page;
     const before = win.getBounds();
@@ -636,7 +685,18 @@ function start() {
     if (phase === 'start') {
       if (trip) endTrip(true); // picked up mid-trip
       const cursor = screen.getCursorScreenPoint();
-      drag = { cursor, anchor: { ...anchor }, side: pageLayout.side, live: { ...anchor }, lastX: cursor.x, tilt: 0, settle: null, stats: moveStats() };
+      drag = {
+        cursor,
+        anchor: { ...anchor },
+        side: pageLayout.side,
+        live: { ...anchor },
+        lastX: cursor.x,
+        tilt: 0,
+        settle: null,
+        stats: moveStats(),
+        // Recent cursor positions: how fast it was thrown (fling.velocityFrom).
+        samples: [{ t: Date.now(), x: cursor.x, y: cursor.y }],
+      };
       log.devOnly(`drag start: cursor ${drag.cursor.x},${drag.cursor.y} anchor ${anchor.x},${anchor.y}`);
       updateFlight(flightAt(drag.live, true));
       return;
@@ -644,6 +704,8 @@ function start() {
     if (!drag) return;
     if (phase === 'move') {
       const cursor = screen.getCursorScreenPoint();
+      drag.samples.push({ t: Date.now(), x: cursor.x, y: cursor.y });
+      if (drag.samples.length > 12) drag.samples.shift();
       drag.live = { x: drag.anchor.x + cursor.x - drag.cursor.x, y: drag.anchor.y + cursor.y - drag.cursor.y };
       const ms = timed(() => win.setBounds(placement.windowLayout(drag.live, drag.side, scale(), pageLayout.sideWidth).bounds));
       if (PERF) drag.stats.add(ms);
@@ -661,9 +723,14 @@ function start() {
       }, TILT_SETTLE_MS);
       return;
     }
-    const dropped = drag.live;
     const end = screen.getCursorScreenPoint();
-    log.devOnly(`drag ${phase}: cursor ${end.x},${end.y} anchor ${dropped.x},${dropped.y}`);
+    const now = Date.now();
+    // Where the cursor is now, not where the last move left it: no jump on release.
+    const dropped = { x: drag.anchor.x + end.x - drag.cursor.x, y: drag.anchor.y + end.y - drag.cursor.y };
+    drag.samples.push({ t: now, x: end.x, y: end.y });
+    const velocity = fling.velocityFrom(drag.samples, now);
+    const side = drag.side;
+    log.devOnly(`drag ${phase}: cursor ${end.x},${end.y} anchor ${dropped.x},${dropped.y} speed ${Math.hypot(velocity.vx, velocity.vy).toFixed(2)}`);
     clearTimeout(drag.settle);
     if (PERF) log.devOnly(`[perf] drag: setBounds ${drag.stats.summary()}`);
     drag = null;
@@ -671,10 +738,48 @@ function start() {
       placeWindow();
       return;
     }
-    const patch = placement.dropPlacement(dropped, displays(), primaryDisplay(), scale());
-    log.info(patch.position ? 'dropped at a free position' : `snapped to ${patch.corner}`);
     roamAnchor = null; // where the user puts it is its new home
+    anchor = dropped;
+    // Thrown: it glides on and slows down. Dropped: it eases into place (inside the
+    // screen, onto a corner nearby, onto the ground just below); never a jump.
+    const plan = fling.planFling({
+      from: dropped,
+      velocity,
+      workArea: placement.nearestDisplay(dropped, displays()).workArea,
+      scale: scale(),
+      settle: (point) => placement.settleAnchor(point, displays(), primaryDisplay(), scale()),
+    });
+    if (plan) {
+      startFling(plan, side);
+      return;
+    }
+    saveDrop(dropped);
+  }
+
+  /** Where it came to rest after a drag or a throw is its new home. */
+  function saveDrop(point) {
+    const patch = placement.dropPlacement(point, displays(), primaryDisplay(), scale());
+    log.info(patch.position ? 'dropped at a free position' : `snapped to ${patch.corner}`);
+    roamAnchor = null;
     updateSettings(patch, placeWindow);
+  }
+
+  /** The glide after a throw (or the short settle after a drop): stepped like a trip. */
+  function startFling(plan, side) {
+    log.devOnly(`fling: ${plan.thrown ? 'thrown' : 'settle'}, ${plan.ms} ms to ${plan.to.x},${plan.to.y}`);
+    setCapture(false);
+    if (canSend()) win.webContents.send('buddy:released');
+    trip = {
+      plan,
+      start: Date.now(),
+      side,
+      lastStep: Date.now(),
+      timer: setInterval(() => trip && Date.now() - trip.lastStep >= TRIP_FALLBACK_MS && stepTrip(), TRIP_FALLBACK_MS),
+      stats: moveStats(),
+    };
+    // The page: hands off the mouse while the window moves; a throw flies (or tumbles).
+    const mode = !plan.thrown ? 'settle' : settings.hoverMode === 'stand' ? 'toss' : 'fly';
+    if (canSend()) win.webContents.send('buddy:move', { mode, face: plan.face, kind: 'fling' });
   }
 
   // ------------------------------------------------------------------ trips (fun mode)
@@ -724,7 +829,14 @@ function start() {
     const now = Date.now();
     const t = now - trip.start;
     trip.lastStep = now;
-    anchor = roam.positionAt(trip.plan, t);
+    const isFling = trip.plan.kind === 'fling';
+    anchor = isFling ? fling.positionAt(trip.plan, t) : roam.positionAt(trip.plan, t);
+    // A throw: the flames lean against the way it flies, and it lands where it stops.
+    if (isFling) {
+      const lean = trip.plan.thrown && t < trip.plan.ms ? fling.speedAt(trip.plan, t) / (TILT_SPEED / 16) : 0;
+      // (Same sign as while dragging: positive when it moves to the right.)
+      updateFlight(flightAt(anchor, trip.plan.thrown && t < trip.plan.ms, Math.max(-1, Math.min(1, lean))));
+    }
     // setBounds with the size, not setPosition: at fractional display scales
     // setPosition grows the window by about a pixel per call on Windows, which
     // shifted the character along the way and made it jump back on arrival.
@@ -744,8 +856,8 @@ function start() {
     const home = homeAnchor();
     roamAnchor = Math.hypot(anchor.x - home.x, anchor.y - home.y) < 3 ? null : { ...anchor };
     const cursor = screen.getCursorScreenPoint();
-    // Fled after being hit: that place is its new home (saved, like a drag).
-    const moved = plan.kind === 'flee' && !cancelled;
+    // Fled after being hit, or thrown: that place is its new home (saved, like a drag).
+    const moved = (plan.kind === 'flee' || plan.kind === 'fling') && !cancelled;
     if (moved) roamAnchor = null;
     if (canSend()) {
       win.webContents.send('buddy:move', {
@@ -756,7 +868,9 @@ function start() {
         away: Boolean(roamAnchor),
       });
     }
-    if (moved) {
+    if (moved && plan.kind === 'fling') {
+      saveDrop(anchor);
+    } else if (moved) {
       const patch = placement.dropPlacement(anchor, displays(), primaryDisplay(), scale());
       log.info('moved after being hit: new place saved');
       updateSettings(patch, placeWindow);
@@ -829,9 +943,25 @@ function start() {
   function onDemo(name) {
     const trips = { walk: 'stroll', fly: 'hop', inspect: 'inspect', home: 'home' };
     if (trips[name]) startTrip(trips[name]);
+    else if (name === 'fling') demoFling();
     else if (name === 'cat') setPet(true, true); // the simulator shows it even with the setting off
     else if (name === 'cat-away') setPet(false);
     else if (canSend()) win.webContents.send('buddy:fun', { action: 'demo', name });
+  }
+
+  /** The simulator: a throw towards the middle of the screen and up, as if the user flung it. */
+  function demoFling() {
+    if (!win || win.isDestroyed() || drag || trip || !anchor) return;
+    const workArea = placement.nearestDisplay(anchor, displays()).workArea;
+    const towards = anchor.x > workArea.x + workArea.width / 2 ? -1 : 1;
+    const plan = fling.planFling({
+      from: { ...anchor },
+      velocity: { vx: towards * 2.2, vy: -1.1 },
+      workArea,
+      scale: scale(),
+      settle: (point) => placement.settleAnchor(point, displays(), primaryDisplay(), scale()),
+    });
+    if (plan) startFling(plan, pageLayout.side);
   }
 
   function setPaused(value) {

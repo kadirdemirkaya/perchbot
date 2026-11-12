@@ -22,6 +22,11 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $electron = Join-Path $repo ('node_modules\electron\dist\' + (Get-Content (Join-Path $repo 'node_modules\electron\path.txt')).Trim())
 if (-not (Test-Path $electron)) { throw "Electron binary not found. Run: npm install (or node node_modules/electron/install.js)" }
 
+# Port taken (e.g. an older test overlay still running): stop here, before
+# Electron starts and shows its "port in use" error box.
+$busy = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($busy) { throw "port $Port is already in use (pid $($busy.OwningProcess)); stop that process first, e.g. an older test overlay" }
+
 New-Item -ItemType Directory -Force $TestHome | Out-Null
 $settings = @{ quiet = $false; ambientLife = [bool]$Fun; playMode = [bool]$Fun; cat = [bool]$Fun }
 if ($X -or $Y) { $settings.position = @{ x = $X; y = $Y } }

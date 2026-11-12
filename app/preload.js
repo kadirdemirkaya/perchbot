@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('buddy', {
   onPet: on('buddy:pet'),
   onFun: on('buddy:fun'),
   onReleased: on('buddy:released'),
+  onFlip: on('buddy:flip'),
   ready: () => ipcRenderer.send('buddy:ready'),
   capture: (wanted) => ipcRenderer.send('buddy:capture', wanted === true),
   drag: (phase) => {
@@ -42,6 +43,7 @@ contextBridge.exposeInMainWorld('buddy', {
     if (FUN_ACTIONS.has(action)) ipcRenderer.send('buddy:fun', action);
   },
   tripFrame: () => ipcRenderer.send('buddy:trip-frame'),
+  flipReady: () => ipcRenderer.send('buddy:flip-ready'),
   crewLeft: (id) => {
     if (typeof id === 'string' && id.length <= 32 && AGENT_ID_RE.test(id)) ipcRenderer.send('buddy:crew-left', id);
   },

@@ -15,8 +15,9 @@ approval is needed and jumps when the work is done.
 - Works with Claude Code in the terminal and in the VS Code extension (both fire the same hooks).
 - Stays out of your way: clicks pass through everywhere except the character's own pixels,
   it never takes keyboard focus and it is not in Alt+Tab.
-- Hover it for a small menu, drag it anywhere (it snaps to the bottom corners), click it for a
-  bounce. Its eyes follow the cursor while the cursor is near.
+- Hover it for a small menu, drag it anywhere or throw it (it glides on and slows down; near a
+  bottom corner it settles there), click it for a bounce. Its eyes follow the cursor while the
+  cursor is near.
 - Lifelike but light: breathing, random blinks, an irregular typing rhythm, squash-and-stretch
   jumps. After a quiet minute it rests and nothing animates at all.
 - Sub-agents show up as little helper robots, each in its own colour: they get a briefing,
@@ -158,7 +159,8 @@ main process releases the mouse whenever the cursor is outside the window.
 | Rest the cursor on it | It waves, and a small menu opens beside it |
 | Move away | The menu closes after a moment |
 | Click it | A little bounce |
-| Drag it | It follows the cursor; near a bottom corner it snaps there. Any monitor works; if that monitor is unplugged it returns to the primary display's corner |
+| Drag it | It follows the cursor. Let go and it eases into place: onto a bottom corner nearby, onto the ground when it is just above it, back inside the screen. Any monitor works; if that monitor is unplugged it returns to the primary display's corner |
+| Throw it | Let go while moving: it glides on in that direction, slows down, bounces softly off the screen edges and stays where it stops, in the air or on the ground. That spot is saved like a drag |
 | Rest the cursor on a helper | A tooltip: its type, tool and file name |
 | Drag a helper | Pick it up and drop it elsewhere next to the buddy; it lands there and keeps that spot |
 | Click a helper | A little hop (twice: it gets annoyed; three times: it stomps off to another spot) |

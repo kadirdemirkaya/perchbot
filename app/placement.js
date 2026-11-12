@@ -168,6 +168,40 @@ function dropPlacement(anchor, displays, primary, scale) {
   return { position: clamped };
 }
 
+/** The anchor a drop patch (see dropPlacement) stands for. */
+function anchorOfPatch(patch, primary, scale) {
+  return patch.position ? { ...patch.position } : cornerAnchor(primary.workArea, patch.corner, scale);
+}
+
+/**
+ * Where the character belongs when it comes to rest at `point` after a drag
+ * or a throw: just above the ground it lands on it, then as dropPlacement
+ * (inside the nearest work area, snapped to a corner nearby).
+ */
+function settleAnchor(point, displays, primary, scale) {
+  const p = { x: point.x, y: point.y };
+  const workArea = nearestDisplay(p, displays).workArea;
+  const ground = workArea.y + workArea.height;
+  if (ground - p.y > 0 && ground - p.y <= HOVER_THRESHOLD * scale && p.x >= workArea.x && p.x <= workArea.x + workArea.width) {
+    p.y = ground;
+  }
+  return anchorOfPatch(dropPlacement(p, displays, primary, scale), primary, scale);
+}
+
+/**
+ * Which side the menu column goes on. Towards the middle of the display, but
+ * the current side stays as long as there is room for `need` CSS px there:
+ * switching sides moves the window under the character, and the page can
+ * only redraw a moment later.
+ */
+function sideWithRoom(anchor, workArea, scale, current, need = SIDE_WIDTH) {
+  const preferred = sideFor(anchor, workArea);
+  if (!current || current === preferred) return preferred;
+  const half = (SLOT.width / 2) * scale;
+  const room = current === 'right' ? workArea.x + workArea.width - (anchor.x + half) : anchor.x - half - workArea.x;
+  return room >= need * scale ? current : preferred;
+}
+
 /**
  * The ground under an anchor: the bottom edge of the work area of the display
  * the character is on (taskbar excluded). The primary display's work area is
@@ -272,6 +306,9 @@ module.exports = {
   slotRect,
   contains,
   sideFor,
+  sideWithRoom,
+  settleAnchor,
+  anchorOfPatch,
   resolveAnchor,
   windowLayout,
   clampAnchor,
