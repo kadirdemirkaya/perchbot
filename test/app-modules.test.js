@@ -11,7 +11,7 @@ const path = require('node:path');
 const { validateEvent } = require('../app/validate');
 const { discoverCharacters, STATES } = require('../app/characters');
 const { LOCALES, translate } = require('../app/i18n');
-const { normalizeSettings, loadSettings, saveSettings, DEFAULTS } = require('../app/settings');
+const { normalizeSettings, loadSettings, saveSettings, rememberAccount, DEFAULTS } = require('../app/settings');
 const { buildTrayTemplate } = require('../app/tray');
 const { buildMenuItems, MENU_IDS } = require('../app/menu-items');
 
@@ -182,4 +182,36 @@ test('tray menu reflects settings and calls back', () => {
 
   const tr = buildTrayTemplate({ settings: { ...DEFAULTS, language: 'tr' }, characters, sessionCount: 1, on });
   assert.equal(tr.at(-1).label, 'Şimdi kapat');
+});
+
+test('settings: account filter and known accounts are validated', () => {
+  assert.equal(normalizeSettings({}).account, 'all');
+  assert.equal(normalizeSettings({ account: 'claude-work' }).account, 'claude-work');
+  assert.equal(normalizeSettings({ account: '../x' }).account, 'all');
+  assert.deepEqual(normalizeSettings({ knownAccounts: ['a', 'a', 'all', 'b c', 7, 'claude'] }).knownAccounts, ['a', 'claude']);
+  assert.equal(normalizeSettings({ knownAccounts: Array.from({ length: 20 }, (_, i) => `acc${i}`) }).knownAccounts.length, 8);
+  assert.deepEqual(rememberAccount(['a', 'b'], 'b'), ['b', 'a'], 'most recent first');
+  const same = ['a'];
+  assert.equal(rememberAccount(same, 'a'), same, 'unchanged: no save needed');
+  assert.equal(rememberAccount(same, '../evil'), same);
+});
+
+test('tray menu: account submenu, with a note while the chosen account is silent', () => {
+  const calls = [];
+  const on = new Proxy({}, { get: (_t, name) => (...args) => calls.push([name, ...args]) });
+  const characters = new Map();
+  const settings = { ...DEFAULTS, account: 'claude-work', knownAccounts: ['claude', 'claude-work'] };
+  const silent = buildTrayTemplate({ settings, characters, sessionCount: 0, seenAccount: () => false, on });
+  const menu = silent.find((i) => i.label === 'Account').submenu;
+  assert.equal(menu[0].label, 'All accounts');
+  assert.deepEqual(menu.filter((i) => i.type === 'radio').map((i) => i.label), ['All accounts', 'claude', 'claude-work']);
+  assert.equal(menu.find((i) => i.checked).label, 'claude-work');
+  assert.equal(menu.at(-1).label, 'No events from this account yet');
+  assert.equal(menu.at(-1).enabled, false);
+  menu[0].click();
+  assert.deepEqual(calls, [['setAccount', 'all']]);
+  const heard = buildTrayTemplate({ settings, characters, sessionCount: 0, seenAccount: () => true, on });
+  assert.ok(!heard.find((i) => i.label === 'Account').submenu.some((i) => i.label === 'No events from this account yet'));
+  const tr = buildTrayTemplate({ settings: { ...settings, language: 'tr' }, characters, sessionCount: 0, seenAccount: () => false, on });
+  assert.equal(tr.find((i) => i.label === 'Hesap').submenu.at(-1).label, 'Bu hesaptan henüz olay gelmedi');
 });

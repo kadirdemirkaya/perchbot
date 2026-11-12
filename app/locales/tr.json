@@ -24,7 +24,8 @@
     "question": "Sana bir sorum var",
     "notice": "Sana bir bildirim var",
     "done": "Tamamlandı",
-    "goodbye": "Görüşürüz!"
+    "goodbye": "Görüşürüz!",
+    "noAccountEvents": "Bu hesaptan henüz olay gelmedi"
   },
   "menu": {
     "title": "Agent Buddy",
@@ -46,7 +47,10 @@
     "backToCorner": "Köşeye geri dön",
     "hoverMode": "Havada durma",
     "hoverAuto": "Otomatik (yukarıdaysa süzülür)",
-    "hoverStand": "Hep ayakta"
+    "hoverStand": "Hep ayakta",
+    "account": "Hesap",
+    "allAccounts": "Tüm hesaplar",
+    "noAccountEvents": "Bu hesaptan henüz olay gelmedi"
   },
   "hover": {
     "hideBubble": "Baloncuğu gizle",

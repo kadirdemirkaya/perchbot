@@ -24,7 +24,8 @@
     "question": "Question for you",
     "notice": "A note for you",
     "done": "Done!",
-    "goodbye": "See you!"
+    "goodbye": "See you!",
+    "noAccountEvents": "No events from this account yet"
   },
   "menu": {
     "title": "Agent Buddy",
@@ -46,7 +47,10 @@
     "backToCorner": "Back to the corner",
     "hoverMode": "Hover mode",
     "hoverAuto": "Auto (hover when lifted)",
-    "hoverStand": "Always stand"
+    "hoverStand": "Always stand",
+    "account": "Account",
+    "allAccounts": "All accounts",
+    "noAccountEvents": "No events from this account yet"
   },
   "hover": {
     "hideBubble": "Hide speech bubble",

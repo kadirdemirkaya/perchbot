@@ -12,12 +12,15 @@
  *  - Route sub-agent events to the AgentRegistry (the "minis"); they never
  *    change the main character's state.
  *  - Remember the skill the main session is using until its turn ends.
+ *  - Show one Claude account only, if the user picked one (setAccountFilter):
+ *    events of other accounts are ignored, apart from noting the account.
  *
  * Emits
  *  - 'state' ({ state, message, mood, skill })  whenever the view changes.
  *      message is null or { key, vars?, mono? }; translation happens elsewhere.
  *      skill is null or the name of the skill in use (the book comes out).
  *  - 'crew'  (agents)              whenever the list of sub-agents changes (see app/agents.js).
+ *  - 'account' (name)              the first event of an account in this run.
  *  - 'quit'  (reason)              when the app should exit.
  *
  * Ordering: hooks run as separate async processes, so events can arrive slightly
@@ -77,6 +80,7 @@ class BuddyCore extends EventEmitter {
    * @param {Partial<typeof DEFAULT_TIMINGS>} [options.timings]
    * @param {{ setTimeout: Function, clearTimeout: Function }} [options.clock]
    * @param {object} [options.crew]  AgentRegistry options (idleMs, releaseMs)
+   * @param {string} [options.account]  'all' (default) or the account to show
    */
   constructor(options = {}) {
     super();
@@ -92,6 +96,10 @@ class BuddyCore extends EventEmitter {
     /** The skill the main character holds the book for: { name, session } or null. */
     this.skill = null;
     this.crew = new AgentRegistry({ clock: this.clock, ...(options.crew || {}) });
+    /** 'all' or one account name. */
+    this.accountFilter = options.account || 'all';
+    /** Accounts that sent at least one event in this run. */
+    this.seenAccounts = new Set();
     this.crew.on('change', (agents) => this.emit('crew', agents));
     this.armIdleTimeout();
   }
@@ -131,6 +139,36 @@ class BuddyCore extends EventEmitter {
     this.emit('state', this.snapshot());
   }
 
+  /**
+   * Show only the sessions of `account` ('all' = every account). Sessions and
+   * helpers of other accounts are forgotten at once.
+   */
+  setAccountFilter(account) {
+    this.accountFilter = account || 'all';
+    if (this.accountFilter === 'all') return;
+    let dropped = false;
+    for (const [id, session] of this.sessions) {
+      if (session.account !== this.accountFilter) {
+        this.sessions.delete(id);
+        this.crew.endSession(id);
+        if (this.skill && this.skill.session === id) this.skill = null;
+        dropped = true;
+      }
+    }
+    if (dropped && !this.leaving) this.showFallback();
+  }
+
+  /** Did this account send anything since the overlay started? */
+  hasSeenAccount(account) {
+    return this.seenAccounts.has(account);
+  }
+
+  /** Something the user should know right now (e.g. after a menu choice): a calm notice. */
+  notice(key) {
+    if (this.disposed || this.leaving) return;
+    this.show('standby', { key }, this.timings.idlePromptMs);
+  }
+
   /** Change the safety-net timeout at runtime (ms, 0 disables it). */
   setIdleTimeout(ms) {
     this.timings.idleTimeoutMs = Math.max(0, Number(ms) || 0);
@@ -143,6 +181,13 @@ class BuddyCore extends EventEmitter {
    */
   handle(evt) {
     if (this.disposed || !evt) return;
+    if (evt.account && !this.seenAccounts.has(evt.account)) {
+      this.seenAccounts.add(evt.account);
+      this.emit('account', evt.account);
+    }
+    // Another account than the one the user picked: not for us. (Events
+    // without an account only show when every account is shown.)
+    if (this.accountFilter !== 'all' && evt.account !== this.accountFilter) return;
     if (evt.event === 'SessionEnd') {
       this.onSessionEnd(evt);
       return;
@@ -153,7 +198,7 @@ class BuddyCore extends EventEmitter {
     this.clearTimer('empty');
     this.armIdleTimeout();
 
-    const session = this.touch(evt.session);
+    const session = this.touch(evt.session, evt.account);
     const owner = evt.session;
     const stale = typeof evt.ts === 'number' && evt.ts < session.stopTs;
 
@@ -304,10 +349,10 @@ class BuddyCore extends EventEmitter {
 
   // ---------------------------------------------------------------- internals
 
-  touch(id) {
+  touch(id, account = null) {
     let session = this.sessions.get(id);
     if (!session) {
-      session = { turnActive: false, inflight: new Set(), anonymous: 0, finished: new Set(), stopTs: 0 };
+      session = { turnActive: false, inflight: new Set(), anonymous: 0, finished: new Set(), stopTs: 0, account };
       this.sessions.set(id, session);
     }
     return session;
@@ -379,6 +424,7 @@ function rememberFinished(session, id) {
  * @property {number} anonymous  in-flight tools without an id
  * @property {Set<string>} finished  recently finished tool_use_ids
  * @property {number} stopTs  timestamp of the latest Stop
+ * @property {string|null} account  Claude account (config folder name) of the session
  */
 
 module.exports = { BuddyCore, DEFAULT_TIMINGS };

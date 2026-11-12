@@ -37,7 +37,7 @@ const {
 const { BuddyCore } = require('./core');
 const { validateEvent } = require('./validate');
 const { startServer } = require('./server');
-const { buddyHome, settingsPath, loadSettings, saveSettings, effectivePort } = require('./settings');
+const { buddyHome, settingsPath, loadSettings, saveSettings, effectivePort, rememberAccount } = require('./settings');
 const { discoverCharacters } = require('./characters');
 const { translate } = require('./i18n');
 const placement = require('./placement');
@@ -108,7 +108,10 @@ function start() {
   const log = createLogger({ dev: isDev, debug: settings.debug, dir: path.join(HOME, 'logs') });
   if (settingsError) log.warn(settingsError);
 
-  const core = new BuddyCore({ timings: { idleTimeoutMs: settings.idleTimeoutMinutes * 60 * 1000 } });
+  const core = new BuddyCore({
+    timings: { idleTimeoutMs: settings.idleTimeoutMinutes * 60 * 1000 },
+    account: settings.account,
+  });
 
   /** @type {Map<string, object>} */
   let characters = new Map();
@@ -164,6 +167,13 @@ function start() {
       }
     }
     sendCrew();
+  });
+
+  // A Claude account seen for the first time in this run: offer it in the tray menu.
+  core.on('account', (name) => {
+    const known = rememberAccount(settings.knownAccounts, name);
+    if (known !== settings.knownAccounts) updateSettings({ knownAccounts: known });
+    else refreshTray();
   });
 
   core.on('quit', (reason) => {
@@ -668,7 +678,13 @@ function start() {
   }
 
   function trayTemplate() {
-    return buildTrayTemplate({ settings, characters, sessionCount: core.sessionCount, on: actions });
+    return buildTrayTemplate({
+      settings,
+      characters,
+      sessionCount: core.sessionCount,
+      seenAccount: (name) => core.hasSeenAccount(name),
+      on: actions,
+    });
   }
 
   function createTray() {
@@ -714,6 +730,12 @@ function start() {
       }),
     setLanguage: (language) => updateSettings({ language }, sendView),
     setQuiet: (quiet) => updateSettings({ quiet }),
+    setAccount: (account) =>
+      updateSettings({ account }, () => {
+        core.setAccountFilter(settings.account);
+        if (settings.account !== 'all' && !core.hasSeenAccount(settings.account)) core.notice('noAccountEvents');
+        refreshTrayIfNeeded();
+      }),
     setEyeTracking: (eyeTracking) => updateSettings({ eyeTracking }),
     backToCorner: () => updateSettings({ position: null }, placeWindow),
     openSettings: () => {

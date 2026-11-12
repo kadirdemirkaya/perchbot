@@ -306,6 +306,49 @@ test('sub-agent events go to the crew and never change the main character', () =
   assert.equal(core.crewList()[0].status, 'done');
 });
 
+test('account filter: other accounts are ignored but noted; switching forgets their sessions', () => {
+  const { core, send } = setup();
+  const accounts = [];
+  core.on('account', (name) => accounts.push(name));
+  send('SessionStart', { account: 'claude-work' });
+  send('SessionStart', { account: 'claude', session: 'other' });
+  assert.equal(core.sessionCount, 2);
+  assert.deepEqual(accounts, ['claude-work', 'claude']);
+
+  core.setAccountFilter('claude-work');
+  assert.equal(core.sessionCount, 1, 'the other account is forgotten');
+  send('UserPromptSubmit', { account: 'claude', session: 'other' });
+  assert.notEqual(core.state, 'thinking', 'filtered out');
+  assert.equal(core.sessionCount, 1);
+  send('UserPromptSubmit', { account: 'claude-work' });
+  assert.equal(core.state, 'thinking');
+  send('PreToolUse', { tool: 'Read', id: 'x', account: undefined, session: 'legacy' });
+  assert.equal(core.state, 'thinking', 'no account: only shown with "all accounts"');
+  assert.equal(core.hasSeenAccount('claude-work'), true);
+  assert.equal(core.hasSeenAccount('nobody'), false);
+
+  // The last session of the shown account ends: goodbye, even though others still run.
+  const quits = [];
+  core.on('quit', (r) => quits.push(r));
+  send('SessionEnd', { reason: 'other', account: 'claude', session: 'other' });
+  assert.equal(core.state, 'thinking', 'not ours');
+  send('SessionEnd', { reason: 'other', account: 'claude-work' });
+  assert.equal(core.state, 'goodbye');
+
+  core.setAccountFilter('all');
+  send('UserPromptSubmit', { account: 'claude', session: 'third' });
+  assert.equal(core.state, 'thinking', 'all accounts again');
+});
+
+test('notice: a calm standby message that times out', () => {
+  const { core, clock } = setup();
+  core.notice('noAccountEvents');
+  assert.equal(core.state, 'standby');
+  assert.deepEqual(core.snapshot().message, { key: 'noAccountEvents' });
+  clock.tick(10000);
+  assert.equal(core.state, 'idle');
+});
+
 test('skill book: out with the Skill tool or a slash command, back in at Stop', () => {
   const { core, send } = setup();
   send('UserPromptSubmit');

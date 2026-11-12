@@ -229,6 +229,56 @@ test('UserPromptExpansion: only slash commands, only the command name', () => {
   assert.equal(send.buildPayload({ hook_event_name: 'UserPromptExpansion', session_id: 's', expansion_type: 'slash_command' }), null);
 });
 
+// ------------------------------------------------------------- accounts
+
+test('account: only the config folder name, without leading dots, never a path', () => {
+  assert.equal(send.accountName({}), 'claude', 'no CLAUDE_CONFIG_DIR: the default account');
+  assert.equal(send.accountName({ CLAUDE_CONFIG_DIR: path.join(os.tmpdir(), 'Some User', '.claude-work') }), 'claude-work');
+  assert.equal(send.accountName({ CLAUDE_CONFIG_DIR: path.join(os.tmpdir(), '.claude-personal') + path.sep }), 'claude-personal');
+  assert.equal(send.accountName({ CLAUDE_CONFIG_DIR: path.join(os.tmpdir(), 'ünïcode <x>') }), 'ncodex');
+  assert.equal(send.accountName({ CLAUDE_CONFIG_DIR: '   ' }), 'claude');
+  const p = send.buildPayload({ hook_event_name: 'Stop', session_id: 's' }, undefined, 1, { account: 'claude-work' });
+  assert.equal(p.account, 'claude-work');
+  assert.equal(validateEvent(p).account, 'claude-work');
+  const bad = send.buildPayload({ hook_event_name: 'Stop', session_id: 's' }, undefined, 1, { account: '../x y' });
+  assert.equal(bad.account, undefined);
+});
+
+test('account: the hook sends it, and never starts the overlay for a filtered-out account', async () => {
+  const home = tmpHome();
+  const ev = (account) => ({ event: 'UserPromptSubmit', session: 's', account });
+  assert.equal(send.shouldLaunch(ev('claude-work'), { home, account: 'all' }), true);
+  assert.equal(send.shouldLaunch(ev('claude-work'), { home, account: 'claude-work' }), true);
+  assert.equal(send.shouldLaunch(ev('claude'), { home, account: 'claude-work' }), false);
+  fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ account: 'claude-work' }));
+  assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home }).account, 'claude-work');
+  fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ account: '../../etc' }));
+  assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home }).account, 'all');
+
+  // End to end: the real script reads CLAUDE_CONFIG_DIR and sends only the folder name.
+  const port = await freePort();
+  const received = [];
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => (body += d));
+    req.on('end', () => {
+      received.push(JSON.parse(body));
+      res.writeHead(204).end();
+    });
+  });
+  await new Promise((resolve) => server.listen(port, '127.0.0.1', resolve));
+  const dir = path.join(os.tmpdir(), 'private-name', '.claude-test');
+  await runHook(JSON.stringify({ hook_event_name: 'Stop', session_id: 's' }), {
+    AGENT_BUDDY_HOME: tmpHome(),
+    AGENT_BUDDY_PORT: String(port),
+    CLAUDE_CONFIG_DIR: dir,
+  });
+  await new Promise((resolve) => server.close(resolve));
+  assert.equal(received.length, 1);
+  assert.equal(received[0].account, 'claude-test');
+  assert.ok(!JSON.stringify(received[0]).includes('private-name'));
+});
+
 // ------------------------------------------------------------- launch rules
 
 test('only SessionStart / UserPromptSubmit may launch, and muted sessions do not', () => {
@@ -254,7 +304,7 @@ test('only SessionStart / UserPromptSubmit may launch, and muted sessions do not
 test('config: env port beats settings file, invalid values fall back', () => {
   const home = tmpHome();
   fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ port: 8123, debug: true }));
-  assert.deepEqual(send.readConfig({ AGENT_BUDDY_HOME: home }), { home, port: 8123, debug: true, noLaunch: false });
+  assert.deepEqual(send.readConfig({ AGENT_BUDDY_HOME: home }), { home, port: 8123, debug: true, noLaunch: false, account: 'all' });
   assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home, AGENT_BUDDY_PORT: '9001' }).port, 9001);
   assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home, AGENT_BUDDY_PORT: '80' }).port, 8123);
   fs.writeFileSync(path.join(home, 'settings.json'), '{broken');

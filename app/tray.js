@@ -12,10 +12,11 @@ const { translate, languageOptions } = require('./i18n');
  * @param {object} p.settings
  * @param {Map<string, object>} p.characters
  * @param {number} p.sessionCount
+ * @param {(account: string) => boolean} [p.seenAccount]  did that account send events in this run?
  * @param {object} p.on  callbacks: setCorner, setSize, setHoverMode, setCharacter, setLanguage,
- *   setQuiet, setEyeTracking, backToCorner, openSettings, quit
+ *   setQuiet, setEyeTracking, setAccount, backToCorner, openSettings, quit
  */
-function buildTrayTemplate({ settings, characters, sessionCount, on }) {
+function buildTrayTemplate({ settings, characters, sessionCount, seenAccount = () => true, on }) {
   const t = (key, vars) => translate(settings.language, 'menu', key, vars);
   const radio = (label, checked, click) => ({ label, type: 'radio', checked, click });
 
@@ -42,6 +43,10 @@ function buildTrayTemplate({ settings, characters, sessionCount, on }) {
         radio(t('hoverAuto'), settings.hoverMode !== 'stand', () => on.setHoverMode('auto')),
         radio(t('hoverStand'), settings.hoverMode === 'stand', () => on.setHoverMode('stand')),
       ],
+    },
+    {
+      label: t('account'),
+      submenu: accountMenu(settings, seenAccount, t, radio, on),
     },
     {
       label: t('character'),
@@ -74,6 +79,23 @@ function buildTrayTemplate({ settings, characters, sessionCount, on }) {
     { label: t('openSettings'), click: () => on.openSettings() },
     { label: t('quit'), click: () => on.quit() },
   ];
+}
+
+/**
+ * "All accounts" plus every account seen so far (and the selected one, even if
+ * it was never seen). A note when the selected account has sent nothing yet.
+ */
+function accountMenu(settings, seenAccount, t, radio, on) {
+  const selected = settings.account || 'all';
+  const names = [...(settings.knownAccounts || [])];
+  if (selected !== 'all' && !names.includes(selected)) names.unshift(selected);
+  const items = [radio(t('allAccounts'), selected === 'all', () => on.setAccount('all'))];
+  if (names.length) items.push({ type: 'separator' });
+  for (const name of names) items.push(radio(name, selected === name, () => on.setAccount(name)));
+  if (selected !== 'all' && !seenAccount(selected)) {
+    items.push({ type: 'separator' }, { label: t('noAccountEvents'), enabled: false });
+  }
+  return items;
 }
 
 module.exports = { buildTrayTemplate };

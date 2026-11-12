@@ -17,6 +17,9 @@ const SIZES = ['small', 'medium', 'large'];
 const LANGUAGES = ['en', 'tr'];
 /** auto: hover with sole thrusters when placed above the ground; stand: never. */
 const HOVER_MODES = ['auto', 'stand'];
+/** Claude account (config folder) names, as hooks/send.js sends them. */
+const ACCOUNT_RE = /^[A-Za-z0-9._-]{1,40}$/;
+const MAX_KNOWN_ACCOUNTS = 8;
 
 const DEFAULTS = Object.freeze({
   corner: 'bottom-right',
@@ -32,6 +35,10 @@ const DEFAULTS = Object.freeze({
   /** null = corner mode; {x, y} = where the character was dragged to (screen DIPs). */
   position: null,
   hoverMode: 'auto',
+  /** "all", or the one Claude account (config folder name) whose sessions are shown. */
+  account: 'all',
+  /** Accounts seen so far, offered in the tray menu (at most 8, most recent first). */
+  knownAccounts: [],
 });
 
 const COORD_LIMIT = 1e6;
@@ -71,7 +78,21 @@ function normalizeSettings(raw) {
   if (typeof raw.eyeTracking === 'boolean') s.eyeTracking = raw.eyeTracking;
   s.position = normalizePosition(raw.position);
   if (HOVER_MODES.includes(raw.hoverMode)) s.hoverMode = raw.hoverMode;
+  if (typeof raw.account === 'string' && (raw.account === 'all' || ACCOUNT_RE.test(raw.account))) s.account = raw.account;
+  if (Array.isArray(raw.knownAccounts)) {
+    s.knownAccounts = [...new Set(raw.knownAccounts.filter((a) => typeof a === 'string' && ACCOUNT_RE.test(a) && a !== 'all'))].slice(
+      0,
+      MAX_KNOWN_ACCOUNTS,
+    );
+  }
   return s;
+}
+
+/** knownAccounts with `name` first (deduplicated, capped). */
+function rememberAccount(known, name) {
+  if (typeof name !== 'string' || !ACCOUNT_RE.test(name) || name === 'all') return known;
+  if (known[0] === name) return known;
+  return [name, ...known.filter((a) => a !== name)].slice(0, MAX_KNOWN_ACCOUNTS);
 }
 
 /**
@@ -115,6 +136,8 @@ module.exports = {
   SIZES,
   LANGUAGES,
   HOVER_MODES,
+  MAX_KNOWN_ACCOUNTS,
+  rememberAccount,
   buddyHome,
   settingsPath,
   normalizeSettings,

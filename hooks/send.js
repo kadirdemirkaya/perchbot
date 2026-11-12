@@ -14,7 +14,8 @@
  *
  * If the overlay is not running and the event is SessionStart or
  * UserPromptSubmit, it starts the overlay detached and hands it the event as a
- * launch argument, then exits without waiting.
+ * launch argument, then exits without waiting. It does not do that for a
+ * Claude account the user filtered out (settings.json "account").
  *
  * Usage: node hooks/send.js [EventName] [--agent-buddy]
  *   EventName is a fallback; hook_event_name from stdin wins.
@@ -67,6 +68,8 @@ const AGENT_EVENTS = new Set(['SubagentStart', 'SubagentStop']);
 const LAUNCH_EVENTS = new Set(['SessionStart', 'UserPromptSubmit']);
 const AGENT_TYPE_MAX = 40;
 const SKILL_MAX = 24;
+const ACCOUNT_MAX = 40;
+const ACCOUNT_RE = /^[A-Za-z0-9._-]{1,40}$/;
 
 const FILE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'Read', 'NotebookEdit', 'NotebookRead']);
 const PATTERN_TOOLS = new Set(['Grep', 'Glob']);
@@ -219,18 +222,33 @@ function skillLabel(value) {
 }
 
 /**
+ * Which Claude account (config folder) this hook runs for: the folder NAME of
+ * CLAUDE_CONFIG_DIR without leading dots ("C:/Users/x/.claude-work" ->
+ * "claude-work"), or "claude" for the default ~/.claude. Never a path.
+ */
+function accountName(env = process.env) {
+  const dir = typeof env.CLAUDE_CONFIG_DIR === 'string' ? env.CLAUDE_CONFIG_DIR.trim() : '';
+  if (!dir) return 'claude';
+  const base = path.basename(path.resolve(dir)).replace(/^\.+/, '');
+  const clean = base.replace(/[^A-Za-z0-9._-]/g, '').slice(0, ACCOUNT_MAX);
+  return clean || 'claude';
+}
+
+/**
  * Reduce a hook input to the few fields the overlay needs.
  * Returns null for events the overlay does not handle.
  * @param {unknown} input  parsed stdin JSON (may be null)
  * @param {string} [fallbackEvent]  event name from argv
  * @param {number} [now]
+ * @param {{ account?: string }} [extra]  the account name (see accountName)
  */
-function buildPayload(input, fallbackEvent, now = Date.now()) {
+function buildPayload(input, fallbackEvent, now = Date.now(), extra = {}) {
   const src = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   const event = typeof src.hook_event_name === 'string' ? src.hook_event_name : fallbackEvent;
   if (!EVENTS.has(event)) return null;
 
   const payload = { v: 1, event, session: safeId(src.session_id, 128) || 'unknown', ts: now };
+  if (typeof extra.account === 'string' && ACCOUNT_RE.test(extra.account)) payload.account = extra.account;
 
   if (TOOL_EVENTS.has(event)) {
     payload.tool = typeof src.tool_name === 'string' && TOOL_RE.test(src.tool_name) ? src.tool_name : 'unknown';
@@ -291,6 +309,8 @@ function readConfig(env = process.env) {
     port: validPort(envPort) ? envPort : validPort(settings.port) ? settings.port : DEFAULT_PORT,
     debug: env.AGENT_BUDDY_DEBUG === '1' || settings.debug === true,
     noLaunch: env.AGENT_BUDDY_NO_LAUNCH === '1',
+    /** "all", or the one account the overlay shows (tray menu "Account"). */
+    account: typeof settings.account === 'string' && ACCOUNT_RE.test(settings.account) ? settings.account : 'all',
   };
 }
 
@@ -306,6 +326,8 @@ function isMuted(home, session, now = Date.now()) {
 
 function shouldLaunch(payload, config) {
   if (config.noLaunch || !LAUNCH_EVENTS.has(payload.event)) return false;
+  // The overlay only shows one account: do not start it for another one.
+  if (config.account && config.account !== 'all' && payload.account !== config.account) return false;
   if (payload.event === 'SessionStart') return true; // a fresh start always brings the buddy back
   return !isMuted(config.home, payload.session);
 }
@@ -501,7 +523,7 @@ async function main() {
     }
     config = readConfig();
     schemaProbe(config.home, input);
-    payload = buildPayload(input, argEvent, START_TS);
+    payload = buildPayload(input, argEvent, START_TS, { account: accountName() });
     if (payload) {
       result = await post(payload, config.port);
       if (result === 'refused' && shouldLaunch(payload, config)) result = launchOverlay(payload);
@@ -532,6 +554,7 @@ if (require.main === module) {
 
 module.exports = {
   PAYLOAD_FIELDS,
+  accountName,
   allowlisted,
   buildPayload,
   summarizeCommand,

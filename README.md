@@ -190,6 +190,7 @@ Windows it may be under the `^` overflow arrow):
 | Position | Bottom right / bottom left of the primary display |
 | Size | Small / medium / large |
 | Hover mode | Auto (hover when placed above the ground) / Always stand |
+| Account | All accounts, or only one Claude account (see [Several Claude accounts](#several-claude-accounts)) |
 | Character | Any character found in `characters/` or `~/.agent-buddy/characters/` |
 | Language | English / Türkçe |
 | Quiet mode | Hides the speech bubble (handy while screen sharing) |
@@ -213,7 +214,9 @@ Everything is stored in `~/.agent-buddy/settings.json`
   "debug": false,
   "eyeTracking": true,
   "position": null,
-  "hoverMode": "auto"
+  "hoverMode": "auto",
+  "account": "all",
+  "knownAccounts": []
 }
 ```
 
@@ -230,9 +233,24 @@ Everything is stored in `~/.agent-buddy/settings.json`
 | `eyeTracking` | `true` / `false` | Eyes follow the cursor while it is over the overlay window |
 | `position` | `null` or `{ "x", "y" }` | `null` = the chosen corner. Set by dragging: the bottom-centre of the character in screen coordinates |
 | `hoverMode` | `auto`, `stand` | `auto`: hovers when placed above the ground |
+| `account` | `all` or an account name | Show only the sessions of this Claude account |
+| `knownAccounts` | list of names | Accounts seen so far (at most 8), offered in the tray menu. Filled in automatically |
 
 Environment variables (optional): `AGENT_BUDDY_HOME` (another settings folder),
 `AGENT_BUDDY_PORT`, `AGENT_BUDDY_DEBUG=1`.
+
+### Several Claude accounts
+
+If you run Claude Code with more than one config folder (`claude --config-dir …` or
+`CLAUDE_CONFIG_DIR`, e.g. a personal and a work account) and installed the hooks in each,
+one overlay shows them all. The hook tells the overlay which account an event comes from by
+the **name of the config folder** without leading dots (`~/.claude-work` → `claude-work`,
+the default `~/.claude` → `claude`); the path itself is never sent.
+
+**Account** in the tray menu lists every account seen so far. Pick one and the buddy only
+shows that account's sessions and helpers; the others are ignored, and a session of another
+account no longer starts the overlay. If the chosen account has not sent anything since the
+overlay started, the buddy says so ("No events from this account yet").
 
 ## Adding a character
 

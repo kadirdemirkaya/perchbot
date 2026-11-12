@@ -22,6 +22,7 @@
  *     agent?: string,           // sub-agent: short hash of agent_id (tool events, SubagentStart/Stop)
  *     agentType?: string,       // sub-agent type, e.g. "Explore"
  *     skill?: string,           // skill / slash-command name (PreToolUse of Skill, UserPromptExpansion)
+ *     account?: string,         // Claude config folder name, e.g. "claude-work" (any event)
  *   }
  *   SubagentStart / SubagentStop / UserPromptExpansion are also accepted.
  */
@@ -54,6 +55,7 @@ const WORD_RE = /^[a-z_]{1,40}$/;
 const AGENT_RE = /^[a-f0-9]{6,16}$/;
 const AGENT_TYPE_RE = /^[A-Za-z0-9 _.:/-]{1,40}$/;
 const SKILL_RE = /^[A-Za-z0-9_.:/-]{1,24}$/;
+const ACCOUNT_RE = /^[A-Za-z0-9._-]{1,40}$/;
 
 // C0/C1 control characters plus Unicode bidi overrides, which could make a
 // bubble render misleading text.
@@ -82,6 +84,8 @@ function validateEvent(raw) {
   if (typeof raw.ts !== 'number' || !Number.isFinite(raw.ts) || raw.ts < 0) return null;
 
   const evt = { v: 1, event: raw.event, session: raw.session, ts: raw.ts };
+  const account = pick(raw.account, ACCOUNT_RE);
+  if (account) evt.account = account;
 
   if (TOOL_EVENTS.has(raw.event)) {
     const tool = pick(raw.tool, TOOL_RE);
@@ -121,4 +125,4 @@ function validateEvent(raw) {
   return evt;
 }
 
-module.exports = { validateEvent, cleanText, EVENTS, MAX_BODY_BYTES };
+module.exports = { validateEvent, cleanText, EVENTS, MAX_BODY_BYTES, ACCOUNT_RE };
