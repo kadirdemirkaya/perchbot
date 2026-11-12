@@ -208,8 +208,8 @@ test('the tooltip shows type, tool and file name only', () => {
 const sequence = (...values) => () => (values.length ? values.shift() : 0);
 
 test('social: a lone mini visits the main character for a word, then goes back', () => {
-  // Delay 0 -> minimum pause; then pick "visit" (chat is impossible with one mini).
-  const { clock, d, log, views } = setup({ random: sequence(0.5, 0.5, 0, 0, 0.1) });
+  // A pause; then 0 picks the first option, "visit" (chat is impossible with one mini).
+  const { clock, d, log, views } = setup({ random: sequence(0.5, 0, 0, 0, 0.1) });
   d.setAgents([agent(ID(1))]);
   clock.tick(5000);
   assert.equal(views.get(ID(1)).phase, 'work');
@@ -295,4 +295,74 @@ test('drag: an agent that finishes while held reports after landing', () => {
   d.dropAt(ID(1), 300);
   clock.tick(T.landMs);
   assert.equal(views.get(ID(1)).phase, 'done');
+});
+
+test('naughty kids: they get up every 8 to 20 s, livelier than the main character', () => {
+  assert.ok(T.socialMinMs >= 8000 && T.socialMaxMs <= 20000);
+  const { clock, d, views } = setup({ random: () => 0.99 });
+  d.setAgents([agent(ID(1))]);
+  clock.tick(T.arriveMs + T.briefMs + 2000);
+  assert.equal(views.get(ID(1)).phase, 'work');
+  const start = clock.now;
+  while (views.get(ID(1)).phase === 'work' && clock.now - start < 30000) clock.tick(10);
+  assert.ok(clock.now - start <= T.socialMaxMs + 10, `up after ${clock.now - start} ms`);
+});
+
+function working(count, random = () => 0.5) {
+  const ctx = setup({ random });
+  ctx.d.setAgents(Array.from({ length: count }, (_, i) => agent(ID(i + 1))));
+  ctx.clock.tick(10000);
+  return ctx;
+}
+
+test('naughty kids: a little show where it stands, then back to work', () => {
+  const { clock, d, views } = working(1);
+  const mini = d.minis.get(ID(1));
+  d.play(mini);
+  const v = views.get(ID(1));
+  assert.equal(v.phase, 'play');
+  assert.ok(['spin', 'jump', 'wave', 'dance'].includes(v.play), v.play);
+  assert.equal(v.off, GEO.spots[0], 'right where it stands');
+  clock.tick(T.playMs);
+  assert.equal(views.get(ID(1)).phase, 'work');
+  assert.equal(views.get(ID(1)).play, null);
+});
+
+test('naughty kids: a zoom on the thrusters to the far end, a look round, and back', () => {
+  const { clock, d, views } = working(3);
+  d.zoom(d.minis.get(ID(1)));
+  let v = views.get(ID(1));
+  assert.equal(v.phase, 'walk');
+  assert.equal(v.fly, true, 'thrusters on');
+  assert.equal(v.off, GEO.spots[2], 'off to the far end of the crew area');
+  clock.tick(v.walkMs);
+  assert.equal(views.get(ID(1)).phase, 'look');
+  clock.tick(T.zoomLookMs);
+  v = views.get(ID(1));
+  assert.equal(v.fly, true);
+  assert.equal(v.off, GEO.spots[0], 'and home again');
+  clock.tick(v.walkMs);
+  assert.equal(views.get(ID(1)).phase, 'work');
+});
+
+test('naughty kids: a prank pokes the main character, then it runs back quickly', () => {
+  const { clock, d, log, views } = working(2);
+  const mini = d.minis.get(ID(2));
+  d.prank(mini);
+  let v = views.get(ID(2));
+  assert.equal(v.off, GEO.report, 'sneaks up to the main character');
+  clock.tick(v.walkMs);
+  assert.equal(views.get(ID(2)).phase, 'prank');
+  clock.tick(T.pokeMs / 2);
+  assert.ok(log.cues.some(([name, data]) => name === 'poke' && data.id === ID(2)), 'poke');
+  clock.tick(T.pokeMs / 2);
+  v = views.get(ID(2));
+  assert.equal(v.phase, 'walk');
+  assert.equal(v.off, GEO.spots[1]);
+  const walking = Math.round((GEO.spots[1] - GEO.report) / T.walkSpeed);
+  assert.ok(v.walkMs < walking, `runs (${v.walkMs} ms instead of ${walking})`);
+  // The report point is free again: a finished helper can report.
+  assert.equal(d.reportHolder, null);
+  clock.tick(v.walkMs);
+  assert.equal(views.get(ID(2)).phase, 'work');
 });

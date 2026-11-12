@@ -2,7 +2,9 @@
  * Robo's kids (the little robot for each sub-agent).
  *
  * The app wraps each mini SVG in <div class="buddy-mini" data-phase="...">:
- *   data-phase  arrive | brief | walk | work | chat | done | report | leave
+ *   data-phase  arrive | brief | walk | work | chat | look | play | prank |
+ *               held | land | huff | done | report | leave
+ *   data-play   during "play": spin | jump | wave | dance
  *   data-tint   0..4: which colour this kid wears (neighbours differ)
  *   data-fly    thrusters on: dropping in, flying off, hopping over other
  *               minis, or the whole buddy hovers above the ground
@@ -436,6 +438,96 @@
   0%, 100% { transform: none; }
   25% { transform: translate(-4px, -1px); }
   70% { transform: translate(4px, -1px); }
+}
+
+/* ------------------------------------------------------------ play: a little show of its own */
+
+/* The kids copy the main character's moves now and then (data-play). */
+.buddy-mini[data-phase='play'] :is(.rbm-eyes, .rbm-mouth) {
+  opacity: 0;
+}
+
+.buddy-mini[data-phase='play'] :is(.rbm-eyes-happy, .rbm-mouth-grin) {
+  opacity: 1;
+}
+
+.buddy-mini[data-phase='play'][data-play='jump']:not([data-rest]) .rbm-figure {
+  animation: rbm-hop 0.6s cubic-bezier(0.3, 0, 0.4, 1) 3;
+}
+
+/* A pirouette: it turns round (squashed to a sliver and back) in mid-air. */
+.buddy-mini[data-phase='play'][data-play='spin']:not([data-rest]) .rbm-figure {
+  animation: rbm-spin 0.9s ease-in-out 2;
+}
+
+@keyframes rbm-spin {
+  0%, 100% { transform: none; }
+  25% { transform: translateY(-8px) scaleX(0.15); }
+  50% { transform: translateY(-12px) scaleX(-1); }
+  75% { transform: translateY(-8px) scaleX(-0.15); }
+}
+
+.buddy-mini[data-phase='play'][data-play='wave'] .rbm-arm {
+  transform: rotate(150deg);
+}
+
+.buddy-mini[data-phase='play'][data-play='wave']:not([data-rest]) .rbm-arm {
+  animation: rbm-wave 0.42s ease-in-out 4;
+}
+
+@keyframes rbm-wave {
+  0%, 100% { transform: rotate(138deg); }
+  50% { transform: rotate(168deg); }
+}
+
+.buddy-mini[data-phase='play'][data-play='dance']:not([data-rest]) .rbm-figure {
+  animation: rbm-dance 0.46s ease-in-out 4;
+}
+
+.buddy-mini[data-phase='play'][data-play='dance']:not([data-rest]) .rbm-arm {
+  animation: rbm-swing 0.46s ease-in-out 4;
+}
+
+.buddy-mini[data-phase='play'][data-play='dance']:not([data-rest]) .rbm-arm-front {
+  animation: rbm-swing 0.46s ease-in-out -0.23s 4;
+}
+
+@keyframes rbm-dance {
+  0%, 100% { transform: none; }
+  25% { transform: translateY(-4px) rotate(-8deg); }
+  75% { transform: translateY(-4px) rotate(8deg); }
+}
+
+/* ------------------------------------------------------------ prank: a poke at the main character */
+
+.buddy-mini[data-phase='prank'] :is(.rbm-eyes, .rbm-mouth) {
+  opacity: 0;
+}
+
+.buddy-mini[data-phase='prank'] :is(.rbm-eyes-happy, .rbm-mouth-grin) {
+  opacity: 1;
+}
+
+.buddy-mini[data-phase='prank'] .rbm-arm-front {
+  transform: rotate(-80deg);
+}
+
+.buddy-mini[data-phase='prank']:not([data-rest]) .rbm-arm-front {
+  animation: rbm-poke 0.25s ease-in-out 0.3s 2;
+}
+
+.buddy-mini[data-phase='prank']:not([data-rest]) .rbm-figure {
+  animation: rbm-tiptoe 0.5s ease-in-out;
+}
+
+@keyframes rbm-poke {
+  0%, 100% { transform: rotate(-80deg); }
+  50% { transform: rotate(-95deg) translateX(5px); }
+}
+
+@keyframes rbm-tiptoe {
+  0%, 100% { transform: none; }
+  50% { transform: translateY(-3px) scale(0.98, 1.03); }
 }
 
 /* ------------------------------------------------------------ held by the user, landing */

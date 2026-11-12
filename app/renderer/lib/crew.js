@@ -14,10 +14,16 @@
  *            (then "brief": the main character explains the task), otherwise
  *            straight at its spot
  *   walk     to its spot (hops over other minis on the way)
- *   work     laptop open. Now and then it gets up ("social" moments):
+ *   work     laptop open. Every 8 to 20 s one of them gets up (livelier than
+ *            the main character; a bit naughty):
  *              chat   walks over to a neighbour; they talk and pass a note
  *              visit  walks (or flies) to the main character for a word
  *              stroll wanders off a bit, looks around, comes back
+ *              play   a little show where it stands: spin, jump, wave, dance
+ *              zoom   off on its thrusters to the far end of the crew area,
+ *                     a look round, and back
+ *              prank  sneaks up to the main character, pokes it ("poke" cue)
+ *                     and runs back, quickly
  *   held     the user picked it up; when dropped it lands there and makes that
  *            place its new spot
  *   shooed   hit too often: it huffs, then walks (or hops) off to a random new
@@ -60,9 +66,20 @@
     lookMs: 1800,
     /** Landing after the user dropped it. */
     landMs: 500,
-    /** A social moment starts this long after the previous one (random in between). */
-    socialMinMs: 15000,
-    socialMaxMs: 35000,
+    /**
+     * A social moment starts this long after the previous one (random in between).
+     * The kids are livelier than the main character (every 20 to 90 s).
+     */
+    socialMinMs: 8000,
+    socialMaxMs: 20000,
+    /** A little show of its own (spin, jump, wave, dance). */
+    playMs: 1900,
+    /** A prank: it pokes the main character, then runs back, faster. */
+    pokeMs: 1000,
+    runSpeed: 0.3,
+    /** A zoom on the thrusters: across the crew area and back, a look round in between. */
+    flySpeed: 0.34,
+    zoomLookMs: 700,
     /** Distance between two minis facing each other in a chat (laptops closed). */
     chatGap: 72,
     /** Strolls stay this far out from the report point. */
@@ -73,8 +90,15 @@
   });
 
   const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
-  /** Relative weights of the social moments (when each is possible). Most often: a word with the main character. */
-  const SOCIAL_WEIGHTS = { chat: 3, visit: 5, stroll: 2 };
+  /**
+   * Relative weights of the social moments (when each is possible). The kids are a
+   * bit naughty: they show off, zoom about on their thrusters and poke the main character.
+   */
+  const SOCIAL_WEIGHTS = { chat: 3, visit: 2, stroll: 2, play: 4, zoom: 3, prank: 2 };
+  /** Their little shows (mini CSS: data-phase="play" with data-play). */
+  const MINI_PLAYS = ['spin', 'jump', 'wave', 'dance'];
+  /** A zoom needs at least this much room in the crew area (CSS px). */
+  const ZOOM_ROOM = 90;
 
   class CrewDirector {
     /**
@@ -178,7 +202,7 @@
      */
     shoo(id) {
       const mini = this.minis.get(id);
-      if (!mini || mini.finishing || !['work', 'chat', 'look', 'walk', 'brief'].includes(mini.phase)) return false;
+      if (!mini || mini.finishing || !['work', 'chat', 'look', 'walk', 'brief', 'play', 'prank'].includes(mini.phase)) return false;
       this.clearTimer(mini);
       this.leavePartner(mini);
       if (this.reportHolder === mini.id) {
@@ -295,6 +319,7 @@
         timer: null,
         finishing: null,
         partner: null,
+        play: null,
       };
       this.minis.set(mini.id, mini);
       if (atReport) this.reportHolder = mini.id;
@@ -438,15 +463,68 @@
       const pairs = this.chatPairs(workers);
       const options = [];
       if (pairs.length) options.push('chat');
-      if (this.reportHolder === null) options.push('visit');
+      if (this.reportHolder === null) options.push('visit', 'prank');
+      options.push('play');
+      if (this.maxOff() - (this.geo.report + this.t.strollMargin) >= ZOOM_ROOM) options.push('zoom');
       options.push('stroll');
-      const total = options.reduce((sum, k) => sum + SOCIAL_WEIGHTS[k], 0);
-      let pick = this.random() * total;
-      const kind = options.find((k) => (pick -= SOCIAL_WEIGHTS[k]) < 0) || options[options.length - 1];
+      const kind = this.pickKind(options);
       const any = () => workers[Math.floor(this.random() * workers.length)];
       if (kind === 'chat') this.chat(...pairs[Math.floor(this.random() * pairs.length)]);
       else if (kind === 'visit') this.visit(any());
+      else if (kind === 'prank') this.prank(any());
+      else if (kind === 'play') this.play(any());
+      else if (kind === 'zoom') this.zoom(any());
       else this.stroll(any());
+    }
+
+    /** One of `options`, by SOCIAL_WEIGHTS. */
+    pickKind(options) {
+      const total = options.reduce((sum, k) => sum + SOCIAL_WEIGHTS[k], 0);
+      let pick = this.random() * total;
+      return options.find((k) => (pick -= SOCIAL_WEIGHTS[k]) < 0) || options[options.length - 1];
+    }
+
+    /** A little show right where it stands: a spin, a jump, a wave or a dance. */
+    play(mini) {
+      mini.play = MINI_PLAYS[Math.floor(this.random() * MINI_PLAYS.length)] || MINI_PLAYS[0];
+      this.setPhase(mini, 'play', mini.face);
+      this.after(mini, this.t.playMs, () => {
+        mini.play = null;
+        this.backToWork(mini);
+      });
+    }
+
+    /** Off on its thrusters to the far end of the crew area, a look round, and back. */
+    zoom(mini) {
+      const lo = this.geo.report + this.t.strollMargin;
+      const hi = Math.max(lo, this.maxOff());
+      const target = mini.off - lo > hi - mini.off ? lo : hi;
+      this.walk(
+        mini,
+        target,
+        () => {
+          this.setPhase(mini, 'look', mini.face);
+          this.after(mini, this.t.zoomLookMs, () =>
+            this.walk(mini, this.spotOf(mini), () => this.work(mini), { fly: true, speed: this.t.flySpeed }),
+          );
+        },
+        { fly: true, speed: this.t.flySpeed },
+      );
+    }
+
+    /** It sneaks up to the main character, pokes it (cue 'poke') and runs back, quickly. */
+    prank(mini) {
+      this.reportHolder = mini.id;
+      this.walk(mini, this.geo.report, () => {
+        this.setPhase(mini, 'prank', 'in');
+        this.after(mini, this.t.pokeMs / 2, () => {
+          this.onCue('poke', { id: mini.id });
+          this.after(mini, this.t.pokeMs / 2, () => {
+            this.freeReport(mini);
+            this.walk(mini, this.spotOf(mini), () => this.work(mini), { speed: this.t.runSpeed });
+          });
+        });
+      });
     }
 
     /** Neighbours (nobody between them) that are both quietly working: [inner, outer]. */
@@ -533,8 +611,14 @@
 
     // ---------------------------------------------------------------- helpers
 
-    walk(mini, off, then) {
+    /**
+     * Walk (or fly) to `off`, then `then()`.
+     * @param {{ fly?: boolean, speed?: number }} [how]  fly: thrusters on all the way;
+     *   speed: px per ms instead of the walking speed
+     */
+    walk(mini, off, then, how = {}) {
       this.clearTimer(mini);
+      mini.play = null;
       const distance = Math.abs(off - mini.off);
       if (distance < 1) {
         mini.walkMs = 0;
@@ -544,9 +628,9 @@
       const lo = Math.min(off, mini.off);
       const hi = Math.max(off, mini.off);
       // Somebody standing in the way: hop over them with the thrusters.
-      mini.fly = [...this.minis.values()].some((m) => m !== mini && m.off > lo + 1 && m.off < hi - 1);
+      mini.fly = how.fly === true || [...this.minis.values()].some((m) => m !== mini && m.off > lo + 1 && m.off < hi - 1);
       mini.face = off > mini.off ? 'out' : 'in';
-      mini.walkMs = Math.max(this.t.minWalkMs, Math.round(distance / this.t.walkSpeed));
+      mini.walkMs = Math.max(this.t.minWalkMs, Math.round(distance / (how.speed || this.t.walkSpeed)));
       mini.off = off;
       mini.phase = 'walk';
       this.emit(mini);
@@ -568,6 +652,7 @@
       this.clearTimer(mini);
       mini.phase = phase;
       mini.face = face;
+      if (phase !== 'play') mini.play = null;
       if (phase !== 'leave') mini.fly = false;
       mini.walkMs = 0;
       this.emit(mini);
@@ -604,6 +689,7 @@
         tint: mini.tint,
         slot: mini.slot,
         phase: mini.phase,
+        play: mini.play || null,
         off: mini.off,
         face: mini.face,
         fly: mini.fly,
@@ -631,7 +717,8 @@
  * @property {number} slot  index among the visible minis (0 = next to the report point)
  * @property {number|null} home  where the user dropped it (overrides the slot's spot)
  * @property {number} tint  colour variant
- * @property {string} phase  arrive | brief | walk | work | chat | look | held | land | huff | done | report | leave
+ * @property {string} phase  arrive | brief | walk | work | chat | look | play | prank | held | land | huff | done | report | leave
+ * @property {string|null} play  during phase "play": spin | jump | wave | dance
  * @property {number} off  outward offset of its feet (CSS px)
  * @property {'in'|'out'} face
  * @property {boolean} fly

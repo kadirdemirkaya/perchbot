@@ -128,7 +128,7 @@ Use whatever you like; ignore the rest.
 | `data-pet` | `play` while the pet plays next to the character (it joins in) |
 | `data-cheer` | with `data-state="done"`: `jump` (the classic), `spin`, `dance` or `fist` |
 | `data-annoyed`, `data-ouch` | clicked twice in a row (~1.5 s) / hit with the whip (~0.5 s) |
-| `data-move` | on a trip around the screen: `walk` or `fly` (the app also sets `data-fly` while flying) |
+| `data-move` | on a trip around the screen: `walk` or `fly` (the app also sets `data-fly` while flying). Also `fly` while it glides after being thrown, `toss` for the same with hover mode "Always stand", and `settle` for the short ease into place after a drop |
 | `data-face` | `left` while walking or fighting towards the left: the app mirrors your SVG, you do nothing |
 | `data-inspect` | `left` / `right` for ~4 s after it flew next to the cursor: have a look that way |
 | `data-duel` | the duel: `draw`, `guard`, `windup` (the telegraph, make it obvious), `strike`, `hit` (it got the user), `recover`, `stun` (parried), `block`, `hurt` (the user got it), `win`, `lose` |
@@ -145,7 +145,8 @@ The app wraps each copy in `<div class="buddy-mini">` and sets:
 
 | Attribute | Meaning |
 |---|---|
-| `data-phase` | `arrive` (drops in), `brief`, `walk`, `work` (laptop open), `chat`, `look` (looks around), `held` (picked up by the user), `land`, `huff` (hit too often, about to stomp off), `done`, `report`, `leave` |
+| `data-phase` | `arrive` (drops in), `brief`, `walk`, `work` (laptop open), `chat`, `look` (looks around), `play` (a little show, see `data-play`), `prank` (pokes the main character), `held` (picked up by the user), `land`, `huff` (hit too often, about to stomp off), `done`, `report`, `leave` |
+| `data-play` | during `play`, ~2 s: `spin`, `jump`, `wave` or `dance` |
 | `data-tint` | `0` … `tints - 1`: which colour variant to wear; neighbours always differ |
 | `data-fly` | thrusters on (dropping in, flying off, hopping over others, or the whole buddy hovers) |
 | `data-hop` | while walking: hopping over the helpers in the way |
@@ -154,7 +155,7 @@ The app wraps each copy in `<div class="buddy-mini">` and sets:
 | `data-skill` | `open` while its agent uses a skill |
 | `data-boop` | ~0.5 s after a click |
 | `data-ouch`, `data-annoyed` | hit with the whip / clicked twice in a row |
-| `data-travel` | `walk` or `fly`: the whole buddy is on a trip and the helpers come along (the app mirrors them to face the way) |
+| `data-travel` | `walk` or `fly`: the whole buddy is on a trip and the helpers come along (the app mirrors them to face the way); `toss` or `settle` while it is thrown or eases into place after a drop |
 | `data-rest` | the main character is resting (or the screen is locked): stop every animation |
 
 Use classes to recolour shapes per tint (Robo's kids use `--rbm-body` and friends, see

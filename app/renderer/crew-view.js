@@ -172,6 +172,7 @@
       };
       el.dataset.phase = view.phase;
       el.dataset.tint = String(view.tint);
+      set('play', Boolean(view.play), view.play || '');
       // The artwork faces right. "in" = towards the main character. On a trip
       // with the main character, everybody faces the way they all go.
       const faceRight = travel ? travel.face !== 'left' : side === 'left' ? view.face === 'in' : view.face === 'out';

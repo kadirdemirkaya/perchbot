@@ -943,6 +943,10 @@
     } else if (name === 'receive') {
       flag('receive', towards, true);
       later('receive', RECEIVE_MS, () => flag('receive', null));
+    } else if (name === 'poke') {
+      // A naughty kid poked it: a little jolt (a "Hey!" too when it is not working).
+      boop();
+      if (CALM.has(view.state) && !quipText) quip('hey', 900);
     }
   }
 

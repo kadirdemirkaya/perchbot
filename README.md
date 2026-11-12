@@ -93,8 +93,11 @@ the buddy itself never moves.
 - **Arrival:** the helper drops in on its thrusters, gets a short briefing from the buddy and
   walks to its spot (it hops over the others if they are in the way).
 - **Work:** laptop open. The tooltip on a helper shows its type, current tool and file name,
-  nothing else. Now and then a helper gets up: it chats with a neighbour (they pass a note),
-  walks over for a word with the buddy, or strolls around and looks about.
+  nothing else. The helpers are livelier (and a bit naughtier) than the buddy: every 8 to 20
+  seconds one of them gets up. It chats with a neighbour (they pass a note), walks over for a
+  word with the buddy, strolls around and looks about, puts on a little show (a spin, a jump,
+  a wave, a dance), zooms to the far end of the row on its thrusters and back, or sneaks up
+  to the buddy, pokes it and runs back.
 - **Done:** a happy face, then it walks to the buddy, salutes, hands over its note and flies
   off. A helper whose session ends, or that has sent no event for 30 minutes, just fades.
 - Up to four helpers are shown when there is room; the rest wait behind a "+N" badge. The
