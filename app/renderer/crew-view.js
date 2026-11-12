@@ -8,7 +8,8 @@
  *
  * Attributes set on each mini (the character's mini CSS may use any):
  *   data-phase  data-tint  data-fly  data-hop  data-talk  data-skill  data-give
- *   data-boop   data-rest  data-flip (app CSS mirrors it to face the other way)
+ *   data-boop   data-ouch  data-annoyed  data-rest
+ *   data-flip   (app CSS mirrors it to face the other way)
  * Positioning (--off, --lift, --walk) and mirroring are done by the app
  * (overlay.css). Minis can be picked up and dropped elsewhere in the crew area
  * (startDrag / dragMove / endDrag); a click without moving is a little boop.
@@ -41,6 +42,8 @@
     let lastLayout = null;
     let hover = false;
     let rest = false;
+    /** The whole buddy is on a trip: { mode: 'walk' | 'fly', face: 'left' | 'right' } or null. */
+    let travel = null;
     let strings = { helpers: '{count} helpers' };
     let agentCount = 0;
     let overflow = 0;
@@ -119,6 +122,12 @@
       for (const view of views.values()) render(view);
     }
 
+    /** The main character goes on a trip and the kids come along (mode null: arrived). */
+    function setTravel(mode, face) {
+      travel = mode ? { mode, face: face === 'left' ? 'left' : 'right' } : null;
+      for (const view of views.values()) render(view);
+    }
+
     /** Resting / paused: every mini stops moving, no chats. */
     function setRest(value) {
       rest = Boolean(value);
@@ -163,10 +172,12 @@
       };
       el.dataset.phase = view.phase;
       el.dataset.tint = String(view.tint);
-      // The artwork faces right. "in" = towards the main character.
-      const faceRight = side === 'left' ? view.face === 'in' : view.face === 'out';
+      // The artwork faces right. "in" = towards the main character. On a trip
+      // with the main character, everybody faces the way they all go.
+      const faceRight = travel ? travel.face !== 'left' : side === 'left' ? view.face === 'in' : view.face === 'out';
       set('flip', !faceRight);
-      set('fly', view.fly || hover);
+      set('travel', Boolean(travel), travel ? travel.mode : '');
+      set('fly', view.fly || hover || Boolean(travel && travel.mode === 'fly'));
       set('hop', view.fly && view.phase === 'walk' && !hover);
       set('rest', rest);
       set('skill', Boolean(view.skill), 'open');
@@ -294,34 +305,50 @@
       held.el.style.setProperty('--lift', `${held.lift}px`);
     }
 
-    /** Pointer released (drop) or the window lost the mouse (also drop, where it is). */
+    /**
+     * Pointer released (drop) or the window lost the mouse (also drop, where it
+     * is). Returns the id of the mini when it was a click rather than a drag.
+     */
     function endDrag() {
-      if (!held) return;
-      const { id, el, grabbed, off } = held;
+      if (!held) return null;
+      const { id, grabbed, off } = held;
       held = null;
       if (grabbed) {
         o.trace(`crew: ${id.slice(0, 4)} dropped`);
         director.dropAt(id, off);
-      } else {
-        boop(el);
+        return null;
       }
+      return id;
+    }
+
+    /**
+     * React to a click: 'boop' (a hop), 'ouch' (a lash of the whip),
+     * 'annoyed' (hit twice), 'shoo' (hit too often: it huffs and moves away).
+     */
+    function react(id, how) {
+      const el = els.get(id);
+      if (!el) return;
+      if (how === 'shoo') {
+        o.trace(`crew: ${id.slice(0, 4)} shooed`);
+        director.shoo(id);
+        return;
+      }
+      const name = how === 'boop' ? 'boop' : how === 'annoyed' ? 'annoyed' : 'ouch';
+      delete el.dataset[name];
+      void el.offsetWidth; // restart the animation
+      el.dataset[name] = '1';
+      setTimeout(() => delete el.dataset[name], name === 'annoyed' ? 1400 : BOOP_MS);
     }
 
     const isHolding = () => Boolean(held && held.grabbed);
     const isPressing = () => Boolean(held);
-
-    function boop(el) {
-      delete el.dataset.boop;
-      void el.offsetWidth; // restart the animation
-      el.dataset.boop = '1';
-      setTimeout(() => delete el.dataset.boop, BOOP_MS);
-    }
 
     return {
       setCharacter,
       setLayout,
       setAgents,
       setHover,
+      setTravel,
       setRest,
       setStrings,
       labelAt,
@@ -329,6 +356,7 @@
       startDrag,
       dragMove,
       endDrag,
+      react,
       isHolding,
       isPressing,
     };

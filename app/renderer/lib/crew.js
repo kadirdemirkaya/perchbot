@@ -20,6 +20,8 @@
  *              stroll wanders off a bit, looks around, comes back
  *   held     the user picked it up; when dropped it lands there and makes that
  *            place its new spot
+ *   shooed   hit too often: it huffs, then walks (or hops) off to a random new
+ *            spot in the crew area and works there
  *   done     the agent finished: a happy face, then it waits for the report point
  *   report   salutes and hands its note to the main character
  *   leave    flies off; then onRelease(id) so the app can forget the agent
@@ -65,11 +67,14 @@
     chatGap: 72,
     /** Strolls stay this far out from the report point. */
     strollMargin: 70,
+    /** Shooed away: the huff, and how far it goes at least. */
+    huffMs: 700,
+    shooGap: 60,
   });
 
   const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
-  /** Relative weights of the social moments (when each is possible). */
-  const SOCIAL_WEIGHTS = { chat: 4, visit: 3, stroll: 2 };
+  /** Relative weights of the social moments (when each is possible). Most often: a word with the main character. */
+  const SOCIAL_WEIGHTS = { chat: 3, visit: 5, stroll: 2 };
 
   class CrewDirector {
     /**
@@ -165,6 +170,32 @@
         mini.walkMs = 0;
         this.work(mini);
       });
+    }
+
+    /**
+     * Hit too often: an angry moment, then off to a random other spot in the
+     * crew area (at least `shooGap` away), which becomes its spot.
+     */
+    shoo(id) {
+      const mini = this.minis.get(id);
+      if (!mini || mini.finishing || !['work', 'chat', 'look', 'walk', 'brief'].includes(mini.phase)) return false;
+      this.clearTimer(mini);
+      this.leavePartner(mini);
+      if (this.reportHolder === mini.id) {
+        this.reportHolder = null;
+        this.nextReport();
+      }
+      const lo = this.geo.report + this.t.strollMargin;
+      const hi = Math.max(lo, this.maxOff());
+      let target = mini.off;
+      for (let i = 0; i < 10 && Math.abs(target - mini.off) < this.t.shooGap; i += 1) target = Math.round(lo + this.random() * (hi - lo));
+      if (Math.abs(target - mini.off) < this.t.shooGap) target = mini.off - lo > hi - mini.off ? lo : hi;
+      this.setPhase(mini, 'huff', mini.face);
+      this.after(mini, this.t.huffMs, () => {
+        mini.home = target;
+        this.walk(mini, target, () => this.work(mini));
+      });
+      return true;
     }
 
     list() {
@@ -600,7 +631,7 @@
  * @property {number} slot  index among the visible minis (0 = next to the report point)
  * @property {number|null} home  where the user dropped it (overrides the slot's spot)
  * @property {number} tint  colour variant
- * @property {string} phase  arrive | brief | walk | work | chat | look | held | land | done | report | leave
+ * @property {string} phase  arrive | brief | walk | work | chat | look | held | land | huff | done | report | leave
  * @property {number} off  outward offset of its feet (CSS px)
  * @property {'in'|'out'} face
  * @property {boolean} fly

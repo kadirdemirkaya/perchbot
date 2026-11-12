@@ -247,6 +247,7 @@ module.exports = {
   scaleFor,
   cornerAnchor,
   slotRect,
+  contains,
   sideFor,
   resolveAnchor,
   windowLayout,

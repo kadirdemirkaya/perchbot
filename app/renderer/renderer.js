@@ -13,9 +13,11 @@
  *   released   the main process let go of the mouse (cursor left the window)
  *   flight     { airborne, boost, tilt } hovering above the ground
  *   crew       [{ id, type, tool, file, skill, status }] sub-agents (crew-view.js draws them)
+ *   move       { mode: 'walk' | 'fly' | null, face, kind, arrived, look } a trip around the screen
+ *   fun        { action: 'duel' } from the right-click menu
  *
  * To the main process (window.buddy): ready(), capture(bool), drag(phase), menu(id),
- * crewLeft(id).
+ * crewLeft(id), fun(action) (a trip, or the right-click menu).
  *
  * Attributes this page sets on the character wrapper (the character's CSS
  * may use any of them; see characters/README.md):
@@ -23,6 +25,8 @@
  *   data-mood ("worried")  data-tap ("down" | "up")  data-sway ("a" | "b")
  *   data-fly ("hover" | "boost")  data-land
  *   data-skill ("open" | "stow")  data-brief / data-receive ("left" | "right": where the mini stands)
+ *   fun mode: data-play  data-cheer  data-annoyed  data-move ("walk" | "fly")  data-face ("left")
+ *   data-inspect ("left" | "right")  data-duel (phase, see lib/fun.js)
  *   --look-x / --look-y (-1..1)  --type-line (0..7)  --fly-tilt (-1..1)
  *
  * The character SVG is inlined after removing scripts, event handlers and
@@ -31,6 +35,7 @@
 
 (() => {
   const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm } = window.BuddyInteraction;
+  const { ClickMeter, PlayScheduler, RoamScheduler, pickCheer, Duel } = window.BuddyFun;
 
   const root = document.documentElement;
   const stage = document.getElementById('stage');
@@ -43,6 +48,9 @@
   const actors = document.getElementById('actors');
   const skillTag = document.getElementById('skill-tag');
   const skillName = document.getElementById('skill-name');
+  const duelHud = document.getElementById('duel-hud');
+  const duelPad = document.getElementById('duel-pad');
+  const fxTop = document.getElementById('fx-top');
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   const CONFETTI_COLORS = ['#FFC857', '#FF8FA3', '#7EE0D2', '#8AB6FF', '#B49CFF', '#9BE564'];
@@ -63,7 +71,7 @@
   const RECEIVE_MS = 1600;
 
   let character = null;
-  let settings = { quiet: false, eyeTracking: true };
+  let settings = { quiet: false, eyeTracking: true, funMode: true };
   let view = { state: 'idle', cssState: 'idle', text: '', mono: false };
   let layout = { side: 'left', slotLeft: 64 };
   let paused = false;
@@ -178,26 +186,46 @@
     stage.classList.toggle('leaving', next.state === 'goodbye');
     applySkill(next.skill || null);
     renderBubble();
+    // Claude Code needs the character: any event ends a duel at once.
+    if (duel.active) duel.stop();
 
     // Every event wakes the character; idle starts the rest countdown again.
     rest.setIdle(next.state === 'idle');
 
     if (next.state !== previous.state) {
       swayAntenna();
-      if (next.state === 'done') burstConfetti();
+      if (next.state === 'done') {
+        burstConfetti();
+        // Fun mode: not always the same celebration.
+        flag('cheer', funOn() ? pickCheer() : 'jump');
+      }
       if (BUSY.has(next.state)) flag('greet', null);
     }
     updateTyping();
+    updateFun();
+  }
+
+  /** A short line of its own (hit, duel) that shows for a moment instead of the state's text. */
+  let quipText = null;
+  function quip(key, ms = 1300) {
+    const text = settings.strings && settings.strings.quips && settings.strings.quips[key];
+    if (!text) return;
+    quipText = text;
+    renderBubble();
+    later('quip', ms, () => {
+      quipText = null;
+      renderBubble();
+    });
   }
 
   function renderBubble() {
-    const text = settings.quiet ? '' : view.text;
+    const text = settings.quiet ? '' : quipText || view.text;
     if (!text) {
       bubble.classList.remove('show');
       return;
     }
     bubbleText.textContent = text;
-    bubble.classList.toggle('mono', Boolean(view.mono));
+    bubble.classList.toggle('mono', Boolean(view.mono) && !quipText);
     positionBubble();
     bubble.classList.add('show');
   }
@@ -279,6 +307,7 @@
    */
   function zoneOf(el) {
     if (!el || !(el instanceof Element)) return null;
+    if (el.closest('.duel-pad')) return 'duel';
     if (el.closest('.menu.open .menu-button')) return 'menu';
     if (holder.contains(el) && el !== holder && el.closest('svg') && el.tagName.toLowerCase() !== 'svg') {
       return 'character';
@@ -287,15 +316,18 @@
     return null;
   }
 
-  const takesMouse = (z) => z === 'character' || z === 'menu' || z === 'mini';
+  const takesMouse = (z) => z === 'character' || z === 'menu' || z === 'mini' || z === 'duel';
 
   let lastPointer = null;
+  /** Where the cursor was last seen in this window (not reset while it rests): aim for duels. */
+  let pointerAt = null;
   let zone = null;
   let lookFrame = 0;
   let lastActivity = 0;
 
   function onPointerMove(clientX, clientY) {
     lastPointer = { x: clientX, y: clientY };
+    pointerAt = lastPointer;
     // Synchronous on purpose: releasing the mouse must not wait for a frame.
     const holding = crew.isPressing();
     const el = drag || holding ? null : document.elementFromPoint(clientX, clientY);
@@ -310,6 +342,7 @@
       rest.activity();
     }
     if (!lookFrame) lookFrame = requestAnimationFrame(updateLook);
+    faceCursor();
     later('look-reset', 1500, resetLook);
   }
 
@@ -320,9 +353,10 @@
       trace(`pointer zone: ${next || 'none'}${at} (capturing=${capture.capturing})`);
     }
     zone = next;
-    hover.set(drag ? null : next);
+    hover.set(drag || duel.active ? null : next);
     flag('hover', next === 'character' || next === 'menu' ? true : null);
-    if (enteredCharacter && !drag) greet();
+    if (enteredCharacter && !drag && !duel.active) greet();
+    updateFun();
   }
 
   function onPointerLeave(e) {
@@ -373,7 +407,8 @@
 
   holder.addEventListener('pointermove', (e) => {
     if (!drag) return;
-    if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > DRAG_THRESHOLD) {
+    // No dragging in the middle of a duel: every press is a swing.
+    if (!drag.moved && !duel.active && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > DRAG_THRESHOLD) {
       drag.moved = true;
       stage.classList.add('dragging');
       hover.closeNow();
@@ -396,7 +431,7 @@
     drag = null;
     stage.classList.remove('dragging');
     if (wasDrag) window.buddy.drag(completed ? 'end' : 'cancel');
-    else if (completed) boop();
+    else if (completed) onClick(e);
     const under = e ? zoneOf(document.elementFromPoint(e.clientX, e.clientY)) : null;
     capture.endDrag(takesMouse(under));
     setZone(under);
@@ -424,7 +459,8 @@
     if (!miniPointer || e.pointerId !== miniPointer.id) return;
     if (miniPointer.el.hasPointerCapture(e.pointerId)) miniPointer.el.releasePointerCapture(e.pointerId);
     miniPointer = null;
-    crew.endDrag();
+    const clicked = crew.endDrag();
+    if (clicked && e.type === 'pointerup') onMiniClick(clicked, e.clientX, e.clientY);
     const under = zoneOf(document.elementFromPoint(e.clientX, e.clientY));
     capture.endDrag(takesMouse(under));
     setZone(under);
@@ -597,6 +633,7 @@
       flag('rest', resting ? true : null);
       crew.setRest(resting || paused);
       if (!resting) swayAntenna();
+      updateFun();
     },
   });
 
@@ -667,6 +704,7 @@
     else delete root.dataset.paused;
     crew.setRest(paused || rest.resting);
     if (paused) {
+      if (duel.active) duel.stop();
       hover.closeNow();
       setZone(null);
       capture.released();
@@ -676,6 +714,7 @@
       scheduleBlink();
     }
     updateTyping();
+    updateFun();
   }
 
   // ---------------------------------------------------------------- crew (sub-agents)
@@ -697,10 +736,353 @@
     }
   }
 
+  // ---------------------------------------------------------------- fun mode
+
+  const funOn = () => settings.funMode !== false && motionAllowed();
+  const ROAM_STATES = new Set(['idle', 'thinking', 'standby']);
+  const ANNOYED_MS = 1500;
+  const INSPECT_MS = 3800;
+  let moving = null;
+  let crewCount = 0;
+
+  const meter = new ClickMeter();
+  const plays = new PlayScheduler({
+    onPlay: (name) => {
+      if (name) trace(`play: ${name}`);
+      flag('play', name);
+    },
+  });
+  const roamer = new RoamScheduler({
+    onTrip: (kind) => {
+      trace(`trip wanted: ${kind}`);
+      window.buddy.fun(kind);
+    },
+  });
+  const duel = new Duel({ onPhase: onDuelPhase });
+
+  /** Idle plays and trips only when nothing else is going on. */
+  function updateFun() {
+    const calm = funOn() && !duel.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting;
+    plays.set(calm && view.state === 'idle');
+    roamer.set(calm && ROAM_STATES.has(view.state) && crewCount === 0);
+  }
+
+  /**
+   * A click on the character: with the whip a lash (crack + wince), otherwise
+   * a boop. Hit twice in a row it gets annoyed; a third time and it leaves for
+   * a random spot somewhere else on the screen.
+   */
+  function onClick(e) {
+    rest.activity();
+    const whip = funOn() && weapon === 'whip';
+    if (whip && e) {
+      effect('crack', e.clientX, e.clientY);
+      flag('ouch', true, true);
+      later('ouch', OUCH_MS, () => flag('ouch', null));
+      armWhip();
+    }
+    const verdict = funOn() ? meter.click() : 'boop';
+    if (verdict === 'boop') {
+      if (whip) quip('ouch', 900);
+      else boop();
+      return;
+    }
+    flag('boop', null);
+    flag('annoyed', true, true);
+    later('annoyed', ANNOYED_MS, () => flag('annoyed', null));
+    if (verdict === 'flee') {
+      trace('hit too often: leaving');
+      quip('enough', 1800);
+      later('flee', 450, () => window.buddy.fun('flee'));
+    } else {
+      quip('hey', 1100);
+    }
+  }
+
+  /** The same for a helper: it winces, gets annoyed, then stomps off to another spot. */
+  const miniMeters = new Map();
+  function onMiniClick(id, x, y) {
+    rest.activity();
+    const whip = funOn() && weapon === 'whip';
+    if (whip) {
+      effect('crack', x, y);
+      crew.react(id, 'ouch');
+      armWhip();
+    }
+    if (!funOn()) {
+      crew.react(id, 'boop');
+      return;
+    }
+    if (!miniMeters.has(id)) miniMeters.set(id, new ClickMeter());
+    if (miniMeters.size > 16) miniMeters.delete(miniMeters.keys().next().value);
+    const verdict = miniMeters.get(id).click();
+    if (verdict === 'boop') {
+      if (!whip) crew.react(id, 'boop');
+    } else if (verdict === 'annoyed') {
+      crew.react(id, 'annoyed');
+    } else {
+      crew.react(id, 'shoo');
+    }
+  }
+
+  // ---------------------------------------------------------------- weapons and hits
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  /** What it says during a duel ('win' = the robot won). */
+  const DUEL_QUIPS = {
+    draw: 'enGarde',
+    hit: 'gotYou',
+    stun: 'parried',
+    hurt: 'hurt',
+    block: 'blocked',
+    win: 'robotWins',
+    lose: 'youWin',
+  };
+  const OUCH_MS = 450;
+  /** The whip goes back after this long without a lash. */
+  const WHIP_IDLE_MS = 45000;
+  let weapon = 'hand';
+
+  function setWeapon(next) {
+    weapon = next === 'whip' ? 'whip' : 'hand';
+    if (weapon === 'whip') root.dataset.weapon = 'whip';
+    else delete root.dataset.weapon;
+    trace(`weapon: ${weapon}`);
+    if (weapon === 'whip') armWhip();
+    else cancel('whip');
+  }
+
+  function armWhip() {
+    later('whip', WHIP_IDLE_MS, () => {
+      setWeapon('hand');
+      window.buddy.fun('whip-off');
+    });
+  }
+
+  /** Little drawings at a point of the page, each gone after half a second. */
+  const FX = {
+    // a lash of the whip, cracking at the tip
+    crack: [
+      ['path', { d: 'M4 40C16 36 20 22 32 14', stroke: '#FFFFFF', 'stroke-width': 5 }],
+      ['path', { d: 'M4 40C16 36 20 22 32 14', stroke: '#7462D6', 'stroke-width': 2.6 }],
+      ['path', { d: 'M35 10l6-5M37 14h7M35 18l5 5', stroke: '#2A2650', 'stroke-width': 2.4 }],
+    ],
+    // swords clash
+    spark: [
+      ['path', { d: 'M24 13l7 11-7 11-7-11z', fill: '#FFD25A', stroke: '#2A2650', 'stroke-width': 2 }],
+      ['path', { d: 'M24 4v4M24 40v4M8 18l4 2M40 18l-4 2M10 33l4-2M38 33l-4-2', stroke: '#2A2650', 'stroke-width': 2.4 }],
+    ],
+    // the robot's sword got you
+    slash: [
+      ['path', { d: 'M6 40Q24 28 42 8', stroke: '#2A2650', 'stroke-width': 8 }],
+      ['path', { d: 'M6 40Q24 28 42 8', stroke: '#FFFFFF', 'stroke-width': 4.5 }],
+    ],
+    // you got the robot
+    impact: [
+      ['circle', { cx: 24, cy: 24, r: 14, stroke: '#FF7D9B', 'stroke-width': 3.5 }],
+      ['circle', { cx: 24, cy: 24, r: 5, fill: '#FFD25A', stroke: '#2A2650', 'stroke-width': 2 }],
+    ],
+    // a swing that hit nothing
+    swoosh: [['path', { d: 'M8 34Q22 12 42 18', stroke: '#FFFFFF', 'stroke-width': 3, opacity: 0.8 }]],
+  };
+
+  function effect(kind, x, y) {
+    if (!motionAllowed() || !FX[kind]) return;
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', `fx-hit ${kind}`);
+    svg.setAttribute('viewBox', '0 0 48 48');
+    for (const [tag, attrs] of FX[kind]) {
+      const shape = document.createElementNS(SVG_NS, tag);
+      for (const [name, value] of Object.entries(attrs)) shape.setAttribute(name, String(value));
+      svg.appendChild(shape);
+    }
+    svg.style.left = `${Math.round(x)}px`;
+    svg.style.top = `${Math.round(y)}px`;
+    fxTop.appendChild(svg);
+    setTimeout(() => svg.remove(), 600);
+    while (fxTop.childElementCount > 12) fxTop.firstElementChild.remove();
+  }
+
+  function shake() {
+    if (!motionAllowed()) return;
+    stage.classList.remove('shake');
+    void stage.offsetWidth;
+    stage.classList.add('shake');
+    later('shake', 400, () => stage.classList.remove('shake'));
+  }
+
+  // ---------------------------------------------------------------- the duel arena
+
+  // Every click in the window is a swing of your sword: near the robot it counts.
+  duelPad.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || !duel.active) return;
+    e.preventDefault();
+    swing(e.clientX, e.clientY);
+  });
+
+  duelPad.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (duel.active) duel.stop();
+  });
+
+  function swing(x, y) {
+    rest.activity();
+    const r = holder.getBoundingClientRect();
+    const near = x > r.left - 24 && x < r.right + 24 && y > r.top && y < r.bottom + 8;
+    const result = near ? duel.click() : 'miss';
+    if (result === 'hit') effect('impact', x, y);
+    else if (result === 'parry' || result === 'blocked') effect('spark', x, y);
+    else effect('swoosh', x, y);
+    trace(`duel swing: ${result}`);
+  }
+
+  // Right-click on the character: the fun menu (duel, walk, fly, home). In a duel: give up.
+  holder.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (zoneOf(e.target) !== 'character') return;
+    if (duel.active) duel.stop();
+    else window.buddy.fun('context');
+  });
+
+  function startDuel() {
+    if (!motionAllowed() || duel.active) return;
+    hover.closeNow();
+    flag('play', null);
+    flag('greet', null);
+    trace('duel: start');
+    root.dataset.duel = '1';
+    duel.start();
+    updateFun();
+  }
+
+  function onDuelPhase(phase, info) {
+    trace(`duel: ${phase}`);
+    rest.activity();
+    if (phase === 'end') {
+      flag('duel', null);
+      flag('face', null);
+      delete root.dataset.duel;
+      duelHud.classList.remove('show');
+      // The arena is gone: let clicks through again right away, not only after the next move.
+      const under = pointerAt ? zoneOf(document.elementFromPoint(pointerAt.x, pointerAt.y)) : null;
+      capture.pointer(takesMouse(under));
+      setZone(under);
+      updateFun();
+      return;
+    }
+    flag('duel', phase, phase === 'hurt' || phase === 'block');
+    renderHud(info);
+    const line = DUEL_QUIPS[phase];
+    if (line) quip(line, phase === 'win' || phase === 'lose' ? 2400 : 900);
+    // Its slash landed: a cut across your cursor, and the scene shakes.
+    if (phase === 'hit') {
+      const r = holder.getBoundingClientRect();
+      const at = pointerAt || { x: r.left + r.width * 0.85, y: r.top + r.height * 0.5 };
+      effect('slash', at.x, at.y);
+      shake();
+    }
+  }
+
+  /** "Robo ♥♥♥   You ♥♥♥" above the character. */
+  function renderHud(info) {
+    const side = (cls, label, left) => {
+      const el = document.createElement('div');
+      el.className = `duel-side ${cls}`;
+      const name = document.createElement('span');
+      name.textContent = label;
+      el.appendChild(name);
+      for (let i = 0; i < info.hearts; i += 1) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('aria-hidden', 'true');
+        if (i < left) svg.setAttribute('class', 'full');
+        const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        use.setAttribute('href', '#i-heart');
+        svg.appendChild(use);
+        el.appendChild(svg);
+      }
+      return el;
+    };
+    const you = (settings.strings && settings.strings.you) || 'You';
+    duelHud.replaceChildren(side('robot', (character && character.name) || 'Robo', info.robot), side('player', you, info.player));
+    duelHud.classList.add('show');
+  }
+
+  /** In a duel the character turns to face the cursor. */
+  function faceCursor() {
+    if (!duel.active || !pointerAt) return;
+    const rect = holder.getBoundingClientRect();
+    flag('face', pointerAt.x < rect.left + rect.width * 0.49 ? 'left' : null);
+  }
+
+  /** A trip around the screen starts (mode) or ends (mode null). */
+  function applyMove(m) {
+    if (!m) return;
+    if (m.mode) {
+      moving = m.mode;
+      rest.activity();
+      hover.closeNow();
+      flag('play', null);
+      flag('inspect', null);
+      flag('move', m.mode === 'walk' ? 'walk' : 'fly');
+      flag('face', m.face === 'left' ? 'left' : null);
+      crew.setTravel(m.mode, m.face);
+      trace(`trip: ${m.kind} (${m.mode})`);
+    } else {
+      moving = null;
+      flag('move', null);
+      flag('face', null);
+      crew.setTravel(null);
+      if (m.kind === 'inspect' && m.arrived && motionAllowed()) {
+        flag('inspect', m.look === 'left' ? 'left' : 'right');
+        later('inspect', INSPECT_MS, () => flag('inspect', null));
+      }
+      trace(`trip: ${m.kind} ${m.arrived ? 'arrived' : 'stopped'}`);
+    }
+    updateFun();
+  }
+
   // ---------------------------------------------------------------- wiring
+
+  /**
+   * Developers only (main sends data.demo in npm run dev with AGENT_BUDDY_DEMO):
+   * play a duel, the idle plays or the cheers by themselves, no mouse needed.
+   */
+  function runDemo(name) {
+    if (name === 'duel') {
+      // Round 1: no answer (the robot hits). Then parry + hit until it loses.
+      let rounds = 0;
+      const original = duel.onPhase;
+      duel.onPhase = (phase, info) => {
+        original(phase, info);
+        if (phase === 'windup' && rounds++ > 0) later('demo', 250, demoSwing);
+        if (phase === 'stun') later('demo', 400, demoSwing);
+        if (phase === 'guard' && rounds === 2) later('demo', 300, demoSwing); // a blocked one
+      };
+      // A swing at the robot's chest, as a click there would do.
+      const demoSwing = () => {
+        const r = holder.getBoundingClientRect();
+        swing(r.left + r.width * 0.62, r.top + r.height * 0.55);
+      };
+      later('demo-start', 1200, startDuel);
+    } else if (name === 'plays' || name === 'cheers') {
+      const list = name === 'plays' ? ['stretch', 'look', 'peek', 'hum'] : ['jump', 'spin', 'dance', 'fist'];
+      list.forEach((item, i) =>
+        later(`demo-${i}`, 1500 + i * 3600, () => {
+          trace(`demo: ${item}`);
+          if (name === 'plays') flag('play', item, true);
+          else {
+            holder.dataset.state = 'done';
+            flag('cheer', item, true);
+          }
+          later(`demo-off-${i}`, 3200, () => flag(name === 'plays' ? 'play' : 'cheer', null));
+        }),
+      );
+    }
+  }
 
   window.buddy.onInit(async (data) => {
     dev = data.dev === true;
+    if (data.demo) later('demo-run', 500, () => runDemo(data.demo));
     settings = { ...settings, ...(data.settings || {}) };
     crew.setStrings(settings.strings);
     applyLayout(data.layout);
@@ -724,13 +1106,21 @@
   window.buddy.onCrew((list) => {
     // Sub-agents at work keep the main character awake.
     rest.activity();
+    crewCount = Array.isArray(list) ? list.length : 0;
     crew.setAgents(list);
+    updateFun();
+  });
+  window.buddy.onMove((m) => applyMove(m));
+  window.buddy.onFun((msg) => {
+    if (msg && msg.action === 'duel') startDuel();
+    if (msg && msg.action === 'whip') setWeapon(msg.on ? 'whip' : 'hand');
   });
   window.buddy.onSettings((next) => {
     settings = { ...settings, ...next };
     crew.setStrings(settings.strings);
     if (!settings.eyeTracking) resetLook();
     renderBubble();
+    updateFun();
   });
 
   reducedMotion.addEventListener('change', () => {

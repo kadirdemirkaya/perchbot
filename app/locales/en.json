@@ -50,7 +50,8 @@
     "hoverStand": "Always stand",
     "account": "Account",
     "allAccounts": "All accounts",
-    "noAccountEvents": "No events from this account yet"
+    "noAccountEvents": "No events from this account yet",
+    "funMode": "Fun mode (plays, walks, mischief)"
   },
   "hover": {
     "hideBubble": "Hide speech bubble",
@@ -62,6 +63,26 @@
     "quit": "Quit now"
   },
   "page": {
-    "helpers": "{count} helpers"
+    "helpers": "{count} helpers",
+    "you": "You"
+  },
+  "fun": {
+    "duel": "Draw swords!",
+    "walk": "Go for a walk",
+    "fly": "Fly somewhere",
+    "home": "Come back home",
+    "whip": "Take the whip"
+  },
+  "quip": {
+    "ouch": "Ouch!",
+    "hey": "Hey!",
+    "enough": "That's it, I'm off!",
+    "enGarde": "En garde!",
+    "gotYou": "Gotcha!",
+    "parried": "Whoa!",
+    "hurt": "Ow!",
+    "blocked": "Blocked!",
+    "robotWins": "I win!",
+    "youWin": "You win!"
   }
 }

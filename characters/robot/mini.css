@@ -219,16 +219,37 @@
 
 /* ------------------------------------------------------------ walk */
 
-.buddy-mini[data-phase='walk']:not([data-fly]) .rbm-figure {
-  animation: rbm-bob 0.4s steps(2) infinite;
+/* A little stride: legs swing in turn, the body bobs twice per stride, the
+   arms swing against the legs. Also while the whole buddy walks somewhere
+   (data-travel="walk"): the kids walk along. */
+.buddy-mini:is([data-phase='walk'], [data-travel='walk']):not([data-fly]) .rbm-figure {
+  animation: rbm-bob 0.3s ease-in-out infinite;
 }
 
-.buddy-mini[data-phase='walk']:not([data-fly]) .rbm-leg-l {
-  animation: rbm-step 0.4s steps(2) infinite;
+.buddy-mini:is([data-phase='walk'], [data-travel='walk']):not([data-fly]) .rbm-leg-l {
+  animation: rbm-stride 0.6s ease-in-out infinite;
 }
 
-.buddy-mini[data-phase='walk']:not([data-fly]) .rbm-leg-r {
-  animation: rbm-step 0.4s steps(2) 0.2s infinite;
+.buddy-mini:is([data-phase='walk'], [data-travel='walk']):not([data-fly]) .rbm-leg-r {
+  animation: rbm-stride 0.6s ease-in-out -0.3s infinite;
+}
+
+.buddy-mini:is([data-phase='walk'], [data-travel='walk']):not([data-fly]) .rbm-arm {
+  animation: rbm-swing 0.6s ease-in-out -0.3s infinite;
+}
+
+.buddy-mini:is([data-phase='walk'], [data-travel='walk']):not([data-fly]) .rbm-arm-front {
+  animation: rbm-swing 0.6s ease-in-out infinite;
+}
+
+@keyframes rbm-stride {
+  0%, 100% { transform: rotate(18deg); }
+  50% { transform: rotate(-18deg); }
+}
+
+@keyframes rbm-swing {
+  0%, 100% { transform: rotate(-14deg); }
+  50% { transform: rotate(14deg); }
 }
 
 /* Hopping over the others: up, across, down (the app moves it sideways). */
@@ -398,11 +419,11 @@
 /* ------------------------------------------------------------ look: a stroll ends with a look around */
 
 .buddy-mini[data-phase='look']:not([data-rest]) .rbm-head {
-  animation: rbm-look 1.8s steps(6);
+  animation: rbm-look 1.8s ease-in-out;
 }
 
 .buddy-mini[data-phase='look']:not([data-rest]) .rbm-face {
-  animation: rbm-look-eyes 1.8s steps(6);
+  animation: rbm-look-eyes 1.8s ease-in-out;
 }
 
 @keyframes rbm-look {
@@ -421,11 +442,11 @@
 
 /* Dangling: legs kick, arms up, a surprised "o". */
 .buddy-mini[data-phase='held'] .rbm-leg-l {
-  animation: rbm-step 0.5s steps(2) infinite;
+  animation: rbm-stride 0.5s ease-in-out infinite;
 }
 
 .buddy-mini[data-phase='held'] .rbm-leg-r {
-  animation: rbm-step 0.5s steps(2) 0.25s infinite;
+  animation: rbm-stride 0.5s ease-in-out -0.25s infinite;
 }
 
 .buddy-mini[data-phase='held'] .rbm-arm {
@@ -442,6 +463,45 @@
 
 .buddy-mini[data-phase='held'] .rbm-mouth-talk {
   opacity: 1;
+}
+
+/* A lash of the whip: a wince and a step back. */
+.buddy-mini[data-ouch] .rbm-figure {
+  animation: rbm-ouch 0.45s cubic-bezier(0.3, 0, 0.4, 1);
+}
+
+.buddy-mini[data-ouch] .rbm-eyes {
+  transform: scaleY(0.25);
+  transform-origin: 88px 65px;
+}
+
+@keyframes rbm-ouch {
+  0%, 100% { transform: none; }
+  30% { transform: translateX(-6px) rotate(-8deg); }
+  60% { transform: translateX(-3px) rotate(-3deg); }
+}
+
+/* Annoyed (hit twice) and huffing before it stomps off (hit too often). */
+.buddy-mini:is([data-annoyed], [data-phase='huff']) .rbm-mouth {
+  opacity: 0;
+}
+
+.buddy-mini:is([data-annoyed], [data-phase='huff']) .rbm-mouth-talk {
+  opacity: 1;
+}
+
+.buddy-mini:is([data-annoyed], [data-phase='huff']) .rbm-eyes {
+  transform: scaleY(0.7) translateY(2px);
+  transform-origin: 88px 65px;
+}
+
+.buddy-mini[data-phase='huff'] .rbm-figure {
+  animation: rbm-stomp 0.35s ease-in-out 2;
+}
+
+@keyframes rbm-stomp {
+  0%, 100% { transform: none; }
+  50% { transform: translateY(-6px) scale(1.04, 0.96); }
 }
 
 /* A click: a little hop with a grin. */

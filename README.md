@@ -22,6 +22,8 @@ approval is needed and jumps when the work is done.
 - Sub-agents show up as little helper robots, each in its own colour: they get a briefing,
   work on their own laptops, chat with each other now and then, and report back when done.
 - When a skill is in use, the skill book comes out of the pocket, with its name on a tag.
+- Fun mode (on by default): little idle plays, different cheers, walks and flights around the
+  screen, a duel with toy swords (right-click it), and a whip for when it sits in your way.
 - Handles several sessions at once and disappears when the last one ends.
 - Everything stays on your machine. See [Privacy](#privacy).
 - Characters are plug-ins: a folder with an SVG, a CSS file and a JSON manifest.
@@ -86,6 +88,33 @@ the buddy itself never moves.
 - Up to four helpers are shown when there is room; the rest wait behind a "+N" badge. The
   main session's `Stop` does not end them: background agents keep working.
 
+### Fun mode
+
+On by default; turn it off in the tray menu (**Fun mode**) or the right-click menu. While it
+is on:
+
+- **Idle plays:** when nothing happens for a while (before it rests), it stretches and yawns,
+  looks around, peeks at its laptop or hums a tune. Any event stops a play at once.
+- **Cheers:** "done" is celebrated with a jump, a pirouette, a little dance or fist pumps.
+- **Trips:** now and then, while it is idle, thinking or on standby and no helpers are
+  around, it walks along the bottom of the screen, flies somewhere nearby, or flies over to
+  your mouse cursor and has a look through its glasses (it keeps its distance, so clicks
+  still go through). Sooner or later it goes back to the place you gave it. Where it went is
+  not saved: after a restart it is home again. Dragging it somewhere makes that its new home.
+- **Hit it:** click it twice in a row and it gets annoyed; a third time and it takes off to a
+  random spot elsewhere on the screen. Handy when it sits right where you want to click.
+  Helpers do the same, inside their row.
+- **Right-click menu:** *Draw swords!* (a duel), *Take the whip* (the cursor turns into a whip
+  over the buddy and its helpers; every click is a lash, the third one in a row sends it off),
+  *Go for a walk*, *Fly somewhere*, *Come back home*, and Fun mode on / off.
+
+**The duel.** The buddy draws a toy sword and the whole overlay window becomes the arena:
+your cursor is a sword and every click is a swing. It guards, raises its sword (its light
+blinks: get ready) and slashes at you. Click while it raises the sword to parry (sparks,
+it is stunned), then click again to hit it; click while it guards and it blocks and strikes
+back at once. Three hearts each. Right-click to give up. Any event from Claude Code ends the
+duel immediately: work comes first.
+
 When a skill is used (the `Skill` tool, or a slash command you type), the buddy takes the
 skill book out of its pocket and a tag with the skill name appears above its head; at the
 end of the turn the book goes back. Helpers do the same for the skills they use.
@@ -105,7 +134,9 @@ main process releases the mouse whenever the cursor is outside the window.
 | Drag it | It follows the cursor; near a bottom corner it snaps there. Any monitor works; if that monitor is unplugged it returns to the primary display's corner |
 | Rest the cursor on a helper | A tooltip: its type, tool and file name |
 | Drag a helper | Pick it up and drop it elsewhere next to the buddy; it lands there and keeps that spot |
-| Click a helper | A little hop |
+| Click a helper | A little hop (twice: it gets annoyed; three times: it stomps off to another spot) |
+| Click it twice / three times quickly | Annoyed / it takes off to a random spot on the screen (fun mode) |
+| Right-click it | The fun menu: duel, whip, walk, fly, come back home, fun mode |
 | Leave it alone for a minute while idle | It rests: eyes half closed, no animation. Any event or hover wakes it |
 
 The hover menu: show/hide speech bubble, eyes on/off, back to the corner (after a drag),
@@ -191,6 +222,7 @@ Windows it may be under the `^` overflow arrow):
 | Size | Small / medium / large |
 | Hover mode | Auto (hover when placed above the ground) / Always stand |
 | Account | All accounts, or only one Claude account (see [Several Claude accounts](#several-claude-accounts)) |
+| Fun mode | Idle plays, cheers, trips around the screen, mischief (see [Fun mode](#fun-mode)) |
 | Character | Any character found in `characters/` or `~/.agent-buddy/characters/` |
 | Language | English / Türkçe |
 | Quiet mode | Hides the speech bubble (handy while screen sharing) |
@@ -216,7 +248,8 @@ Everything is stored in `~/.agent-buddy/settings.json`
   "position": null,
   "hoverMode": "auto",
   "account": "all",
-  "knownAccounts": []
+  "knownAccounts": [],
+  "funMode": true
 }
 ```
 
@@ -235,6 +268,7 @@ Everything is stored in `~/.agent-buddy/settings.json`
 | `hoverMode` | `auto`, `stand` | `auto`: hovers when placed above the ground |
 | `account` | `all` or an account name | Show only the sessions of this Claude account |
 | `knownAccounts` | list of names | Accounts seen so far (at most 8), offered in the tray menu. Filled in automatically |
+| `funMode` | `true` / `false` | Idle plays, cheers, trips, mischief. The duel is always available from the right-click menu |
 
 Environment variables (optional): `AGENT_BUDDY_HOME` (another settings folder),
 `AGENT_BUDDY_PORT`, `AGENT_BUDDY_DEBUG=1`.
@@ -367,6 +401,7 @@ npm run simulate                    # tour of every state through the real hook 
 npm run simulate -- two-sessions    # checks the session counter (PASS/FAIL)
 npm run simulate -- playground      # idle buddy to try hover, menu, drag, click, resting
 npm run simulate -- --fast --keep   # shorter pauses, leave the overlay open
+AGENT_BUDDY_DEMO=duel npm run dev   # fun mode by itself: duel | trips | plays | cheers
 npm test                            # unit tests (node:test, no extra dependencies)
 npm run make-icons                  # regenerate the tray icons
 ```
@@ -381,12 +416,14 @@ agent-buddy/
 │   ├── main.js          window, tray, single instance, private buddy:// scheme
 │   ├── core.js          state machine, session counter, idle safety net
 │   ├── agents.js        sub-agent registry (the helpers)
+│   ├── roam.js          trips around the screen (fun mode)
 │   ├── placement.js     corners, dragging, snapping, monitor fallback
 │   ├── menu-items.js    the hover menu (add features here)
 │   ├── server.js        127.0.0.1 HTTP endpoint
 │   ├── validate.js      event schema
 │   ├── renderer/        overlay page (HTML, CSS, JS); lib/ holds its pure, tested logic
-│   │                    (interaction.js: mouse, menu, rest; crew.js: the helpers' choreography)
+│   │                    (interaction.js: mouse, menu, rest; crew.js: the helpers' choreography;
+│   │                    fun.js: plays, cheers, hits, the duel)
 │   └── locales/         en.json, tr.json
 ├── characters/robot/    the default character (SVG + CSS + manifest)
 ├── hooks/send.js        the hook script (Node built-ins only)

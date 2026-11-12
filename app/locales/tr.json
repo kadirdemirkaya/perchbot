@@ -50,7 +50,8 @@
     "hoverStand": "Hep ayakta",
     "account": "Hesap",
     "allAccounts": "Tüm hesaplar",
-    "noAccountEvents": "Bu hesaptan henüz olay gelmedi"
+    "noAccountEvents": "Bu hesaptan henüz olay gelmedi",
+    "funMode": "Eğlence modu (oyunlar, gezinti, yaramazlık)"
   },
   "hover": {
     "hideBubble": "Baloncuğu gizle",
@@ -62,6 +63,26 @@
     "quit": "Şimdi kapat"
   },
   "page": {
-    "helpers": "{count} yardımcı"
+    "helpers": "{count} yardımcı",
+    "you": "Sen"
+  },
+  "fun": {
+    "duel": "Kılıçları çek!",
+    "walk": "Yürüyüşe çık",
+    "fly": "Bir yere uç",
+    "home": "Evine dön",
+    "whip": "Kırbacı al"
+  },
+  "quip": {
+    "ouch": "Ay!",
+    "hey": "Hey!",
+    "enough": "Yeter, gidiyorum!",
+    "enGarde": "Hazır ol!",
+    "gotYou": "Yakaladım!",
+    "parried": "Vay!",
+    "hurt": "Ah!",
+    "blocked": "Bloke!",
+    "robotWins": "Kazandım!",
+    "youWin": "Sen kazandın!"
   }
 }

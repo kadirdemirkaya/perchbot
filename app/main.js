@@ -15,6 +15,9 @@
  *   from a private buddy:// scheme with a strict CSP.
  * - Sub-agents ("minis") stand next to the character. The window grows towards
  *   the inner side for them, so the character itself never moves.
+ * - Fun mode: the page asks for trips around the screen (roam.js plans them,
+ *   this file moves the window frame by frame). Where it went is kept only
+ *   for this run; the user's chosen place stays its home.
  */
 
 const fs = require('node:fs');
@@ -41,7 +44,8 @@ const { buddyHome, settingsPath, loadSettings, saveSettings, effectivePort, reme
 const { discoverCharacters } = require('./characters');
 const { translate } = require('./i18n');
 const placement = require('./placement');
-const { buildTrayTemplate } = require('./tray');
+const roam = require('./roam');
+const { buildTrayTemplate, buildFunMenuTemplate } = require('./tray');
 const { buildMenuItems, MENU_IDS } = require('./menu-items');
 const { createLogger } = require('./log');
 
@@ -61,6 +65,10 @@ const TILT_SPEED = 14;
 const TILT_SETTLE_MS = 140;
 /** Agent hashes from the hook (see validate.js); the page sends them back when a mini has left. */
 const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
+/** What the page may ask for (fun mode): a trip, or the right-click menu. */
+const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off']);
+/** Frame interval while the window travels. */
+const TRIP_FRAME_MS = 16;
 
 const CSP = [
   "default-src 'none'",
@@ -85,6 +93,15 @@ const MIME = {
 };
 
 const isDev = process.argv.includes('--dev');
+/**
+ * Developers only (npm run dev): AGENT_BUDDY_DEMO=duel | trips | plays | cheers
+ * plays that part of fun mode by itself, for screenshots and trying things out.
+ */
+const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers']);
+const demo = isDev && DEMOS.has(process.env.AGENT_BUDDY_DEMO) ? process.env.AGENT_BUDDY_DEMO : null;
+const DEMO_TRIPS = ['stroll', 'hop', 'inspect', 'home'];
+/** Short lines in the speech bubble when it is hit or fights (locales: "quip"). */
+const QUIPS = ['ouch', 'hey', 'enough', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin'];
 
 // Keep Chromium's own data (caches, the single-instance lock) under
 // ~/.agent-buddy too, so there is exactly one folder to delete on uninstall.
@@ -135,6 +152,13 @@ function start() {
   let flight = { airborne: false, boost: false, tilt: 0 };
   /** Sub-agents from the core (AgentRegistry.list()), in arrival order. */
   let crew = [];
+  /** The trip in progress: { plan, start, side, timer } (see roam.js). */
+  let trip = null;
+  /** Where a trip left the character (this run only); null = at home. */
+  let roamAnchor = null;
+  let demoIndex = -1;
+  /** The whip from the right-click menu is in the user's hand (the page shows it). */
+  let whipOn = false;
 
   // ------------------------------------------------------------------ events
 
@@ -216,6 +240,14 @@ function start() {
     if (fromPage(event) && MENU_IDS.has(id)) onMenu(id);
   });
 
+  // Fun mode: the page asks for a trip or the right-click menu.
+  ipcMain.on('buddy:fun', (event, action) => {
+    if (!fromPage(event) || !FUN_ACTIONS.has(action)) return;
+    if (action === 'context') popUpFunMenu();
+    else if (action === 'whip-off') whipOn = false;
+    else if (action === 'home' || settings.funMode) startTrip(action);
+  });
+
   // A mini finished its exit scene: forget the agent (the window may shrink).
   ipcMain.on('buddy:crew-left', (event, id) => {
     if (fromPage(event) && typeof id === 'string' && AGENT_ID_RE.test(id)) core.crew.release(id);
@@ -250,6 +282,7 @@ function start() {
           sessions: core.sessionCount,
           mouse: capturing ? 'captured' : 'passthrough',
           flight: flight.airborne ? 'hover' : 'ground',
+          trip: trip ? trip.plan.kind : roamAnchor ? 'away' : 'home',
         }),
       });
     } catch (err) {
@@ -374,6 +407,12 @@ function start() {
    */
   function computePlacement() {
     const resolved = placement.resolveAnchor(settings, displays(), primaryDisplay(), scale());
+    // Away on a trip: stay there while that place is still on a screen.
+    if (roamAnchor) {
+      const display = displays().find((d) => placement.contains(d.workArea, placement.slotRect(roamAnchor, scale())));
+      if (display) Object.assign(resolved, { anchor: { ...roamAnchor }, workArea: display.workArea });
+      else roamAnchor = null;
+    }
     const side = placement.sideFor(resolved.anchor, resolved.workArea);
     const capacity =
       character && character.mini ? placement.crewCapacity(resolved.anchor, side, resolved.workArea, scale()) : 0;
@@ -444,7 +483,7 @@ function start() {
   }
 
   function placeWindow() {
-    if (!win || win.isDestroyed() || drag) return;
+    if (!win || win.isDestroyed() || drag || trip) return;
     const next = computePlacement();
     anchor = next.anchor;
     pageLayout = next.page;
@@ -514,6 +553,7 @@ function start() {
   function onDrag(phase) {
     if (!win || win.isDestroyed()) return;
     if (phase === 'start') {
+      if (trip) endTrip(true); // picked up mid-trip
       const cursor = screen.getCursorScreenPoint();
       drag = { cursor, anchor: { ...anchor }, side: pageLayout.side, live: { ...anchor }, lastX: cursor.x, tilt: 0, settle: null };
       log.devOnly(`drag start: cursor ${drag.cursor.x},${drag.cursor.y} anchor ${anchor.x},${anchor.y}`);
@@ -550,7 +590,89 @@ function start() {
     }
     const patch = placement.dropPlacement(dropped, displays(), primaryDisplay(), scale());
     log.info(patch.position ? 'dropped at a free position' : `snapped to ${patch.corner}`);
+    roamAnchor = null; // where the user puts it is its new home
     updateSettings(patch, placeWindow);
+  }
+
+  // ------------------------------------------------------------------ trips (fun mode)
+
+  function homeAnchor() {
+    return placement.resolveAnchor(settings, displays(), primaryDisplay(), scale()).anchor;
+  }
+
+  function startTrip(kind) {
+    if (!win || win.isDestroyed() || drag || trip || paused || !anchor || !pageLayout) return;
+    const workArea = placement.nearestDisplay(anchor, displays()).workArea;
+    const plan = roam.planTrip({
+      kind,
+      from: anchor,
+      home: homeAnchor(),
+      workArea,
+      cursor: screen.getCursorScreenPoint(),
+      scale: scale(),
+      hoverMode: settings.hoverMode,
+    });
+    if (!plan) return;
+    log.devOnly(`trip: ${kind} by ${plan.mode}, ${plan.ms} ms`);
+    // Never hold the mouse while the window moves under a cursor that does not.
+    setCapture(false);
+    if (canSend()) win.webContents.send('buddy:released');
+    trip = { plan, start: Date.now(), side: pageLayout.side, timer: setInterval(stepTrip, TRIP_FRAME_MS) };
+    if (canSend()) win.webContents.send('buddy:move', { mode: plan.mode, face: plan.face, kind });
+    if (plan.mode === 'fly') {
+      flight = { airborne: true, boost: true, tilt: plan.face === 'left' ? -0.6 : 0.6 };
+      if (canSend()) win.webContents.send('buddy:flight', flight);
+    }
+  }
+
+  function stepTrip() {
+    if (!trip || !win || win.isDestroyed()) return;
+    const t = Date.now() - trip.start;
+    anchor = roam.positionAt(trip.plan, t);
+    // Only the position changes on the way: cheaper (and smoother) than setBounds.
+    const { x, y } = placement.windowLayout(anchor, trip.side, scale(), pageLayout.sideWidth).bounds;
+    win.setPosition(x, y);
+    if (t >= trip.plan.ms) endTrip(false);
+  }
+
+  /** Arrived (or picked up on the way, cancelled = true). */
+  function endTrip(cancelled) {
+    if (!trip) return;
+    clearInterval(trip.timer);
+    const { plan } = trip;
+    trip = null;
+    const home = homeAnchor();
+    roamAnchor = Math.hypot(anchor.x - home.x, anchor.y - home.y) < 3 ? null : { ...anchor };
+    const cursor = screen.getCursorScreenPoint();
+    if (canSend()) {
+      win.webContents.send('buddy:move', {
+        mode: null,
+        kind: plan.kind,
+        arrived: !cancelled,
+        look: cursor.x < anchor.x ? 'left' : 'right',
+      });
+    }
+    if (!cancelled) placeWindow();
+    if (demo === 'trips' && demoIndex >= 0) setTimeout(() => nextDemoTrip(demoIndex + 1), 4500);
+  }
+
+  /** The right-click menu: duel, walk, fly, home, fun mode. */
+  function popUpFunMenu() {
+    const template = buildFunMenuTemplate({
+      settings,
+      away: Boolean(roamAnchor),
+      whip: whipOn,
+      on: {
+        duel: () => canSend() && win.webContents.send('buddy:fun', { action: 'duel' }),
+        trip: (kind) => startTrip(kind),
+        setWhip: (value) => {
+          whipOn = value;
+          if (canSend()) win.webContents.send('buddy:fun', { action: 'whip', on: value });
+        },
+        setFunMode: (value) => actions.setFunMode(value),
+      },
+    });
+    popUpAtCursor(Menu.buildFromTemplate(template));
   }
 
   function setPaused(value) {
@@ -601,7 +723,7 @@ function start() {
   }
 
   function rendererSettings() {
-    return { quiet: settings.quiet, eyeTracking: settings.eyeTracking, strings: pageStrings() };
+    return { quiet: settings.quiet, eyeTracking: settings.eyeTracking, funMode: settings.funMode, strings: pageStrings() };
   }
 
   function canSend() {
@@ -620,12 +742,26 @@ function start() {
       crew,
       paused,
       dev: isDev,
+      demo,
     });
+    if (demo === 'trips' && !trip) setTimeout(() => nextDemoTrip(0), 1500);
+  }
+
+  function nextDemoTrip(index) {
+    if (index >= DEMO_TRIPS.length || quitting) return;
+    demoIndex = index;
+    startTrip(DEMO_TRIPS[index]);
   }
 
   /** Text the page shows itself (badges); placeholders are filled in there. */
   function pageStrings() {
-    return { helpers: translate(settings.language, 'page', 'helpers', { count: '{count}' }) };
+    const quips = {};
+    for (const key of QUIPS) quips[key] = translate(settings.language, 'quip', key);
+    return {
+      helpers: translate(settings.language, 'page', 'helpers', { count: '{count}' }),
+      you: translate(settings.language, 'page', 'you'),
+      quips,
+    };
   }
 
   function sendCrew() {
@@ -672,9 +808,18 @@ function start() {
 
   /** The full settings menu (same as the tray's), shown at the cursor. */
   function popUpSettings() {
-    const menu = Menu.buildFromTemplate(trayTemplate());
+    popUpAtCursor(Menu.buildFromTemplate(trayTemplate()));
+  }
+
+  /**
+   * Show a menu at the cursor. On Windows a menu owned by our window (which
+   * never takes focus) does not close when the user clicks somewhere else, so
+   * it goes through the tray icon, whose menus do.
+   */
+  function popUpAtCursor(menu) {
     setCapture(false);
-    menu.popup({ window: win });
+    if (tray && process.platform === 'win32') tray.popUpContextMenu(menu, screen.getCursorScreenPoint());
+    else menu.popup({ window: win });
   }
 
   function trayTemplate() {
@@ -719,7 +864,10 @@ function start() {
   }
 
   const actions = {
-    setCorner: (corner) => updateSettings({ corner, position: null }, placeWindow),
+    setCorner: (corner) => {
+      roamAnchor = null;
+      updateSettings({ corner, position: null }, placeWindow);
+    },
     setSize: (size) => updateSettings({ size }, placeWindow),
     setHoverMode: (hoverMode) => updateSettings({ hoverMode }, placeWindow),
     setCharacter: (id) =>
@@ -737,7 +885,15 @@ function start() {
         refreshTrayIfNeeded();
       }),
     setEyeTracking: (eyeTracking) => updateSettings({ eyeTracking }),
-    backToCorner: () => updateSettings({ position: null }, placeWindow),
+    // Fun mode off: no more trips; if it is away, it walks (or flies) home.
+    setFunMode: (funMode) =>
+      updateSettings({ funMode }, () => {
+        if (!funMode && roamAnchor) startTrip('home');
+      }),
+    backToCorner: () => {
+      roamAnchor = null;
+      updateSettings({ position: null }, placeWindow);
+    },
     openSettings: () => {
       try {
         if (!fs.existsSync(settingsPath())) saveSettings(settings);
@@ -769,6 +925,7 @@ function start() {
   function quitApp() {
     if (quitting) return;
     quitting = true;
+    if (trip) clearInterval(trip.timer);
     stopWatchdog();
     core.dispose();
     if (server) server.close();

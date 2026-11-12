@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="overlay.css" />
     <script src="lib/interaction.js" defer></script>
     <script src="lib/crew.js" defer></script>
+    <script src="lib/fun.js" defer></script>
     <script src="crew-view.js" defer></script>
     <script src="renderer.js" defer></script>
   </head>
@@ -47,6 +48,9 @@
         <path d="M3 5.5Q7.5 3.5 12 6v13q-4.5-2.5-9-.5z" />
         <path d="M21 5.5Q16.5 3.5 12 6v13q4.5-2.5 9-.5z" />
       </symbol>
+      <symbol id="i-heart" viewBox="0 0 24 24">
+        <path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.7a4.3 4.3 0 0 1 7.5 2.6c0 5.6-7.5 10.2-7.5 10.2z" />
+      </symbol>
       <symbol id="i-power" viewBox="0 0 24 24">
         <path d="M12 3v8.5" />
         <path d="M6.6 6.6a7.6 7.6 0 1 0 10.8 0" />
@@ -62,11 +66,16 @@
           <svg aria-hidden="true"><use href="#i-book" /></svg>
           <span id="skill-name"></span>
         </div>
+        <div id="duel-hud" class="duel-hud" aria-hidden="true"></div>
         <div id="character" class="buddy-character" data-state="idle"></div>
         <div id="fx" class="fx" aria-hidden="true"></div>
       </div>
       <!-- Sub-agent minis (crew-view.js). -->
       <div id="actors" class="actors" aria-hidden="true"></div>
+      <!-- Duel: catches every click in the window while swords are out. -->
+      <div id="duel-pad" class="duel-pad" aria-hidden="true"></div>
+      <!-- Hits, sparks, whip cracks at the cursor. -->
+      <div id="fx-top" class="fx-top" aria-hidden="true"></div>
       <nav id="menu" class="menu" aria-label="Agent Buddy"></nav>
       <div id="tooltip" class="tooltip" role="tooltip"></div>
     </div>

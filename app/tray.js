@@ -74,6 +74,12 @@ function buildTrayTemplate({ settings, characters, sessionCount, seenAccount = (
       checked: settings.eyeTracking,
       click: (item) => on.setEyeTracking(Boolean(item && item.checked)),
     },
+    {
+      label: t('funMode'),
+      type: 'checkbox',
+      checked: settings.funMode !== false,
+      click: (item) => on.setFunMode(Boolean(item && item.checked)),
+    },
     ...(settings.position ? [{ label: t('backToCorner'), click: () => on.backToCorner() }] : []),
     { type: 'separator' },
     { label: t('openSettings'), click: () => on.openSettings() },
@@ -98,4 +104,39 @@ function accountMenu(settings, seenAccount, t, radio, on) {
   return items;
 }
 
-module.exports = { buildTrayTemplate };
+/**
+ * The right-click menu on the character: a duel, the whip, a walk, a flight,
+ * back home, and fun mode on / off.
+ * @param {object} p
+ * @param {object} p.settings
+ * @param {boolean} p.away  the character is somewhere else than its home spot
+ * @param {boolean} [p.whip]  the whip is in the user's hand
+ * @param {object} p.on  callbacks: duel, setWhip(bool), trip(kind), setFunMode
+ */
+function buildFunMenuTemplate({ settings, away, whip = false, on }) {
+  const t = (key) => translate(settings.language, 'fun', key);
+  const fun = settings.funMode !== false;
+  return [
+    { label: t('duel'), click: () => on.duel() },
+    {
+      label: t('whip'),
+      type: 'checkbox',
+      checked: Boolean(whip) && fun,
+      enabled: fun,
+      click: (item) => on.setWhip(Boolean(item && item.checked)),
+    },
+    { type: 'separator' },
+    { label: t('walk'), enabled: fun, click: () => on.trip('stroll') },
+    { label: t('fly'), enabled: fun && settings.hoverMode !== 'stand', click: () => on.trip('hop') },
+    { label: t('home'), enabled: Boolean(away), click: () => on.trip('home') },
+    { type: 'separator' },
+    {
+      label: translate(settings.language, 'menu', 'funMode'),
+      type: 'checkbox',
+      checked: fun,
+      click: (item) => on.setFunMode(Boolean(item && item.checked)),
+    },
+  ];
+}
+
+module.exports = { buildTrayTemplate, buildFunMenuTemplate };

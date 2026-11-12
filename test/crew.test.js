@@ -265,6 +265,26 @@ test('drag: picked up, dropped somewhere else, it lands and keeps that spot', ()
   assert.equal(d.grab('nope'), false);
 });
 
+test('shooed: a huff, then off to a random other spot, which it keeps', () => {
+  const { clock, d, views } = setup({ random: () => 0.99 });
+  d.setAgents([agent(ID(1)), agent(ID(2)), agent(ID(3))]);
+  clock.tick(10000);
+  const before = views.get(ID(1)).off;
+  assert.equal(d.shoo(ID(1)), true);
+  assert.equal(views.get(ID(1)).phase, 'huff');
+  clock.tick(T.huffMs);
+  assert.equal(views.get(ID(1)).phase, 'walk');
+  const target = views.get(ID(1)).off;
+  assert.ok(Math.abs(target - before) >= T.shooGap, 'somewhere else');
+  assert.ok(target <= GEO.spots[2] && target >= GEO.report + T.strollMargin, 'inside the crew area');
+  clock.tick(5000);
+  assert.equal(views.get(ID(1)).phase, 'work');
+  assert.equal(views.get(ID(1)).off, target, 'that is its spot now');
+  d.setAgents([agent(ID(1), 'done'), agent(ID(2)), agent(ID(3))]);
+  assert.equal(d.shoo(ID(1)), false, 'a finished one is not shooed');
+  assert.equal(d.shoo('nope'), false);
+});
+
 test('drag: an agent that finishes while held reports after landing', () => {
   const { clock, d, views } = setup();
   d.setAgents([agent(ID(1))]);

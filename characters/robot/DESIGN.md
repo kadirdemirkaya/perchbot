@@ -57,6 +57,15 @@ highlight stroke (upper left). No gradients, no filters: cheap to render.
 A small open book with cream pages and a mint cover. It lives in the stitched pocket and
 comes out while a skill is in use; a page turns now and then.
 
+### Fun-mode props
+
+- **Toy sword:** a short lilac-white blade with a rounded tip, a mint guard and an indigo
+  grip. Deliberately a toy, not a glowing beam: no lightsaber look.
+- **Sparks and hits:** a yellow diamond with a few short dashes, rings and plain strokes.
+  No many-rayed starbursts (that shape is close to Anthropic's mark).
+- **Annoyed mark** (four little curved veins), **dizzy ring** with three dots going round,
+  **music notes**. All small, all `data-nohit`.
+
 ## Robo's kids (the sub-agent helpers)
 
 Each sub-agent is drawn as one of Robo's kids (`mini.svg`, `mini.css`), at two thirds of

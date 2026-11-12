@@ -12,7 +12,7 @@ const { validateEvent } = require('../app/validate');
 const { discoverCharacters, STATES } = require('../app/characters');
 const { LOCALES, translate } = require('../app/i18n');
 const { normalizeSettings, loadSettings, saveSettings, rememberAccount, DEFAULTS } = require('../app/settings');
-const { buildTrayTemplate } = require('../app/tray');
+const { buildTrayTemplate, buildFunMenuTemplate } = require('../app/tray');
 const { buildMenuItems, MENU_IDS } = require('../app/menu-items');
 
 const ROOT = path.join(__dirname, '..');
@@ -214,4 +214,38 @@ test('tray menu: account submenu, with a note while the chosen account is silent
   assert.ok(!heard.find((i) => i.label === 'Account').submenu.some((i) => i.label === 'No events from this account yet'));
   const tr = buildTrayTemplate({ settings: { ...settings, language: 'tr' }, characters, sessionCount: 0, seenAccount: () => false, on });
   assert.equal(tr.find((i) => i.label === 'Hesap').submenu.at(-1).label, 'Bu hesaptan henüz olay gelmedi');
+});
+
+test('fun mode: setting, tray checkbox and the right-click menu', () => {
+  assert.equal(normalizeSettings({}).funMode, true, 'on by default');
+  assert.equal(normalizeSettings({ funMode: false }).funMode, false);
+  assert.equal(normalizeSettings({ funMode: 'no' }).funMode, true);
+
+  const calls = [];
+  const on = new Proxy({}, { get: (_t, name) => (...args) => calls.push([name, ...args]) });
+  const tray = buildTrayTemplate({ settings: { ...DEFAULTS }, characters: new Map(), sessionCount: 0, on });
+  const item = tray.find((i) => i.label === 'Fun mode (plays, walks, mischief)');
+  assert.equal(item.checked, true);
+  item.click({ checked: false });
+  assert.deepEqual(calls.pop(), ['setFunMode', false]);
+
+  const menu = buildFunMenuTemplate({ settings: { ...DEFAULTS }, away: false, on });
+  const byLabel = (label) => menu.find((i) => i.label === label);
+  byLabel('Draw swords!').click();
+  byLabel('Go for a walk').click();
+  byLabel('Fly somewhere').click();
+  assert.equal(byLabel('Come back home').enabled, false, 'already home');
+  assert.equal(byLabel('Take the whip').checked, false);
+  byLabel('Take the whip').click({ checked: true });
+  assert.deepEqual(calls.splice(0), [['duel'], ['trip', 'stroll'], ['trip', 'hop'], ['setWhip', true]]);
+  const armed = buildFunMenuTemplate({ settings: { ...DEFAULTS }, away: false, whip: true, on });
+  assert.equal(armed.find((i) => i.label === 'Take the whip').checked, true);
+  const away = buildFunMenuTemplate({ settings: { ...DEFAULTS, funMode: false, hoverMode: 'stand' }, away: true, on });
+  assert.equal(away.find((i) => i.label === 'Come back home').enabled, true);
+  assert.equal(away.find((i) => i.label === 'Go for a walk').enabled, false, 'no trips with fun mode off');
+  assert.equal(away.find((i) => i.label === 'Fly somewhere').enabled, false);
+  assert.equal(away.find((i) => i.label === 'Take the whip').enabled, false, 'no whip with fun mode off');
+  assert.equal(away.find((i) => i.label === 'Draw swords!').enabled, undefined, 'a duel is always possible');
+  const tr = buildFunMenuTemplate({ settings: { ...DEFAULTS, language: 'tr' }, away: false, on });
+  assert.equal(tr[0].label, 'Kılıçları çek!');
 });

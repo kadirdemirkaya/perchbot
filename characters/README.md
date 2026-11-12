@@ -123,6 +123,13 @@ Use whatever you like; ignore the rest.
 | `--fly-tilt` | while flying: -1 to 1, the drag direction (positive = moving right); 0 at rest |
 | `data-skill` | `open` while a skill is in use (show a book, a scroll, ...), `stow` for ~0.8 s when it is put away. The app draws the tag with the skill name itself |
 | `data-brief`, `data-receive` | present for ~1.7 s when a helper is briefed / reports back. The value (`left` / `right`) is the side the helper stands on |
+| `data-play` | fun mode, while idle: `stretch`, `look`, `peek` or `hum` for ~3 s |
+| `data-cheer` | with `data-state="done"`: `jump` (the classic), `spin`, `dance` or `fist` |
+| `data-annoyed`, `data-ouch` | clicked twice in a row (~1.5 s) / hit with the whip (~0.5 s) |
+| `data-move` | on a trip around the screen: `walk` or `fly` (the app also sets `data-fly` while flying) |
+| `data-face` | `left` while walking or fighting towards the left: the app mirrors your SVG, you do nothing |
+| `data-inspect` | `left` / `right` for ~4 s after it flew next to the cursor: have a look that way |
+| `data-duel` | the duel: `draw`, `guard`, `windup` (the telegraph, make it obvious), `strike`, `hit` (it got the user), `recover`, `stun` (parried), `block`, `hurt` (the user got it), `win`, `lose` |
 
 ### Sub-agent helpers
 
@@ -136,7 +143,7 @@ The app wraps each copy in `<div class="buddy-mini">` and sets:
 
 | Attribute | Meaning |
 |---|---|
-| `data-phase` | `arrive` (drops in), `brief`, `walk`, `work` (laptop open), `chat`, `look` (looks around), `held` (picked up by the user), `land`, `done`, `report`, `leave` |
+| `data-phase` | `arrive` (drops in), `brief`, `walk`, `work` (laptop open), `chat`, `look` (looks around), `held` (picked up by the user), `land`, `huff` (hit too often, about to stomp off), `done`, `report`, `leave` |
 | `data-tint` | `0` … `tints - 1`: which colour variant to wear; neighbours always differ |
 | `data-fly` | thrusters on (dropping in, flying off, hopping over others, or the whole buddy hovers) |
 | `data-hop` | while walking: hopping over the helpers in the way |
@@ -144,6 +151,8 @@ The app wraps each copy in `<div class="buddy-mini">` and sets:
 | `data-give` | present for ~0.7 s while it hands over a note |
 | `data-skill` | `open` while its agent uses a skill |
 | `data-boop` | ~0.5 s after a click |
+| `data-ouch`, `data-annoyed` | hit with the whip / clicked twice in a row |
+| `data-travel` | `walk` or `fly`: the whole buddy is on a trip and the helpers come along (the app mirrors them to face the way) |
 | `data-rest` | the main character is resting (or the screen is locked): stop every animation |
 
 Use classes to recolour shapes per tint (Robo's kids use `--rbm-body` and friends, see
@@ -192,6 +201,8 @@ The overlay should stay around 1% CPU. In practice:
 
 - Keep `idle` very light (Robo breathes at ~2.5 frames per second) and run **nothing**
   under `data-rest`. Blinking comes from `data-blink`.
+- Long-running loops (idle, waiting, typing) can use `steps()`; short moments (a walk, a
+  play, a cheer, the duel) look better smooth and only last a few seconds.
 - Animations that can last a long time (waiting for approval can take minutes) should
   calm down after a few seconds.
 - Prefer `transform` and `opacity`. For busy states, `steps()` timing (a few

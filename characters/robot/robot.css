@@ -912,6 +912,622 @@
   100% { transform: none; }
 }
 
+/* ------------------------------------------------------------ fun mode: props */
+
+.rb-sword {
+  opacity: 0;
+  transform-origin: 118px 148px;
+  transform: scale(0.2);
+  transition:
+    opacity 0.2s ease,
+    transform 0.35s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.rb-anger,
+.rb-dizzy,
+.rb-notes,
+.rb-clang {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.rb-anger {
+  transform-origin: 127px 39px;
+}
+
+.rb-dizzy-dots {
+  transform-origin: 88px 30px;
+}
+
+.rb-clang {
+  transform-origin: 172px 103px;
+}
+
+/* ------------------------------------------------------------ walking (a trip around the screen) */
+
+/* data-move="walk": legs swing in turn, the body bobs twice per stride, the
+   arms swing against the legs. Smooth: a walk only lasts a few seconds. */
+.buddy-character[data-move='walk'] .rb-leg-l {
+  animation: rb-stride 0.72s ease-in-out infinite;
+}
+
+.buddy-character[data-move='walk'] .rb-leg-r {
+  animation: rb-stride 0.72s ease-in-out -0.36s infinite;
+}
+
+.buddy-character[data-move='walk'] .rb-figure {
+  animation: rb-step-bob 0.36s ease-in-out infinite;
+}
+
+.buddy-character[data-move='walk'] .rb-torso {
+  transform: rotate(2deg);
+}
+
+.buddy-character[data-move='walk']:not([data-state='thinking']) .rb-arm-back {
+  animation: rb-arm-swing 0.72s ease-in-out -0.36s infinite;
+}
+
+.buddy-character[data-move='walk'] .rb-arm-front {
+  animation: rb-arm-swing 0.72s ease-in-out infinite;
+}
+
+@keyframes rb-stride {
+  0%, 100% { transform: rotate(16deg); }
+  50% { transform: rotate(-16deg); }
+}
+
+@keyframes rb-step-bob {
+  0%, 100% { transform: none; }
+  50% { transform: translateY(-2.5px); }
+}
+
+@keyframes rb-arm-swing {
+  0%, 100% { transform: rotate(-12deg); }
+  50% { transform: rotate(12deg); }
+}
+
+/* ------------------------------------------------------------ idle plays (data-play) */
+
+/* stretch: arms up, a big yawn, eyes shut */
+.buddy-character[data-play='stretch'] .rb-arm-back {
+  animation: rb-stretch-back 2.6s ease-in-out;
+}
+
+.buddy-character[data-play='stretch'] .rb-arm-front {
+  animation: rb-stretch-front 2.6s ease-in-out;
+}
+
+.buddy-character[data-play='stretch'] .rb-torso {
+  animation: rb-stretch-body 2.6s ease-in-out;
+}
+
+.buddy-character[data-play='stretch'] .rb-eyes {
+  animation: rb-yawn-eyes 2.6s ease-in-out;
+}
+
+.buddy-character[data-play='stretch'] .rb-mouth {
+  opacity: 0;
+}
+
+.buddy-character[data-play='stretch'] .rb-mouth-o {
+  opacity: 1;
+  animation: rb-yawn 2.6s ease-in-out;
+}
+
+@keyframes rb-stretch-back {
+  0%, 100% { transform: none; }
+  25%, 70% { transform: rotate(165deg); }
+}
+
+@keyframes rb-stretch-front {
+  0%, 100% { transform: none; }
+  25%, 70% { transform: rotate(-165deg); }
+}
+
+@keyframes rb-stretch-body {
+  0%, 100% { transform: none; }
+  30%, 65% { transform: translateY(-3px) scaleY(1.03); }
+}
+
+@keyframes rb-yawn-eyes {
+  0%, 15%, 80%, 100% { transform: none; }
+  30%, 65% { transform: scaleY(0.15); }
+}
+
+@keyframes rb-yawn {
+  0%, 100% { transform: scale(1); }
+  30%, 60% { transform: scale(1.5, 1.9); }
+}
+
+/* look: looks around, left and right */
+.buddy-character[data-play='look'] .rb-head {
+  animation: rb-look-head 2.4s ease-in-out;
+}
+
+.buddy-character[data-play='look'] .rb-face {
+  animation: rb-look-face 2.4s ease-in-out;
+}
+
+@keyframes rb-look-head {
+  0%, 100% { transform: none; }
+  25% { transform: rotate(-7deg); }
+  65% { transform: rotate(6deg); }
+}
+
+@keyframes rb-look-face {
+  0%, 100% { transform: none; }
+  25% { transform: translate(-5px, -1px); }
+  65% { transform: translate(5px, -1px); }
+}
+
+/* peek: opens the laptop for a quick look, then tucks it away again */
+.buddy-character[data-play='peek'] .rb-laptop {
+  animation: rb-peek-laptop 2.8s cubic-bezier(0.4, 1.2, 0.5, 1);
+}
+
+.buddy-character[data-play='peek'] .rb-lid {
+  animation: rb-peek-lid 2.8s ease;
+}
+
+.buddy-character[data-play='peek'] .rb-arm-front {
+  animation: rb-peek-arm 2.8s ease;
+}
+
+.buddy-character[data-play='peek'] .rb-face {
+  animation: rb-peek-face 2.8s ease;
+}
+
+@keyframes rb-peek-laptop {
+  0%, 100% { transform: translate(-27px, -8px) rotate(90deg) scale(0.8); }
+  20%, 78% { transform: none; }
+}
+
+@keyframes rb-peek-lid {
+  0%, 22%, 82%, 100% { transform: scaleY(0.06); }
+  32%, 72% { transform: none; }
+}
+
+@keyframes rb-peek-arm {
+  0%, 100% { transform: none; }
+  25%, 75% { transform: rotate(-25deg); }
+}
+
+@keyframes rb-peek-face {
+  0%, 100% { transform: none; }
+  30%, 72% { transform: translate(5px, 2px); }
+}
+
+/* hum: taps a foot, sways the head, notes float up */
+.buddy-character[data-play='hum'] .rb-leg-r {
+  animation: rb-tap-foot 0.5s ease-in-out 6;
+}
+
+.buddy-character[data-play='hum'] .rb-head {
+  animation: rb-sway-head 1s ease-in-out 3;
+}
+
+.buddy-character[data-play='hum'] .rb-notes {
+  opacity: 1;
+}
+
+.buddy-character[data-play='hum'] .rb-note-1 {
+  animation: rb-note 1.6s ease-out 2;
+}
+
+.buddy-character[data-play='hum'] .rb-note-2 {
+  animation: rb-note 1.6s ease-out -0.8s 2;
+}
+
+@keyframes rb-tap-foot {
+  50% { transform: rotate(-8deg) translateY(-1px); }
+}
+
+@keyframes rb-sway-head {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
+@keyframes rb-note {
+  0% { transform: translate(0, 4px); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translate(5px, -12px); opacity: 0; }
+}
+
+/* ------------------------------------------------------------ cheers for "done" (data-cheer) */
+
+/* spin: a pirouette (the figure turns round once) */
+.buddy-character[data-state='done'][data-cheer='spin'] .rb-figure {
+  animation: rb-spin 1.1s ease-in-out 1;
+}
+
+@keyframes rb-spin {
+  0%, 100% { transform: none; }
+  25% { transform: translateY(-8px) scaleX(0.3); }
+  50% { transform: translateY(-12px) scaleX(-1); }
+  75% { transform: translateY(-8px) scaleX(-0.3); }
+}
+
+/* dance: side steps with the arms up in turn */
+.buddy-character[data-state='done'][data-cheer='dance'] .rb-figure {
+  animation: rb-dance 0.5s ease-in-out 5;
+}
+
+.buddy-character[data-state='done'][data-cheer='dance'] .rb-arm-back {
+  animation: rb-dance-arm 1s ease-in-out 3;
+}
+
+.buddy-character[data-state='done'][data-cheer='dance'] .rb-arm-front {
+  transform: rotate(-150deg);
+  animation: rb-dance-arm-front 1s ease-in-out 3;
+}
+
+@keyframes rb-dance {
+  0%, 100% { transform: translateX(-4px) rotate(-5deg); }
+  50% { transform: translateX(4px) rotate(5deg); }
+}
+
+@keyframes rb-dance-arm {
+  0%, 100% { transform: rotate(160deg); }
+  50% { transform: rotate(20deg); }
+}
+
+@keyframes rb-dance-arm-front {
+  0%, 100% { transform: rotate(-20deg); }
+  50% { transform: rotate(-160deg); }
+}
+
+/* fist: three fist pumps with the near arm */
+.buddy-character[data-state='done'][data-cheer='fist'] .rb-figure {
+  animation: rb-hop 0.6s cubic-bezier(0.3, 0, 0.5, 1) 3;
+}
+
+.buddy-character[data-state='done'][data-cheer='fist'] .rb-arm-front {
+  transform: rotate(-150deg);
+}
+
+.buddy-character[data-state='done'][data-cheer='fist'] .rb-forearm-front {
+  animation: rb-pump 0.6s ease-in-out 3;
+}
+
+.buddy-character[data-state='done'][data-cheer='fist'] .rb-arm-back {
+  transform: rotate(-10deg);
+}
+
+@keyframes rb-pump {
+  0%, 100% { transform: rotate(-60deg); }
+  50% { transform: rotate(-5deg); }
+}
+
+/* ------------------------------------------------------------ annoyed (clicked too often) */
+
+.buddy-character[data-annoyed] .rb-anger {
+  opacity: 1;
+  animation: rb-anger 0.5s ease-in-out infinite;
+}
+
+.buddy-character[data-annoyed] .rb-brow-l {
+  transform: translateY(1.5px) rotate(16deg);
+}
+
+.buddy-character[data-annoyed] .rb-brow-r {
+  transform: translateY(1.5px) rotate(-16deg);
+}
+
+.buddy-character[data-annoyed] :is(.rb-mouth, .rb-mouth-o, .rb-mouth-grin) {
+  opacity: 0;
+}
+
+.buddy-character[data-annoyed] .rb-mouth-worry {
+  opacity: 1;
+}
+
+.buddy-character[data-annoyed] .rb-react {
+  animation: rb-huff 0.3s ease-in-out 3;
+}
+
+/* A lash of the whip: a quick wince and a step back. */
+.buddy-character[data-ouch] .rb-react {
+  animation: rb-recoil 0.45s cubic-bezier(0.3, 0, 0.4, 1);
+}
+
+.buddy-character[data-ouch] .rb-eyes {
+  transform: scaleY(0.25);
+}
+
+.buddy-character[data-ouch] :is(.rb-mouth, .rb-mouth-o, .rb-mouth-grin) {
+  opacity: 0;
+}
+
+.buddy-character[data-ouch] .rb-mouth-worry {
+  opacity: 1;
+}
+
+.buddy-character[data-annoyed] .rb-led {
+  fill: #ff9db0;
+}
+
+@keyframes rb-anger {
+  50% { transform: scale(1.15); }
+}
+
+@keyframes rb-huff {
+  0%, 100% { transform: none; }
+  50% { transform: translateX(1.5px); }
+}
+
+/* ------------------------------------------------------------ inspecting (next to the cursor) */
+
+.buddy-character[data-inspect] .rb-glasses {
+  opacity: 1;
+  transform: none;
+}
+
+.buddy-character[data-inspect='left'] .rb-face {
+  transform: translate(-5px, 1px);
+}
+
+.buddy-character[data-inspect='right'] .rb-face {
+  transform: translate(5px, 1px);
+}
+
+.buddy-character[data-inspect='left'] .rb-head {
+  transform: rotate(-6deg);
+}
+
+.buddy-character[data-inspect='right'] .rb-head {
+  transform: rotate(6deg);
+}
+
+.buddy-character[data-inspect] .rb-arm-back {
+  transform: rotate(-60deg);
+}
+
+.buddy-character[data-inspect] .rb-forearm-back {
+  transform: rotate(-82deg);
+}
+
+/* ------------------------------------------------------------ the duel (data-duel) */
+
+/* Sword out, laptop away. */
+.buddy-character[data-duel] .rb-sword {
+  opacity: 1;
+  transform: none;
+}
+
+.buddy-character[data-duel] .rb-laptop {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* Determined brows for the whole fight. */
+.buddy-character[data-duel] .rb-brow-l {
+  transform: translateY(1px) rotate(9deg);
+}
+
+.buddy-character[data-duel] .rb-brow-r {
+  transform: translateY(1px) rotate(-9deg);
+}
+
+/* draw + guard: sword up and forward, the far arm out for balance */
+.buddy-character:is([data-duel='draw'], [data-duel='guard']) .rb-arm-front {
+  transform: rotate(-80deg);
+}
+
+.buddy-character:is([data-duel='draw'], [data-duel='guard']) .rb-forearm-front {
+  transform: rotate(-55deg);
+}
+
+.buddy-character[data-duel] .rb-arm-back {
+  transform: rotate(22deg);
+}
+
+.buddy-character[data-duel='guard'] .rb-figure {
+  animation: rb-step-bob 0.8s ease-in-out infinite;
+}
+
+/* windup: the telegraph. Sword raised high beside the head, light blinks, wide eyes. */
+.buddy-character[data-duel='windup'] .rb-arm-front {
+  transform: rotate(-150deg);
+}
+
+.buddy-character[data-duel='windup'] .rb-forearm-front {
+  transform: rotate(-22deg);
+}
+
+.buddy-character[data-duel='windup'] .rb-torso {
+  transform: rotate(-4deg);
+}
+
+.buddy-character[data-duel='windup'] :is(.rb-led, .rb-antenna-ball) {
+  fill: #ff9db0;
+  animation: rb-blink 0.22s steps(1) infinite;
+}
+
+.buddy-character[data-duel='windup'] .rb-eyes {
+  transform: scale(1.12);
+}
+
+/* strike: a quick slash forward */
+.buddy-character[data-duel='strike'] :is(.rb-arm-front, .rb-forearm-front, .rb-torso) {
+  transition-duration: 0.12s;
+}
+
+.buddy-character:is([data-duel='strike'], [data-duel='hit']) .rb-arm-front {
+  transform: rotate(-40deg);
+}
+
+.buddy-character:is([data-duel='strike'], [data-duel='hit']) .rb-forearm-front {
+  transform: rotate(-30deg);
+}
+
+.buddy-character:is([data-duel='strike'], [data-duel='hit']) .rb-torso {
+  transform: rotate(6deg);
+}
+
+/* The slash lunges towards you (the app mirrors the robot to face the cursor)
+   and leaves a white trail. */
+.buddy-character[data-duel='strike'] .rb-react {
+  transform: translateX(10px);
+  transition: transform 0.12s ease-out;
+}
+
+.rb-react {
+  transition: transform 0.3s ease-out;
+}
+
+.rb-swoosh {
+  opacity: 0;
+  transform-origin: 160px 100px;
+}
+
+.buddy-character[data-duel='strike'] .rb-swoosh {
+  animation: rb-swoosh 0.3s ease-out;
+}
+
+@keyframes rb-swoosh {
+  0% { opacity: 0; transform: rotate(-30deg) scale(0.8); }
+  30% { opacity: 0.95; }
+  100% { opacity: 0; transform: rotate(10deg) scale(1.05); }
+}
+
+/* hit: it got you, a cheeky grin */
+.buddy-character[data-duel='hit'] :is(.rb-mouth, .rb-mouth-o) {
+  opacity: 0;
+}
+
+.buddy-character[data-duel='hit'] .rb-mouth-grin {
+  opacity: 1;
+}
+
+/* recover / stun: sword low, off balance, "oops"; stunned after a parry */
+.buddy-character:is([data-duel='recover'], [data-duel='stun']) .rb-arm-front {
+  transform: rotate(-15deg);
+}
+
+.buddy-character:is([data-duel='recover'], [data-duel='stun']) .rb-forearm-front {
+  transform: rotate(-15deg);
+}
+
+.buddy-character:is([data-duel='recover'], [data-duel='stun']) .rb-torso {
+  transform: rotate(5deg);
+}
+
+.buddy-character:is([data-duel='recover'], [data-duel='stun']) .rb-mouth {
+  opacity: 0;
+}
+
+.buddy-character:is([data-duel='recover'], [data-duel='stun']) .rb-mouth-o {
+  opacity: 1;
+}
+
+.buddy-character[data-duel='stun'] .rb-head {
+  animation: rb-sway-head 0.5s ease-in-out infinite;
+}
+
+.buddy-character[data-duel='stun'] .rb-clang {
+  opacity: 1;
+}
+
+/* block: the sword held across, clang */
+.buddy-character[data-duel='block'] .rb-arm-front {
+  transform: rotate(-100deg);
+}
+
+.buddy-character[data-duel='block'] .rb-forearm-front {
+  transform: rotate(10deg);
+}
+
+.buddy-character[data-duel='block'] .rb-clang {
+  opacity: 1;
+  animation: rb-anger 0.2s ease-in-out 2;
+}
+
+/* hurt: you got it; it recoils and winces */
+.buddy-character[data-duel='hurt'] .rb-react {
+  animation: rb-recoil 0.5s cubic-bezier(0.3, 0, 0.4, 1);
+}
+
+.buddy-character[data-duel='hurt'] .rb-eyes {
+  transform: scaleY(0.25);
+}
+
+.buddy-character[data-duel='hurt'] :is(.rb-mouth, .rb-mouth-o, .rb-mouth-grin) {
+  opacity: 0;
+}
+
+.buddy-character[data-duel='hurt'] .rb-mouth-worry {
+  opacity: 1;
+}
+
+.buddy-character[data-duel='hurt'] .rb-arm-front {
+  transform: rotate(-10deg);
+}
+
+@keyframes rb-recoil {
+  0%, 100% { transform: none; }
+  30% { transform: translateX(-6px) rotate(-7deg); }
+  60% { transform: translateX(-3px) rotate(-3deg); }
+}
+
+/* win (the robot won): sword raised, a victory jump */
+.buddy-character[data-duel='win'] .rb-arm-front {
+  transform: rotate(-160deg);
+}
+
+.buddy-character[data-duel='win'] .rb-forearm-front {
+  transform: rotate(-20deg);
+}
+
+.buddy-character[data-duel='win'] .rb-figure {
+  animation: rb-jump 0.8s cubic-bezier(0.3, 0, 0.4, 1) 2;
+}
+
+.buddy-character[data-duel='win'] :is(.rb-eyes, .rb-mouth) {
+  opacity: 0;
+}
+
+.buddy-character[data-duel='win'] :is(.rb-eyes-happy, .rb-mouth-grin) {
+  opacity: 1;
+}
+
+/* lose (the robot lost): sits down, sword dropped, dizzy */
+.buddy-character[data-duel='lose'] .rb-figure {
+  transform: translateY(7px) scale(1.04, 0.93);
+  transition: transform 0.4s cubic-bezier(0.4, 1.4, 0.5, 1);
+}
+
+.buddy-character[data-duel='lose'] .rb-arm-front {
+  transform: rotate(20deg);
+}
+
+.buddy-character[data-duel='lose'] .rb-sword {
+  transform: translate(8px, 10px) rotate(-75deg);
+}
+
+.buddy-character[data-duel='lose'] .rb-eyes {
+  transform: scaleY(0.15);
+}
+
+.buddy-character[data-duel='lose'] :is(.rb-mouth, .rb-mouth-o, .rb-mouth-grin) {
+  opacity: 0;
+}
+
+.buddy-character[data-duel='lose'] .rb-mouth-worry {
+  opacity: 1;
+}
+
+.buddy-character[data-duel='lose'] .rb-dizzy {
+  opacity: 1;
+}
+
+.buddy-character[data-duel='lose'] .rb-dizzy-dots {
+  animation: rb-dizzy 1.2s linear infinite;
+}
+
+@keyframes rb-dizzy {
+  to { transform: rotate(360deg) scaleY(1); }
+}
+
 /* ------------------------------------------------------------ reduced motion */
 
 @media (prefers-reduced-motion: reduce) {

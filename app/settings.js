@@ -39,6 +39,8 @@ const DEFAULTS = Object.freeze({
   account: 'all',
   /** Accounts seen so far, offered in the tray menu (at most 8, most recent first). */
   knownAccounts: [],
+  /** Idle plays, varied cheers, trips around the screen, running off when clicked too often. */
+  funMode: true,
 });
 
 const COORD_LIMIT = 1e6;
@@ -76,6 +78,7 @@ function normalizeSettings(raw) {
   }
   if (typeof raw.debug === 'boolean') s.debug = raw.debug;
   if (typeof raw.eyeTracking === 'boolean') s.eyeTracking = raw.eyeTracking;
+  if (typeof raw.funMode === 'boolean') s.funMode = raw.funMode;
   s.position = normalizePosition(raw.position);
   if (HOVER_MODES.includes(raw.hoverMode)) s.hoverMode = raw.hoverMode;
   if (typeof raw.account === 'string' && (raw.account === 'all' || ACCOUNT_RE.test(raw.account))) s.account = raw.account;

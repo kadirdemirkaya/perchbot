@@ -21,6 +21,8 @@
       rb-arm-*   shoulder;  rb-forearm-*  elbow
       rb-laptop  open in front / tucked under the arm;  rb-lid  hinge
       rb-book    skill book: out of the pocket while a skill is in use;  rb-book-page  turns
+      rb-sword   toy sword in the near hand (duel);  rb-clang  block / parry spark
+      rb-anger, rb-dizzy, rb-notes  annoyed mark, dizzy ring, humming notes
     Elements marked data-nohit never count as "the character" for the mouse.
   -->
   <defs>
@@ -166,6 +168,36 @@
             <path d="M84.5 66 Q88 63.5 91.5 66"/>
           </g>
 
+          <!-- annoyed: a little cross-vein mark -->
+          <g class="rb-anger" data-nohit="" fill="none" stroke="#E2577A" stroke-width="2.6" stroke-linecap="round">
+            <path d="M118.5 33 Q121 36.5 124.5 35.5"/>
+            <path d="M129.5 35.5 Q133 36.5 135.5 33"/>
+            <path d="M118.5 45 Q121 41.5 124.5 42.5"/>
+            <path d="M129.5 42.5 Q133 41.5 135.5 45"/>
+          </g>
+
+          <!-- dizzy (lost the duel): a ring with three little dots going round -->
+          <g class="rb-dizzy" data-nohit="">
+            <ellipse cx="88" cy="30" rx="24" ry="6.5" fill="none" stroke="#B3A8F7" stroke-width="2.2" stroke-dasharray="5 4"/>
+            <g class="rb-dizzy-dots" fill="#FFD25A" stroke="#2A2650" stroke-width="1.6">
+              <circle cx="64.5" cy="30" r="3.4"/>
+              <circle cx="100" cy="35.6" r="3"/>
+              <circle cx="104" cy="24.6" r="2.6"/>
+            </g>
+          </g>
+
+          <!-- humming: two little notes -->
+          <g class="rb-notes" data-nohit="" fill="#7462D6" stroke="#2A2650" stroke-width="1.4">
+            <g class="rb-note-1">
+              <ellipse cx="136" cy="44" rx="3.6" ry="2.8" transform="rotate(-20 136 44)"/>
+              <path d="M139.2 43 V31.5 L145 33.5" fill="none" stroke="#2A2650" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </g>
+            <g class="rb-note-2">
+              <ellipse cx="150" cy="34" rx="3" ry="2.4" transform="rotate(-20 150 34)"/>
+              <path d="M152.7 33.2 V24" fill="none" stroke="#2A2650" stroke-width="1.8" stroke-linecap="round"/>
+            </g>
+          </g>
+
           <!-- asking: a small question badge -->
           <g class="rb-question" data-nohit="">
             <circle cx="138" cy="27" r="10" fill="#FFFFFF" stroke="#2A2650" stroke-width="2.4"/>
@@ -258,10 +290,26 @@
             <rect x="112" y="124" width="12" height="23" rx="6" fill="#7462D6" stroke="#2A2650" stroke-width="2.6"/>
             <rect x="112.8" y="137" width="10.4" height="3.6" fill="#4FD6B4"/>
             <circle cx="118" cy="128" r="4" fill="#7462D6"/>
+            <!-- duel: a toy sword with a rounded tip, held in this hand (hidden otherwise) -->
+            <g class="rb-sword" data-nohit="">
+              <rect x="115" y="141" width="6" height="14" rx="2" fill="#2A2650"/>
+              <rect x="108.5" y="154.5" width="19" height="5" rx="2.5" fill="#4FD6B4" stroke="#2A2650" stroke-width="2.2"/>
+              <path d="M114.3 159.5 H121.7 V192 Q121.7 198.5 118 201.5 Q114.3 198.5 114.3 192 Z" fill="#EEEAFE" stroke="#2A2650" stroke-width="2.4" stroke-linejoin="round"/>
+              <path d="M116.6 163 V191" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>
+            </g>
             <circle cx="118" cy="148" r="6.8" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.6"/>
           </g>
           <circle cx="118" cy="112" r="7" fill="#4FD6B4" stroke="#2A2650" stroke-width="2.6"/>
         </g>
+      </g>
+
+      <!-- duel: the trail of a slash, in front of the robot -->
+      <path class="rb-swoosh" data-nohit="" d="M150 52 Q196 92 176 152 Q184 96 142 62 Z" fill="#FFFFFF" stroke="#B3A8F7" stroke-width="1.6" stroke-linejoin="round"/>
+
+      <!-- duel: the clang of a block or a parry, in front of the robot -->
+      <g class="rb-clang" data-nohit="">
+        <path d="M168 96 L174 103 L168 110 L162 103 Z" fill="#FFD25A" stroke="#2A2650" stroke-width="2"/>
+        <path d="M178 94 L184 90 M180 103 H188 M178 112 L184 116" stroke="#2A2650" stroke-width="2.4" stroke-linecap="round"/>
       </g>
 
       <!-- thinking dots -->
