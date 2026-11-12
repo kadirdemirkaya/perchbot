@@ -53,7 +53,12 @@
     "noAccountEvents": "Bu hesaptan henüz olay gelmedi",
     "ambientLife": "Canlılık",
     "playMode": "Oyun modu",
-    "cat": "Kedi"
+    "cat": "Kedi",
+    "sound": "Ses",
+    "soundVolume": "Ses düzeyi",
+    "volume_low": "Düşük",
+    "volume_medium": "Orta",
+    "volume_high": "Yüksek"
   },
   "hover": {
     "hideBubble": "Baloncuğu gizle",
@@ -68,7 +73,9 @@
     "catCall": "Kediyi çağır",
     "catAway": "Kediyi gönder",
     "chat": "Sohbet: bana sor",
-    "chatClose": "Sohbeti kapat"
+    "chatClose": "Sohbeti kapat",
+    "soundOn": "Sesleri aç",
+    "soundOff": "Sesleri kapat"
   },
   "page": {
     "helpers": "{count} yardımcı",

@@ -17,6 +17,7 @@ const SIZES = ['small', 'medium', 'large'];
 const LANGUAGES = ['en', 'tr'];
 /** auto: hover with sole thrusters when placed above the ground; stand: never. */
 const HOVER_MODES = ['auto', 'stand'];
+const SOUND_VOLUMES = ['low', 'medium', 'high'];
 /** Claude account (config folder) names, as hooks/send.js sends them. */
 const ACCOUNT_RE = /^[A-Za-z0-9._-]{1,40}$/;
 const MAX_KNOWN_ACCOUNTS = 8;
@@ -45,6 +46,9 @@ const DEFAULTS = Object.freeze({
   playMode: false,
   /** The cat: it can be called from the menu, plays with the buddy, then naps. */
   cat: false,
+  /** Little sounds made in code (taps, the duel, the ball, the cat). Never for Claude Code's work. */
+  sound: false,
+  soundVolume: 'low',
 });
 
 const COORD_LIMIT = 1e6;
@@ -87,6 +91,8 @@ function normalizeSettings(raw) {
   else if (typeof raw.funMode === 'boolean') s.ambientLife = raw.funMode;
   if (typeof raw.playMode === 'boolean') s.playMode = raw.playMode;
   if (typeof raw.cat === 'boolean') s.cat = raw.cat;
+  if (typeof raw.sound === 'boolean') s.sound = raw.sound;
+  if (SOUND_VOLUMES.includes(raw.soundVolume)) s.soundVolume = raw.soundVolume;
   s.position = normalizePosition(raw.position);
   if (HOVER_MODES.includes(raw.hoverMode)) s.hoverMode = raw.hoverMode;
   if (typeof raw.account === 'string' && (raw.account === 'all' || ACCOUNT_RE.test(raw.account))) s.account = raw.account;

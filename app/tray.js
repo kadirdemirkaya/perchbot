@@ -76,6 +76,18 @@ function buildTrayTemplate({ settings, characters, sessionCount, seenAccount = (
       click: (item) => on.setEyeTracking(Boolean(item && item.checked)),
     },
     ...lifeToggles(settings, t, on),
+    {
+      label: t('sound'),
+      type: 'checkbox',
+      checked: Boolean(settings.sound),
+      click: (item) => on.setSound(Boolean(item && item.checked)),
+    },
+    {
+      label: t('soundVolume'),
+      submenu: ['low', 'medium', 'high'].map((level) =>
+        radio(t(`volume_${level}`), (settings.soundVolume || 'low') === level, () => on.setSoundVolume(level)),
+      ),
+    },
     ...(settings.position ? [{ label: t('backToCorner'), click: () => on.backToCorner() }] : []),
     { type: 'separator' },
     { label: t('openSettings'), click: () => on.openSettings() },

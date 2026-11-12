@@ -68,6 +68,9 @@ const DEMOS = new Set([
   'fling',
   // The chat panel opens, two questions are asked and answered.
   'chat',
+  // Every sound once (also with the Sound setting off), and ten seconds of quick taps.
+  'sound',
+  'tap-spam',
 ]);
 
 const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse', 'PostToolUseFailure']);

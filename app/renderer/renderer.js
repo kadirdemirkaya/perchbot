@@ -6,7 +6,7 @@
  * From the main process:
  *   init       { character, settings, view, layout, menu, flight, crew, paused }
  *   view       { state, cssState, text, mono, mood, skill }   every state change
- *   settings   { quiet, eyeTracking, strings }
+ *   settings   { quiet, eyeTracking, ambientLife, playMode, sound, soundVolume, strings }
  *   layout     { side, slotLeft, width, height } where the menu column goes
  *   menu-items [{ id, icon, label }]
  *   paused     true while the screen is locked / the system sleeps
@@ -159,6 +159,30 @@
 
   const motionAllowed = () => !reducedMotion.matches && !paused;
 
+  // ---------------------------------------------------------------- sounds
+
+  /**
+   * Little sounds made in code (lib/sound.js), off unless the Sound setting is
+   * on. Only for what the user does and the buddy's own play: never for
+   * Claude Code's work, and work silences them at once. Nothing while the
+   * screen is locked or the buddy rests.
+   */
+  const sound = new window.BuddySound.SoundBoard({
+    createContext: () => new AudioContext({ latencyHint: 'interactive' }),
+  });
+  /** The simulator's sound demos play even with the setting off. */
+  let soundDemo = false;
+
+  function syncSound() {
+    sound.setVolume(settings.soundVolume);
+    sound.setEnabled(settings.sound === true || soundDemo);
+  }
+
+  function sfx(name, pitch = 1) {
+    if (paused || rest.resting || BUSY.has(view.state)) return false;
+    return sound.play(name, { pitch });
+  }
+
   // ---------------------------------------------------------------- character loading
 
   function sanitizeSvg(markup) {
@@ -219,7 +243,13 @@
     actors,
     sanitizeSvg,
     // The cat plays: the main character joins in (data-pet="play").
-    onCue: (name, on) => flag('pet', on && motionAllowed() ? name : null),
+    onCue: (name, on) => {
+      flag('pet', on && motionAllowed() ? name : null);
+      if (name === 'play' && on) {
+        sfx('scratch');
+        later('purr', 1200, () => sfx('purr'));
+      }
+    },
     trace,
   });
 
@@ -250,6 +280,7 @@
       duel.stop();
       dropQuip();
     }
+    if (BUSY.has(next.state)) sound.stopAll();
     if (!CALM.has(next.state)) {
       cancel('flee');
       cancel('anger');
@@ -943,6 +974,7 @@
       if (duel.active) duel.stop();
       hover.closeNow();
       closeChat('paused');
+      sound.stopAll();
       setZone(null);
       capture.released();
       rest.stop();
@@ -974,6 +1006,7 @@
     } else if (name === 'poke') {
       // A naughty kid poked it: a little jolt (a "Hey!" too when it is not working).
       boop();
+      sfx('bonk', 1.3);
       if (CALM.has(view.state) && !quipText) quip('hey', 900);
     }
   }
@@ -1004,6 +1037,7 @@
       const parts = name ? null : snapshotAnimated();
       flag('play', name);
       blendFrom(parts);
+      if (name === 'ball') later('ball-sound', BALL_FLOOR_MS, ballBounce);
     },
     onTrip: (kind) => {
       trace(`ambient: trip ${kind}`);
@@ -1011,6 +1045,14 @@
     },
   });
   const duel = new Duel({ onPhase: onDuelPhase });
+
+  const BALL_FLOOR_MS = 288;
+  const BALL_PERIOD_MS = 600;
+  function ballBounce() {
+    if (holder.dataset.play !== 'ball') return;
+    sfx('bounce', 0.96 + Math.random() * 0.08);
+    later('ball-sound', BALL_PERIOD_MS, ballBounce);
+  }
 
   /**
    * Ambient life runs in short bursts, only while nothing else goes on: idle
@@ -1037,6 +1079,11 @@
       armWhip();
     }
     const verdict = ambientOn() ? meter.click() : 'boop';
+    // A bonk that climbs with quick taps (a crack with the whip); "hmph" the third time.
+    const pitch = sound.tapPitch();
+    if (whip && e) sfx('crack');
+    else if (verdict === 'flee') sfx('grumble');
+    else sfx('bonk', pitch);
     if (verdict === 'boop') {
       if (whip) quip('ouch', 900);
       else boop();
@@ -1064,6 +1111,8 @@
       crew.react(id, 'ouch');
       armWhip();
     }
+    if (whip) sfx('crack');
+    else sfx('bonk', sound.tapPitch() * 1.45);
     if (!ambientOn()) {
       crew.react(id, 'boop');
       return;
@@ -1077,6 +1126,7 @@
       crew.react(id, 'annoyed');
     } else {
       crew.react(id, 'shoo');
+      sfx('grumble', 1.4);
     }
   }
 
@@ -1188,6 +1238,8 @@
     if (result === 'hit') effect('impact', x, y);
     else if (result === 'parry' || result === 'blocked') effect('spark', x, y);
     else effect('swoosh', x, y);
+    if (result === 'parry' || result === 'blocked') sfx('clang');
+    else if (result === 'hit') sfx('clang', 0.82);
     trace(`duel swing: ${result}`);
   }
 
@@ -1242,6 +1294,7 @@
     if (line) quip(line, phase === 'win' || phase === 'lose' ? 2400 : 900);
     // Its slash landed: a cut across your cursor, and the scene shakes.
     if (phase === 'hit') {
+      sfx('clang', 1.12);
       const r = holder.getBoundingClientRect();
       const at = pointerAt || { x: r.left + r.width * 0.85, y: r.top + r.height * 0.5 };
       effect('slash', at.x, at.y);
@@ -1530,7 +1583,47 @@
   function onDemo(name) {
     trace(`demo: ${name}`);
     rest.activity();
-    if (name === 'anger') {
+    if (name === 'sound') {
+      soundDemo = true;
+      syncSound();
+      const list = [
+        ['clang', 1],
+        ['bonk', 1],
+        ['bonk', 1.12],
+        ['bonk', 1.24],
+        ['grumble', 1],
+        ['bounce', 1],
+        ['bounce', 0.97],
+        ['purr', 1],
+        ['scratch', 1],
+        ['crack', 1],
+      ];
+      list.forEach(([item, pitch], i) =>
+        later(`demo-sound-${i}`, 400 + i * 700, () => trace(`sound: ${item} ${sfx(item, pitch) ? 'played' : 'skipped'}`)),
+      );
+      later('demo-sound-end', 400 + list.length * 700 + 1500, () => {
+        soundDemo = false;
+        syncSound();
+      });
+    } else if (name === 'tap-spam') {
+      // Ten seconds of quick taps (no mouse): for CPU measurements.
+      soundDemo = true;
+      syncSound();
+      let played = 0;
+      let taps = 0;
+      const tick = () => {
+        boop();
+        taps += 1;
+        if (sfx('bonk', sound.tapPitch())) played += 1;
+        if (taps < 90) later('tap-spam', 110, tick);
+        else {
+          trace(`sound: tap-spam done, ${taps} taps, ${played} sounds`);
+          soundDemo = false;
+          syncSound();
+        }
+      };
+      tick();
+    } else if (name === 'anger') {
       // Three quick taps, without a mouse.
       [0, 300, 600].forEach((ms, i) => later(`anger-${i}`, ms, () => onClick(null)));
     } else if (name === 'duel') {
@@ -1590,6 +1683,7 @@
     if (data.demo) later('demo-run', 500, () => runDemo(data.demo));
     settings = { ...settings, ...(data.settings || {}) };
     crew.setStrings(settings.strings);
+    syncSound();
     applyLayout(data.layout);
     renderMenu(data.menu);
     setPaused(data.paused);
@@ -1633,6 +1727,7 @@
   window.buddy.onSettings((next) => {
     settings = { ...settings, ...next };
     crew.setStrings(settings.strings);
+    syncSound();
     if (!settings.eyeTracking) resetLook();
     renderBubble();
     updateFun();

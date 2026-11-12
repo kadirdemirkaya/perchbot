@@ -286,8 +286,8 @@ body {
 
 /*
  * Two columns of round buttons in the side column (64 px), row by row, the
- * first column on the outer side. Up to four rows (70 + 4 x 30 + 3 x 6 = 208 px)
- * stay well inside the 270 px window. Above the duel pad (z-index 2), the minis
+ * first column on the outer side. Up to five rows (70 + 5 x 30 + 4 x 6 = 244 px)
+ * stay inside the 270 px window. Above the duel pad (z-index 2), the minis
  * and the cat, so a button is always what the pointer hits.
  */
 .menu {

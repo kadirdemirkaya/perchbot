@@ -177,9 +177,23 @@ main process releases the mouse whenever the cursor is outside the window.
 | Leave it alone for a minute while idle | It rests: eyes half closed, no animation. Any event or hover wakes it |
 
 The hover menu, two columns of round buttons: show/hide speech bubble, eyes on/off, Play
-(sword duel; click it again to stop), call or send away the cat, chat, back to the corner
-(after a drag), more settings (the full tray menu), quit. Play and the cat switch on what
-they need.
+(sword duel; click it again to stop), call or send away the cat, chat, sound on/off, back
+to the corner (after a drag), more settings (the full tray menu), quit. Play and the cat
+switch on what they need.
+
+### Sounds
+
+Off by default: turn them on with the speaker button in the hover menu or *Sound* in the
+tray menu (with a volume: low, medium, high). Then a tap on the buddy goes *bonk* (quick
+taps climb higher; the third one gets a grumpy "hm-hmph"), swords clang in a duel, the
+whip cracks, the ball bounces, and the cat scratches and purrs. Helpers bonk a little
+higher.
+
+Every sound is made in code with the Web Audio API: there are no audio files, nothing is
+downloaded and nothing is recorded. There are never sounds for Claude Code's work, and work
+silences a sound at once; none while the screen is locked or the buddy rests. At most five
+play at once, and the audio engine is only started for the first sound, paused two seconds
+after the last one and closed after a minute of silence.
 
 ### Chat
 
@@ -284,6 +298,7 @@ Windows it may be under the `^` overflow arrow):
 | Hover mode | Auto (hover when placed above the ground) / Always stand |
 | Account | All accounts, or only one Claude account (see [Several Claude accounts](#several-claude-accounts)) |
 | Ambient life / Play mode / Cat | See [Ambient life, play mode and the cat](#ambient-life-play-mode-and-the-cat) |
+| Sound / Volume | Little sounds, off by default (see [Sounds](#sounds)); volume low / medium / high |
 | Character | Any character found in `characters/` or `~/.agent-buddy/characters/` |
 | Language | English / Türkçe |
 | Quiet mode | Hides the speech bubble (handy while screen sharing) |
@@ -312,7 +327,9 @@ Everything is stored in `~/.agent-buddy/settings.json`
   "knownAccounts": [],
   "ambientLife": true,
   "playMode": false,
-  "cat": false
+  "cat": false,
+  "sound": false,
+  "soundVolume": "low"
 }
 ```
 
@@ -334,6 +351,8 @@ Everything is stored in `~/.agent-buddy/settings.json`
 | `ambientLife` | `true` / `false` | Idle behaviours, cheers, getting cross when poked (was `funMode` before 0.3) |
 | `playMode` | `true` / `false` | The sword duel and the whip |
 | `cat` | `true` / `false` | The cat can be called from the menus |
+| `sound` | `true` / `false` | Little sounds made in code. Off by default |
+| `soundVolume` | `low`, `medium`, `high` | |
 
 Environment variables (optional): `AGENT_BUDDY_HOME` (another settings folder),
 `AGENT_BUDDY_PORT`, `AGENT_BUDDY_DEBUG=1`.
@@ -405,6 +424,8 @@ The full format, the list of states and performance tips are in
   salted hashes so events can be matched up. The one value it records is the expansion type
   of a typed slash command (e.g. `slash_command`), never the command or its arguments.
   Delete both files to turn it off; without the salt the hashes mean nothing.
+- **Sounds** are generated in the page (Web Audio): no audio files, no microphone, no
+  network.
 - **Chat.** The answers are built from the same in-memory state as the bubble; no one is
   asked. A question typed into the chat panel stays in the overlay's page: it is matched to
   one of the ready-made questions there and the text is dropped at once. It is never stored,

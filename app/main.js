@@ -552,6 +552,9 @@ function start() {
         sandbox: true,
         webSecurity: true,
         spellcheck: false,
+        // Sounds (off by default) are made in the page; they follow a click, the
+        // duel or a play, often a moment after the last user gesture.
+        autoplayPolicy: 'no-user-gesture-required',
         webgl: false,
         devTools: isDev,
         navigateOnDragDrop: false,
@@ -1131,6 +1134,8 @@ function start() {
       eyeTracking: settings.eyeTracking,
       ambientLife: settings.ambientLife,
       playMode: settings.playMode,
+      sound: settings.sound,
+      soundVolume: settings.soundVolume,
       strings: pageStrings(),
     };
   }
@@ -1221,6 +1226,9 @@ function start() {
         break;
       case 'chat':
         setChat(!chatOpen);
+        break;
+      case 'sound':
+        actions.setSound(!settings.sound);
         break;
       case 'settings':
         popUpSettings();
@@ -1325,6 +1333,8 @@ function start() {
           if (canSend()) win.webContents.send('buddy:fun', { action: 'whip', on: false });
         }
       }),
+    setSound: (sound) => updateSettings({ sound }),
+    setSoundVolume: (soundVolume) => updateSettings({ soundVolume }),
     // Cat off: if it is here, it leaves.
     setCat: (cat) =>
       updateSettings({ cat }, () => {

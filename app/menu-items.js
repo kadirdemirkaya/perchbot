@@ -45,6 +45,12 @@ const ITEMS = [
     icon: () => 'chat',
     label: (s, x) => (x.chatOpen ? 'chatClose' : 'chat'),
   },
+  // Sounds on / off (the volume is in the full settings menu).
+  {
+    id: 'sound',
+    icon: (s) => (s.sound ? 'sound' : 'sound-off'),
+    label: (s) => (s.sound ? 'soundOff' : 'soundOn'),
+  },
   {
     id: 'corner',
     icon: () => 'corner',

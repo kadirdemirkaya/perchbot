@@ -53,7 +53,12 @@
     "noAccountEvents": "No events from this account yet",
     "ambientLife": "Ambient life",
     "playMode": "Play mode",
-    "cat": "Cat"
+    "cat": "Cat",
+    "sound": "Sound",
+    "soundVolume": "Volume",
+    "volume_low": "Low",
+    "volume_medium": "Medium",
+    "volume_high": "High"
   },
   "hover": {
     "hideBubble": "Hide speech bubble",
@@ -68,7 +73,9 @@
     "catCall": "Call the cat",
     "catAway": "Send the cat away",
     "chat": "Chat: ask me",
-    "chatClose": "Close the chat"
+    "chatClose": "Close the chat",
+    "soundOn": "Turn sounds on",
+    "soundOff": "Turn sounds off"
   },
   "page": {
     "helpers": "{count} helpers",
