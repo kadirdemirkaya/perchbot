@@ -1060,7 +1060,10 @@ function start() {
 
   async function runHands(intent) {
     const target = intent === 'newtab' ? 'newtab' : 'close';
-    if (!settings.hands) return handsSay('handsOff');
+    if (!settings.hands) {
+      log.info(`hands: ${intent} asked, but hands are off`);
+      return handsSay('handsOff');
+    }
     if (!hands.supported()) return handsSay('handsOnlyWindows');
     if (handsBusy) return undefined;
     handsBusy = true;
@@ -1068,6 +1071,7 @@ function start() {
     handsTimer = setTimeout(handsDone, 20000);
     handsSay(target === 'newtab' ? 'handsNewTab' : 'handsCloseTab');
     const found = await hands.find(target);
+    log.info(`hands: ${intent}: ${found.ok ? 'button found' : found.why}`);
     if (!found.ok) {
       handsSay(HANDS_WHY[found.why] || 'handsNoButton');
       return handsDone();
@@ -1113,7 +1117,7 @@ function start() {
     if (canSend()) win.webContents.send('buddy:hands', { press: true });
     setTimeout(async () => {
       const done = await hands.press(target);
-      log.devOnly(`hands: pressed ${target}: ${done.ok ? 'ok' : done.why}`);
+      log.info(`hands: pressed ${target}: ${done.ok ? 'ok' : done.why}`);
       if (!done.ok) handsSay(HANDS_WHY[done.why] || 'handsNoButton');
       setTimeout(() => {
         handsDone();

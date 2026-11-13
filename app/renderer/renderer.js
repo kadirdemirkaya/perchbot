@@ -2245,7 +2245,9 @@
       closeChat('esc');
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      const intent = matchIntent(chatInput.value, { hands: Boolean(settings.hands) });
+      // "Open" / "close" are always taken as the hands commands: with hands off, main says
+      // how to turn them on (instead of "I don't know that").
+      const intent = matchIntent(chatInput.value, { hands: true });
       chatInput.value = ''; // not kept, not even in the field
       ask(intent || 'unknown');
     }

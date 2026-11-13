@@ -139,3 +139,14 @@ test('a hands demo acts only on a test overlay (--dev); a plain overlay never do
   const calls = main.match(/runHands\(/g) || [];
   assert.equal(calls.length, 3, 'defined once, called from the chat and from the dev demo');
 });
+
+test('typed "open" / "close" always reach main: with hands off it says how to turn them on', () => {
+  const page = fs.readFileSync(path.join(ROOT, 'app', 'renderer', 'renderer.js'), 'utf8');
+  assert.ok(page.includes('const intent = matchIntent(chatInput.value, { hands: true });'));
+  const main = fs.readFileSync(path.join(ROOT, 'app', 'main.js'), 'utf8');
+  const off = main.indexOf('if (!settings.hands) {');
+  const says = main.indexOf("return handsSay('handsOff');", off);
+  assert.ok(off > 0 && says > off && says - off < 200, 'hands off: it says how to turn them on');
+  assert.equal(matchIntent('son chrome sekmesini kapatır mısın', { hands: true }), 'closetab');
+  assert.equal(matchIntent('aç', { hands: true }), 'newtab');
+});
