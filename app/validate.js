@@ -81,6 +81,8 @@ const DEMOS = new Set([
   'cruise',
   'hang',
   'loop',
+  // Onto a window's title bar (Windows), to sit there; it rides along when the window moves.
+  'perch',
   'home',
   // A trip to another screen (with only one screen: nothing).
   'screen',

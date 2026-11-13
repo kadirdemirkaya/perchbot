@@ -198,6 +198,7 @@
     "choiceNone": "Secret!",
     "curiousCode": "Ooh, nice code!",
     "curiousGame": "Can I play too?",
-    "curiousNone": "Hmph, fine!"
+    "curiousNone": "Hmph, fine!",
+    "whoa": "Whoa!"
   }
 }

@@ -41,6 +41,9 @@ Open Claude Code sessions pick up the hooks after a restart (VS Code: *Developer
 
 Only the event, the tool name, a file name (not the path) and a shortened command (secrets
 masked) leave the hook, and only to `127.0.0.1`. Settings: `~/.agent-buddy/settings.json`.
+With ambient life on, the overlay also looks at the system idle time (to say welcome back) and,
+on Windows, at where windows are (frames only, never titles or contents) to sit on title bars.
+Nothing of it is stored or sent anywhere.
 
 ## Development
 

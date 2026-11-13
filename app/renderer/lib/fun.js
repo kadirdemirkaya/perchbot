@@ -206,8 +206,9 @@
    * goes home when ambient life is switched off).
    *   cruise  a slow, long, wavy flight far across the screen (or to another one)
    *   hang    up to the top edge, to hang from it for a while
+   *   perch   onto a window's title bar, to sit there (Windows; elsewhere a hop)
    */
-  const TRIPS = Object.freeze({ walk: 'stroll', fly: 'hop', inspect: 'inspect', cruise: 'cruise', hang: 'hang' });
+  const TRIPS = Object.freeze({ walk: 'stroll', fly: 'hop', inspect: 'inspect', cruise: 'cruise', hang: 'hang', perch: 'perch' });
 
   /**
    * Relative chances. Every play counts 1, so about half of what it does by
@@ -215,7 +216,7 @@
    * the user does, a cruise, a hang from the top; main.js turns some of them
    * into a trip to another screen).
    */
-  const WEIGHTS = Object.freeze({ walk: 4, fly: 4.5, inspect: 2.5, cruise: 2, hang: 1.2 });
+  const WEIGHTS = Object.freeze({ walk: 4, fly: 4.5, inspect: 2.5, cruise: 2, hang: 1.2, perch: 1.6 });
   /** The wait between two behaviours (ms). */
   const AMBIENT_GAP = Object.freeze({ minMs: 15000, maxMs: 60000 });
 

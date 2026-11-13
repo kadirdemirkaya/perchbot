@@ -55,6 +55,8 @@ const chat = require('./chat');
 const { taskFor } = require('./tools');
 const { greetingKey } = require('./moments');
 const { PresenceWatch, PRESENCE } = require('./presence');
+const perchLib = require('./perch');
+const { createScanner } = require('./winscan');
 const FEATURES = require('./features');
 const { createLogger } = require('./log');
 
@@ -77,7 +79,7 @@ const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
 /** Events that start the overlay (as in hooks/send.js). */
 const LAUNCH_EVENTS = new Set(['SessionStart', 'UserPromptSubmit']);
 /** What the page may ask for (fun mode): a trip, or the right-click menu. */
-const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop']);
+const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch']);
 /**
  * While the window travels, the page reports every frame it draws (vsync) and
  * the window moves then. This timer only fills in if those reports stop: Node
@@ -142,7 +144,7 @@ const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers', 'menu', 'chat']);
 const demo = isDev && DEMOS.has(process.env.AGENT_BUDDY_DEMO) ? process.env.AGENT_BUDDY_DEMO : null;
 const DEMO_TRIPS = ['stroll', 'hop', 'screen', 'inspect', 'home'];
 /** Short lines in the speech bubble when it is hit or fights (locales: "quip"). */
-const QUIPS = ['welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
+const QUIPS = ['whoa', 'welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
 
 // Keep Chromium's own data (caches, the single-instance lock) under
 // ~/.agent-buddy too, so there is exactly one folder to delete on uninstall
@@ -395,6 +397,8 @@ function start() {
     // With two screens, now and then a walk or a hop goes over to the other one.
     // 'loop' (a demo): a hop with a loop-the-loop.
     else if (action === 'loop') settings.ambientLife && startTrip('hop', { style: 'loop' });
+    // Up onto a window's title bar (Windows; elsewhere, or with no window to sit on: a hop).
+    else if (action === 'perch') settings.ambientLife && startPerch();
     else if (action === 'home' || settings.ambientLife) startTrip(roam.pickTrip(action, displays().length));
   });
 
@@ -810,7 +814,9 @@ function start() {
   /** Flight state for the character's feet at `point` (screen DIP). */
   function flightAt(point, boost = false, tilt = 0) {
     const altitude = placement.altitudeOf(point, displays(), primaryDisplay());
-    const airborne = placement.isAirborne(altitude, scale(), settings.hoverMode);
+    // Sitting on a window's title bar: that is its ground.
+    const perched = Boolean(perching && !boost && point && point.x === perching.anchor.x && point.y === perching.anchor.y);
+    const airborne = !perched && placement.isAirborne(altitude, scale(), settings.hoverMode);
     return { airborne, boost: airborne && boost, tilt: airborne ? Math.round(tilt * 100) / 100 : 0 };
   }
 
@@ -1021,8 +1027,114 @@ function start() {
     if (plan) beginTrip(plan, kind);
   }
 
+  // ------------------------------------------------------------------ perching on a window (Windows)
+
+  /**
+   * Up onto the title bar of a window (app/perch.js, app/winscan.js): only the
+   * frames of the windows are known, nothing in them. While it sits there it
+   * looks again every PERCH.followMs: the window moved, it rides along; closed,
+   * minimised or covered, it falls off and flies away.
+   */
+  const scanner = createScanner({ log });
+  /** { id, offset, rect, anchor } while it sits on a window; the spot it flies to meanwhile. */
+  let perching = null;
+  let pendingPerch = null;
+  let perchTimer = null;
+  let perchBusy = false;
+
+  /** The windows now, in DIP (the scanner gives physical pixels). */
+  async function scanWindows() {
+    const found = await scanner.scan();
+    if (!found || typeof screen.screenToDipRect !== 'function') return null;
+    return found.map((w) => {
+      const r = screen.screenToDipRect(null, { x: w.x, y: w.y, width: w.w, height: w.h });
+      return { id: w.id, x: r.x, y: r.y, w: r.width, h: r.height, max: w.max };
+    });
+  }
+
+  async function startPerch() {
+    if (perchBusy) return;
+    if (!scanner.supported() || settings.hoverMode === 'stand') {
+      startTrip('hop');
+      return;
+    }
+    perchBusy = true;
+    const windows = await scanWindows();
+    perchBusy = false;
+    if (!win || win.isDestroyed() || trip || drag || warping || paused || !anchor || !pageLayout) return;
+    const all = displays();
+    const here = placement.nearestDisplay(anchor, all);
+    const spot = windows && perchLib.pickPerch({ windows, areas: [here.workArea], scale: scale(), from: anchor });
+    if (!spot) {
+      log.devOnly(`perch: no window to sit on (${windows ? windows.length : 'no'} windows seen), a hop instead`);
+      startTrip('hop');
+      return;
+    }
+    const b = win.getBounds();
+    const spans = { spanLeft: anchor.x - b.x, spanRight: b.x + b.width - anchor.x };
+    const plan = roam.planTrip({ kind: 'goto', to: spot.anchor, from: anchor, home: homeAnchor(), workArea: here.workArea, scale: scale(), hoverMode: settings.hoverMode, ...spans });
+    if (!plan || plan.to.x !== spot.anchor.x || plan.to.y !== spot.anchor.y) {
+      startTrip('hop');
+      return;
+    }
+    plan.kind = 'perch';
+    beginTrip(plan, 'perch');
+    pendingPerch = spot;
+  }
+
+  function followPerch() {
+    clearTimeout(perchTimer);
+    perchTimer = setTimeout(async () => {
+      if (!perching) return;
+      if (trip || drag || paused) {
+        followPerch();
+        return;
+      }
+      const windows = await scanWindows();
+      if (!perching) return;
+      // It went somewhere else meanwhile (a drag, home): no longer sitting there.
+      if (!roamAnchor || roamAnchor.x !== perching.anchor.x || roamAnchor.y !== perching.anchor.y) {
+        stopPerch();
+        return;
+      }
+      if (windows) {
+        const areas = displays().map((d) => d.workArea);
+        const next = perchLib.followPerch(perching, { windows, areas, scale: scale() });
+        if (next.kind === 'fall') {
+          log.devOnly(`perch: it falls off (${next.why})`);
+          fallOffPerch();
+          return;
+        }
+        if (next.kind === 'move') {
+          log.devOnly(`perch: rides along to ${next.anchor.x},${next.anchor.y}`);
+          perching = { ...perching, rect: next.rect, offset: next.offset, anchor: next.anchor };
+          roamAnchor = { ...next.anchor };
+          placeWindow();
+        }
+      }
+      followPerch();
+    }, perchLib.PERCH.followMs);
+  }
+
+  function stopPerch() {
+    clearTimeout(perchTimer);
+    perchTimer = null;
+    perching = null;
+    pendingPerch = null;
+  }
+
+  /** The window went away under it: "Whoa!", and off it flies. */
+  function fallOffPerch() {
+    stopPerch();
+    if (canSend()) win.webContents.send('buddy:move', { mode: null, kind: 'fall', arrived: true, look: 'right' });
+    placeWindow();
+    startTrip('hop');
+  }
+
   /** then: what comes after arriving (the second leg of a trip to another screen). */
   function beginTrip(plan, kind, then = null) {
+    // Off on a trip: it no longer sits on a window.
+    if (perching || pendingPerch) stopPerch();
     log.devOnly(`trip: ${plan.kind} by ${plan.mode}, ${plan.ms} ms`);
     // Never hold the mouse while the window moves under a cursor that does not.
     setCapture(false);
@@ -1082,6 +1194,15 @@ function start() {
     // Fled after being hit, or thrown: that place is its new home (saved, like a drag).
     const moved = (plan.kind === 'flee' || plan.kind === 'fling') && !cancelled;
     if (moved) roamAnchor = null;
+    // Arrived on a window's title bar: it sits there (and keeps an eye on the window).
+    if (plan.kind === 'perch' && pendingPerch && !cancelled && roamAnchor) {
+      perching = { ...pendingPerch, anchor: { ...roamAnchor } };
+      pendingPerch = null;
+      log.devOnly(`perch: on a window at ${roamAnchor.x},${roamAnchor.y}`);
+      followPerch();
+    } else if (plan.kind === 'perch') {
+      pendingPerch = null;
+    }
     if (canSend()) {
       win.webContents.send('buddy:move', {
         mode: null,
@@ -1939,6 +2060,8 @@ function start() {
     quitting = true;
     if (trip) clearInterval(trip.timer);
     clearInterval(presenceTimer);
+    stopPerch();
+    scanner.stop();
     endAllOutings();
     stopWatchdog();
     core.dispose();

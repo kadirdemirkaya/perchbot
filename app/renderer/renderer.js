@@ -2053,6 +2053,9 @@
       flag('loop', null);
       // Up at the top edge: it hangs there until its next trip (or work, or a drag).
       flag('hang', m.kind === 'hang' && m.arrived && motionAllowed() ? true : null);
+      // On a window's title bar: it sits down there for a moment. Fell off one: "Whoa!".
+      if (m.kind === 'perch' && m.arrived && ambientOn() && CALM.has(view.state)) later('perch-sit', 350, () => ambient.run('sit'));
+      if (m.kind === 'fall') quip('whoa', 1200);
       crew.setTravel(null);
       pet.setTravel(null);
       if (m.kind === 'inspect' && m.arrived && motionAllowed()) {
