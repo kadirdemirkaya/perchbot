@@ -63,6 +63,7 @@
     "cat": "Cat",
     "sound": "Sound",
     "soundVolume": "Volume",
+    "workSounds": "Work sounds (done, failures, questions)",
     "volume_low": "Low",
     "volume_medium": "Medium",
     "volume_high": "High",

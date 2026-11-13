@@ -173,9 +173,10 @@
 
   /**
    * Little sounds made in code (lib/sound.js), off unless the Sound setting is
-   * on. Only for what the user does and the buddy's own play: never for
-   * Claude Code's work, and work silences them at once. Nothing while the
-   * screen is locked or the buddy rests.
+   * on. For what the user does and the buddy's own play; work silences them
+   * at once. For Claude Code's work only a few short signals (workSfx: done,
+   * a failure, a question for the user, focus mode), and only with "Work
+   * sounds" on too. Nothing while the screen is locked or the buddy rests.
    *
    * Switched off for now (app/features.js): index.html does not load
    * lib/sound.js, and this silent board stands in (no AudioContext at all).
@@ -203,6 +204,24 @@
     return sound.play(name, { pitch });
   }
 
+  /** A work signal (done, a failure, a question, focus mode): with Sound and Work sounds on. */
+  function workSfx(name, pitch = 1) {
+    if (paused || settings.workSounds === false) return false;
+    const played = sound.play(name, { pitch });
+    if (played) trace(`sound: ${name} (work)`);
+    return played;
+  }
+
+  /** Done, a question for the user, a tool that failed, a session that starts. */
+  function workSignals(previous, next) {
+    if (next.state !== previous.state) {
+      if (next.state === 'done') workSfx('done');
+      else if (NUDGE_STATES.has(next.state)) workSfx('alert');
+      else if (next.state === 'greeting') workSfx('chirp', 1.1);
+    }
+    if (next.mood === 'worried' && previous.mood !== 'worried' && !NUDGE_STATES.has(next.state)) workSfx('error');
+  }
+
   /**
    * The sounds that go with a play or the cat's routine (BuddySound.CUES).
    * With the sound off this sets no timers at all; each one checks `still()`
@@ -219,7 +238,7 @@
       play: (name, pitch) => trace(`sound: ${name} (${key}) ${sfx(name, pitch * (0.97 + Math.random() * 0.06)) ? 'played' : 'skipped'}`),
     });
   }
-  const CUES = window.BuddySound ? window.BuddySound.CUES : { play: {}, cat: {} };
+  const CUES = window.BuddySound ? window.BuddySound.CUES : { play: {}, cat: {}, rampage: {} };
 
   // ---------------------------------------------------------------- character loading
 
@@ -327,6 +346,7 @@
       dropQuip();
     }
     if (BUSY.has(next.state)) sound.stopAll();
+    workSignals(previous, next);
     if (!CALM.has(next.state)) {
       pet.interrupt();
       // Work starts: what the taps were doing gives way to it. Not on every
@@ -1088,7 +1108,10 @@
     focus.step(next.state);
     if (focus.focused === was) return;
     trace(`focus: ${focus.focused ? 'on' : 'off'}`);
-    if (focus.focused) quip('focusOn', 1400);
+    if (focus.focused) {
+      quip('focusOn', 1400);
+      workSfx('holo');
+    }
     flag('holo', focus.focused);
   }
 
@@ -1747,6 +1770,7 @@
     cancel('flee');
     flag('annoyed', TEMPER_MAX);
     flag('rampage', 'charge', true);
+    playCues('rampage-charge', CUES.rampage.charge, () => raging === 'charge');
     dropCurious(true);
     quip('rampage', 2600);
     window.buddy.rampage({ eyes, hatch: centerOf(hatch), face: holder.dataset.face === 'left' ? 'left' : 'right' });
@@ -1767,6 +1791,7 @@
     trace(`rampage: ${phase}`);
     raging = phase;
     flag('rampage', phase);
+    if (CUES.rampage[phase]) playCues(`rampage-${phase}`, CUES.rampage[phase], () => raging === phase);
     // All fired: it has blown off steam, the flames go out (and stop costing frames).
     if (phase === 'smug') flag('annoyed', null);
     if (phase === 'heal') {
@@ -2344,6 +2369,7 @@
     if (!ambientOn() || rest.resting) return;
     sleepy = true;
     quip('sleepy', 2000);
+    sfx('yawn');
     ambient.run('stretch');
     syncRest();
     rest.activity();
@@ -2387,6 +2413,7 @@
     trace('guest: drops by');
     set('phase', 'arrive');
     set('fly', '1');
+    sfx('whoosh', 1.3);
     updateFun();
 
     // Hello.
@@ -2397,6 +2424,7 @@
       face();
       flag('greet', true, true);
       quip('guestHi', 1600);
+      sfx('chirp', 1.45);
     });
     // They sit down and chat: turns to talk, a laugh at the end.
     at(2700, () => {
@@ -2411,6 +2439,7 @@
       at(t, () => {
         set('talk', theirs ? '1' : null);
         flag('talk', theirs ? null : true);
+        sfx('chirp', theirs ? 1.45 : 1);
       });
     }
     at(9800, () => {
@@ -2418,6 +2447,7 @@
       flag('talk', null);
       set('laugh', '1');
       floatHearts();
+      sfx('chirp', 1.8);
     });
     // Up for sword practice.
     at(11000, () => {
@@ -2460,6 +2490,7 @@
       set('play', 'jump');
       if (motionAllowed()) glee.trigger();
       quip('guestBow', 1600);
+      sfx('sparkle');
     });
     at(20600, () => set('play', 'wave'));
     at(22200, () => endGuest('bye'));
@@ -2488,6 +2519,7 @@
     for (const name of ['spar', 'talk', 'laugh', 'play']) delete g.el.dataset[name];
     g.el.dataset.phase = 'leave';
     g.el.dataset.fly = '1';
+    sfx('whoosh', 1.2);
     setTimeout(() => {
       g.el.remove();
       window.buddy.fun('guest-away');
@@ -2529,6 +2561,7 @@
     flag('inspect', 'left');
     flag('lens', true, true);
     quip('lensHmm', 1600);
+    sfx('chirp', 1.15);
     later('lens', LENS_MS, () => {
       flag('lens', null);
       flag('inspect', null);

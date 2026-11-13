@@ -123,6 +123,13 @@ function soundItems(settings, t, radio, on) {
       click: (item) => on.setSound(Boolean(item && item.checked)),
     },
     {
+      label: t('workSounds'),
+      type: 'checkbox',
+      checked: settings.workSounds !== false,
+      enabled: Boolean(settings.sound),
+      click: (item) => on.setWorkSounds(Boolean(item && item.checked)),
+    },
+    {
       label: t('soundVolume'),
       submenu: ['low', 'medium', 'high'].map((level) =>
         radio(t(`volume_${level}`), (settings.soundVolume || 'low') === level, () => on.setSoundVolume(level)),

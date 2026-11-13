@@ -2034,6 +2034,8 @@ function start() {
       // Switched off (app/features.js): off whatever settings.json says.
       sound: FEATURES.sound && settings.sound,
       soundVolume: settings.soundVolume,
+      // Short signals for the work too (done, a failure, a question, focus mode).
+      workSounds: settings.workSounds !== false,
       // One buddy per account: the page shows which account this one is for.
       account: ACCOUNT,
       // Hands: typed "open" / "close" become commands.
@@ -2360,6 +2362,7 @@ function start() {
       }),
     setSound: (sound) => updateSettings({ sound }),
     setSoundVolume: (soundVolume) => updateSettings({ soundVolume }),
+    setWorkSounds: (workSounds) => updateSettings({ workSounds }),
     // Cat off: if it is here, it leaves.
     setCat: (cat) =>
       updateSettings({ cat }, () => {

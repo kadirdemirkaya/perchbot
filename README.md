@@ -46,6 +46,8 @@ Open Claude Code sessions pick up the hooks after a restart (VS Code: *Developer
 - **Tap** it: idle it mostly likes that. Keep tapping and it gets cross, fumes, and its head catches fire.
   Set its head on fire twice within five minutes and it goes on a rampage: laser eyes and missiles
   leave burn marks on your screen (a click-through layer; nothing real is touched) that fade after ten seconds.
+- **Sound** (tray, off by default): little robot sounds made in code, no audio files. With **Work sounds**
+  on too it also signals when a turn is done, a tool failed or Claude Code has a question.
 - **Hands** (Windows, tray > "Hands: Chrome tabs", off by default): in the chat panel ask it to open a
   new tab or close the last tab in Chrome (or type "open" / "close"). It flies over and presses the
   button through Windows UI Automation; your mouse is not moved, tab titles are not read.

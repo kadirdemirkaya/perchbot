@@ -1,8 +1,13 @@
 /*
  * Sounds, made in code with the Web Audio API: no audio files, nothing is
  * downloaded, and nothing is recorded (no microphone). Off by default (the
- * "Sound" setting); the page asks for a sound only for things the user does
- * or the buddy's own play, never for Claude Code's work.
+ * "Sound" setting). The page asks for a sound for things the user does and
+ * the buddy's own play; for Claude Code's work only a few short signals
+ * (done, a failure, a question for the user, focus mode), and only with the
+ * "Work sounds" switch on too.
+ *
+ * A little robot's voice: blips with a quick FM "ping", tones with a metallic
+ * ring (amplitude modulation), square waves softened by a low-pass filter.
  *
  * Pure logic around an injected AudioContext factory, so node:test can run it
  * with a fake one (window.BuddySound in the page).
@@ -30,6 +35,12 @@
  *   powerdown / boot   switching off and on again (reboot)
  *   squeak   a squeaky-clean wipe (polish)
  *   sparkle  the shine afterwards
+ *   chirp    robot babble: a few quick stepped blips (chats, "hmm?")
+ *   charge / laser / launch / boom   the rampage: eyes power up, the beams,
+ *            a missile leaves the hatch, a blast
+ *   holo     a screen of light switches on (focus mode)
+ *   yawn     sleepy, before a nap
+ *   done / error / alert   work signals: finished, a tool failed, a question
  *
  * CUES says which sound plays when, in the buddy's own plays and in the cat's
  * routine (times match characters/robot/*.css). scheduleCues() sets the
@@ -96,44 +107,103 @@
     return src;
   }
 
+  /**
+   * A tone whose loudness wobbles `ring` times a second by `depth`: the
+   * metallic edge of a robot voice (amplitude / ring modulation), through a
+   * low-pass so square waves stay soft.
+   */
+  function ringTone(ctx, out, { type = 'square', f0, f1 = f0, ring = 55, depth = 0.6, at, dur, peak = 0.5, attack = 0.006, cutoff = 2200 }) {
+    const osc = ctx.createOscillator();
+    osc.type = type;
+    osc.frequency.setValueAtTime(f0, at);
+    if (f1 !== f0) osc.frequency.exponentialRampToValueAtTime(f1, at + dur);
+    const mod = ctx.createOscillator();
+    mod.frequency.setValueAtTime(ring, at);
+    const modDepth = ctx.createGain();
+    modDepth.gain.setValueAtTime(depth, at);
+    const wobble = ctx.createGain();
+    wobble.gain.setValueAtTime(1 - depth, at);
+    mod.connect(modDepth);
+    modDepth.connect(wobble.gain);
+    const lowpass = ctx.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.setValueAtTime(cutoff, at);
+    const amp = ctx.createGain();
+    amp.gain.setValueAtTime(SILENT, at);
+    amp.gain.linearRampToValueAtTime(peak, at + attack);
+    amp.gain.exponentialRampToValueAtTime(SILENT, at + dur);
+    osc.connect(wobble);
+    wobble.connect(lowpass);
+    lowpass.connect(amp);
+    amp.connect(out);
+    osc.start(at);
+    mod.start(at);
+    osc.stop(at + dur + 0.02);
+    mod.stop(at + dur + 0.02);
+    return [osc, mod];
+  }
+
+  /** A quick FM "ping": a sine whose frequency is shaken by another, the shake dying away. */
+  function fmBlip(ctx, out, { f0, f1 = f0, ratio = 2, index = 1.2, at, dur, peak = 0.6, attack = 0.003 }) {
+    const osc = ctx.createOscillator();
+    osc.frequency.setValueAtTime(f0, at);
+    if (f1 !== f0) osc.frequency.exponentialRampToValueAtTime(f1, at + dur);
+    const mod = ctx.createOscillator();
+    mod.frequency.setValueAtTime(f0 * ratio, at);
+    if (f1 !== f0) mod.frequency.exponentialRampToValueAtTime(f1 * ratio, at + dur);
+    const shake = ctx.createGain();
+    shake.gain.setValueAtTime(f0 * index, at);
+    shake.gain.exponentialRampToValueAtTime(Math.max(1, f0 * 0.02), at + dur * 0.6);
+    mod.connect(shake);
+    shake.connect(osc.frequency);
+    const amp = ctx.createGain();
+    amp.gain.setValueAtTime(SILENT, at);
+    amp.gain.linearRampToValueAtTime(peak, at + attack);
+    amp.gain.exponentialRampToValueAtTime(SILENT, at + dur);
+    osc.connect(amp);
+    amp.connect(out);
+    osc.start(at);
+    mod.start(at);
+    osc.stop(at + dur + 0.02);
+    mod.stop(at + dur + 0.02);
+    return [osc, mod];
+  }
+
   // ---------------------------------------------------------------- the sounds
 
   /** Each returns { sources, duration } (seconds). `p` scales the pitch. */
   const RECIPES = {
     clang(board, ctx, out, at, p) {
+      // Fewer, softer partials than a real blade and a short ring: a toy sword.
       const partials = [
-        [620, 0.55, 0.45],
-        [1712, 0.4, 0.3],
-        [2940, 0.28, 0.2],
-        [4210, 0.2, 0.12],
+        [620, 0.42, 0.42],
+        [1712, 0.28, 0.2],
+        [2940, 0.16, 0.08],
       ];
       const sources = partials.map(([f, dur, peak], i) =>
         tone(ctx, out, { type: i === 0 ? 'triangle' : 'sine', f0: f * p, f1: f * p * 0.985, at, dur, peak, attack: 0.002 }),
       );
-      sources.push(hiss(board, ctx, out, { at, dur: 0.07, type: 'highpass', freq: 3200, q: 0.7, peak: 0.3 }));
-      return { sources, duration: 0.56 };
+      sources.push(hiss(board, ctx, out, { at, dur: 0.04, type: 'highpass', freq: 3000, q: 0.6, peak: 0.14 }));
+      return { sources, duration: 0.43 };
     },
 
     bonk(board, ctx, out, at, p) {
+      // A round robot "bip" with a little metallic ping (FM), no click.
       return {
         sources: [
-          tone(ctx, out, { f0: 430 * p, f1: 190 * p, at, dur: 0.15, peak: 0.85 }),
-          tone(ctx, out, { type: 'triangle', f0: 860 * p, f1: 420 * p, at, dur: 0.07, peak: 0.18 }),
-          hiss(board, ctx, out, { at, dur: 0.025, type: 'lowpass', freq: 1800, q: 0.5, peak: 0.25 }),
+          ...fmBlip(ctx, out, { f0: 520 * p, f1: 300 * p, ratio: 2, index: 0.9, at, dur: 0.14, peak: 0.7 }),
+          tone(ctx, out, { f0: 260 * p, f1: 180 * p, at, dur: 0.1, peak: 0.25 }),
         ],
-        duration: 0.16,
+        duration: 0.15,
       };
     },
 
     grumble(board, ctx, out, at, p) {
-      const lowpass = ctx.createBiquadFilter();
-      lowpass.type = 'lowpass';
-      lowpass.frequency.setValueAtTime(950, at);
-      lowpass.connect(out);
+      // "Brrm-brrmph": a cross little motor, square waves through a low-pass with a rattle.
       return {
         sources: [
-          tone(ctx, lowpass, { type: 'sawtooth', f0: 195 * p, f1: 155 * p, at, dur: 0.16, peak: 0.42, attack: 0.02 }),
-          tone(ctx, lowpass, { type: 'sawtooth', f0: 165 * p, f1: 104 * p, at: at + 0.19, dur: 0.3, peak: 0.48, attack: 0.025 }),
+          ...ringTone(ctx, out, { f0: 190 * p, f1: 150 * p, ring: 32, depth: 0.7, at, dur: 0.17, peak: 0.42, attack: 0.02, cutoff: 760 }),
+          ...ringTone(ctx, out, { f0: 160 * p, f1: 98 * p, ring: 26, depth: 0.7, at: at + 0.2, dur: 0.3, peak: 0.48, attack: 0.025, cutoff: 680 }),
         ],
         duration: 0.5,
       };
@@ -142,8 +212,8 @@
     bounce(board, ctx, out, at, p) {
       return {
         sources: [
-          tone(ctx, out, { f0: 190 * p, f1: 95 * p, at, dur: 0.11, peak: 0.75, attack: 0.002 }),
-          hiss(board, ctx, out, { at, dur: 0.03, type: 'lowpass', freq: 900, q: 0.6, peak: 0.2 }),
+          tone(ctx, out, { f0: 190 * p, f1: 95 * p, at, dur: 0.11, peak: 0.55, attack: 0.002 }),
+          hiss(board, ctx, out, { at, dur: 0.025, type: 'lowpass', freq: 800, q: 0.5, peak: 0.12 }),
         ],
         duration: 0.12,
       };
@@ -184,7 +254,7 @@
 
     scratch(board, ctx, out, at, p) {
       const sources = [0, 0.1, 0.2].map((delay, i) =>
-        hiss(board, ctx, out, { at: at + delay, dur: 0.075, type: 'bandpass', freq: (2300 + i * 350) * p, q: 1.3, peak: 0.45, attack: 0.012 }),
+        hiss(board, ctx, out, { at: at + delay, dur: 0.07, type: 'bandpass', freq: (1700 + i * 250) * p, q: 0.8, peak: 0.28, attack: 0.012 }),
       );
       return { sources, duration: 0.3 };
     },
@@ -327,23 +397,24 @@
 
     beep(board, ctx, out, at, p) {
       return {
-        sources: [tone(ctx, out, { f0: 1320 * p, f1: 1250 * p, at, dur: 0.08, peak: 0.4, attack: 0.003 })],
+        sources: ringTone(ctx, out, { f0: 1320 * p, f1: 1250 * p, ring: 70, depth: 0.35, at, dur: 0.08, peak: 0.36, attack: 0.003, cutoff: 2600 }),
         duration: 0.09,
       };
     },
 
     powerdown(board, ctx, out, at, p) {
+      // Winding down, with a wobble that slows.
       return {
-        sources: [tone(ctx, out, { type: 'triangle', f0: 700 * p, f1: 140 * p, at, dur: 0.42, peak: 0.45, attack: 0.01 })],
+        sources: ringTone(ctx, out, { type: 'triangle', f0: 700 * p, f1: 140 * p, ring: 18, depth: 0.45, at, dur: 0.42, peak: 0.45, attack: 0.01, cutoff: 1800 }),
         duration: 0.43,
       };
     },
 
     boot(board, ctx, out, at, p) {
-      // A rising chime: C E G, then the C above rings a little longer.
+      // A rising chime: C E G, then the C above rings a little longer, with a soft metallic edge.
       const notes = [523.25, 659.25, 783.99, 1046.5];
-      const sources = notes.map((f, i) =>
-        tone(ctx, out, { f0: f * p, at: at + i * 0.09, dur: i === notes.length - 1 ? 0.42 : 0.16, peak: 0.36, attack: 0.005 }),
+      const sources = notes.flatMap((f, i) =>
+        ringTone(ctx, out, { type: 'triangle', f0: f * p, ring: 60, depth: 0.25, at: at + i * 0.09, dur: i === notes.length - 1 ? 0.42 : 0.16, peak: 0.36, attack: 0.005, cutoff: 3200 }),
       );
       return { sources, duration: 0.27 + 0.42 };
     },
@@ -365,6 +436,144 @@
       };
     },
   };
+
+  Object.assign(RECIPES, {
+    chirp(board, ctx, out, at, p) {
+      // Robot babble: five or six quick blips stepping up and down.
+      const steps = 5 + Math.floor(board.random() * 2);
+      const step = 0.06;
+      const sources = [];
+      let f = (700 + board.random() * 500) * p;
+      for (let i = 0; i < steps; i += 1) {
+        const next = f * (board.random() < 0.5 ? 0.82 : 1.22) * (0.95 + board.random() * 0.1);
+        sources.push(...fmBlip(ctx, out, { f0: f, f1: next, ratio: 1.5, index: 0.5, at: at + i * step, dur: step * 0.9, peak: 0.34, attack: 0.004 }));
+        f = Math.min(2400 * p, Math.max(380 * p, next));
+      }
+      return { sources, duration: steps * step };
+    },
+
+    charge(board, ctx, out, at, p) {
+      // Powering up: a whine that rises, its wobble getting faster.
+      const dur = 0.85;
+      const whine = ringTone(ctx, out, { type: 'sine', f0: 220 * p, f1: 1500 * p, ring: 8, depth: 0.5, at, dur, peak: 0.4, attack: 0.25, cutoff: 4000 });
+      whine[1].frequency.exponentialRampToValueAtTime(34, at + dur);
+      const body = tone(ctx, out, { type: 'triangle', f0: 110 * p, f1: 750 * p, at, dur, peak: 0.16, attack: 0.3 });
+      return { sources: [...whine, body], duration: dur };
+    },
+
+    laser(board, ctx, out, at, p) {
+      // "Pew", then the buzzing beam for as long as it sweeps.
+      const dur = 1.5;
+      const sources = [tone(ctx, out, { f0: 2400 * p, f1: 900 * p, at, dur: 0.12, peak: 0.4, attack: 0.002 })];
+      const buzz = ctx.createOscillator();
+      buzz.type = 'sawtooth';
+      buzz.frequency.setValueAtTime(440 * p, at);
+      const vibrato = ctx.createOscillator();
+      vibrato.frequency.setValueAtTime(9, at);
+      const vibDepth = ctx.createGain();
+      vibDepth.gain.setValueAtTime(22 * p, at);
+      vibrato.connect(vibDepth);
+      vibDepth.connect(buzz.frequency);
+      const band = ctx.createBiquadFilter();
+      band.type = 'bandpass';
+      band.frequency.setValueAtTime(1600 * p, at);
+      band.Q.setValueAtTime(1.6, at);
+      const amp = ctx.createGain();
+      amp.gain.setValueAtTime(SILENT, at);
+      amp.gain.linearRampToValueAtTime(0.32, at + 0.08);
+      amp.gain.setValueAtTime(0.32, at + dur - 0.3);
+      amp.gain.exponentialRampToValueAtTime(SILENT, at + dur);
+      buzz.connect(band);
+      band.connect(amp);
+      amp.connect(out);
+      buzz.start(at);
+      vibrato.start(at);
+      buzz.stop(at + dur + 0.02);
+      vibrato.stop(at + dur + 0.02);
+      sources.push(buzz, vibrato);
+      sources.push(...ringTone(ctx, out, { type: 'sine', f0: 1760 * p, ring: 60, depth: 0.8, at, dur, peak: 0.12, attack: 0.08, cutoff: 5000 }));
+      return { sources, duration: dur };
+    },
+
+    launch(board, ctx, out, at, p) {
+      // A thump out of the hatch and the rush of the rocket.
+      return {
+        sources: [
+          tone(ctx, out, { f0: 170 * p, f1: 60 * p, at, dur: 0.12, peak: 0.6, attack: 0.002 }),
+          hiss(board, ctx, out, { at, dur: 0.38, type: 'bandpass', freq: 900 * p, q: 0.7, peak: 0.32, attack: 0.04 }),
+        ],
+        duration: 0.4,
+      };
+    },
+
+    boom(board, ctx, out, at, p) {
+      // A deep thump and a rumble that dies down (soft: a toy blast, not a real one).
+      const rumble = ctx.createBufferSource();
+      rumble.buffer = board.noiseBuffer(ctx);
+      rumble.loop = true;
+      const lowpass = ctx.createBiquadFilter();
+      lowpass.type = 'lowpass';
+      lowpass.frequency.setValueAtTime(700 * p, at);
+      lowpass.frequency.exponentialRampToValueAtTime(110 * p, at + 0.8);
+      const amp = ctx.createGain();
+      amp.gain.setValueAtTime(SILENT, at);
+      amp.gain.linearRampToValueAtTime(0.6, at + 0.01);
+      amp.gain.exponentialRampToValueAtTime(SILENT, at + 0.8);
+      rumble.connect(lowpass);
+      lowpass.connect(amp);
+      amp.connect(out);
+      rumble.start(at);
+      rumble.stop(at + 0.82);
+      return { sources: [tone(ctx, out, { f0: 95 * p, f1: 36 * p, at, dur: 0.6, peak: 0.8, attack: 0.004 }), rumble], duration: 0.82 };
+    },
+
+    holo(board, ctx, out, at, p) {
+      // Three blips going up and a soft sweep: the screen of light switches on.
+      const sources = [880, 1320, 1760].flatMap((f, i) =>
+        ringTone(ctx, out, { f0: f * p, ring: 90, depth: 0.3, at: at + i * 0.07, dur: 0.07, peak: 0.24, attack: 0.003, cutoff: 3000 }),
+      );
+      sources.push(tone(ctx, out, { f0: 400 * p, f1: 1600 * p, at, dur: 0.38, peak: 0.16, attack: 0.05 }));
+      return { sources, duration: 0.4 };
+    },
+
+    yawn(board, ctx, out, at, p) {
+      // A sleepy "aaa-oh", sliding down, through a vowel that closes.
+      const dur = 1;
+      const voice = ringTone(ctx, out, { type: 'triangle', f0: 520 * p, f1: 230 * p, ring: 5, depth: 0.35, at, dur, peak: 0.34, attack: 0.12, cutoff: 1400 });
+      return { sources: voice, duration: dur };
+    },
+
+    done(board, ctx, out, at, p) {
+      // Finished: a quick robot fanfare, C E G and the C above.
+      const notes = [523.25, 659.25, 783.99, 1046.5];
+      const sources = notes.flatMap((f, i) =>
+        ringTone(ctx, out, { f0: f * p, ring: 45, depth: 0.25, at: at + i * 0.075, dur: i === notes.length - 1 ? 0.3 : 0.1, peak: 0.3, attack: 0.004, cutoff: 2800 }),
+      );
+      return { sources, duration: 0.225 + 0.3 };
+    },
+
+    error(board, ctx, out, at, p) {
+      // "Bwow-bwow": something went wrong (soft, not an alarm).
+      return {
+        sources: [
+          ...ringTone(ctx, out, { f0: 330 * p, f1: 220 * p, ring: 30, depth: 0.4, at, dur: 0.16, peak: 0.34, attack: 0.008, cutoff: 1000 }),
+          ...ringTone(ctx, out, { f0: 262 * p, f1: 150 * p, ring: 30, depth: 0.4, at: at + 0.19, dur: 0.22, peak: 0.36, attack: 0.008, cutoff: 900 }),
+        ],
+        duration: 0.42,
+      };
+    },
+
+    alert(board, ctx, out, at, p) {
+      // "Beep-boop?": a question for the user.
+      return {
+        sources: [
+          ...fmBlip(ctx, out, { f0: 880 * p, at, dur: 0.09, peak: 0.36, index: 0.4 }),
+          ...fmBlip(ctx, out, { f0: 1320 * p, f1: 1500 * p, at: at + 0.12, dur: 0.14, peak: 0.36, index: 0.4 }),
+        ],
+        duration: 0.27,
+      };
+    },
+  });
 
   const NAMES = Object.freeze(Object.keys(RECIPES));
 
@@ -408,6 +617,19 @@
       sit: sheet([cue(640, 'bounce', 0.8), cue(3360, 'boing', 1.1)]),
       // rb-page from 1.4 s, every 2.2 s: a page turns (a soft flutter).
       read: sheet([cue(1500, 'whoosh', 1.7), cue(3700, 'whoosh', 1.7), cue(5900, 'whoosh', 1.7)]),
+    }),
+    /**
+     * The rampage's phases (app/rampage.js: four launches 320 ms apart, the
+     * missile phase starts 150 ms before the first; flights of ~1 s).
+     */
+    rampage: Object.freeze({
+      charge: sheet([cue(0, 'charge')]),
+      laser: sheet([cue(0, 'laser')]),
+      missile: sheet([
+        ...every(150, 320, 1400, 'launch', [1, 1.08, 0.94, 1.04]),
+        ...every(1150, 320, 2400, 'boom', [1, 0.9, 1.1, 0.95]),
+      ]),
+      heal: sheet([cue(0, 'sparkle'), cue(350, 'sparkle', 1.2), cue(700, 'chirp', 0.9)]),
     }),
     cat: Object.freeze({
       // Hello while it walks in (the shortest walk is 400 ms).
@@ -517,14 +739,14 @@
     }
 
     /**
-     * Pitch for a tap: quick taps one after the other climb (up to 1.8x), with a
+     * Pitch for a tap: quick taps one after the other climb (up to 1.5x), with a
      * little random wobble so no two sound quite the same.
      */
     tapPitch() {
       const now = this.now();
       this.streak.count = now - this.streak.at < this.t.streakMs ? this.streak.count + 1 : 0;
       this.streak.at = now;
-      const climb = Math.min(1.8, 1 + 0.12 * this.streak.count);
+      const climb = Math.min(1.5, 1 + 0.1 * this.streak.count);
       return climb * (1 + (this.random() - 0.5) * 0.08);
     }
 

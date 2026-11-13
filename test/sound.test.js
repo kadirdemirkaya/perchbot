@@ -119,8 +119,9 @@ test('sound: every sound builds and plays with the fake context', () => {
     clock.advance(2000);
   }
   assert.deepEqual([...NAMES].sort(), [
-    'achoo', 'beep', 'boing', 'bonk', 'boot', 'bounce', 'clang', 'crack', 'grumble', 'hum',
-    'meow', 'powerdown', 'purr', 'scratch', 'sparkle', 'squeak', 'tick', 'whoosh',
+    'achoo', 'alert', 'beep', 'boing', 'bonk', 'boom', 'boot', 'bounce', 'charge', 'chirp', 'clang', 'crack',
+    'done', 'error', 'grumble', 'holo', 'hum', 'laser', 'launch', 'meow', 'powerdown', 'purr', 'scratch',
+    'sparkle', 'squeak', 'tick', 'whoosh', 'yawn',
   ]);
 });
 
@@ -206,11 +207,11 @@ test('sound: quick taps climb in pitch, a pause starts over', () => {
     clock.advance(100);
     b.tapPitch();
   }
-  assert.ok(b.tapPitch() <= 1.8 * 1.04, 'it does not climb forever');
+  assert.ok(b.tapPitch() <= 1.5 * 1.04, 'it does not climb forever (nor gets squeaky)');
   // The pitch reaches the oscillators.
   audio.log.frequencies.length = 0;
   b.play('bonk', { pitch: 1.5 });
-  assert.equal(audio.log.frequencies[0], 430 * 1.5);
+  assert.equal(audio.log.frequencies[0], 520 * 1.5);
 });
 
 test('sound: stops at once, then suspends and finally closes the context', () => {
@@ -254,4 +255,34 @@ test('sound: no audio available is not an error', () => {
   });
   b.setEnabled(true);
   assert.equal(b.play('bonk'), false);
+});
+
+test('sound: the rampage has its sheets (charge, beams, launches and blasts, healing)', () => {
+  const { NAMES: names, CUES: cues } = require('../app/renderer/lib/sound');
+  assert.deepEqual(Object.keys(cues.rampage).sort(), ['charge', 'heal', 'laser', 'missile']);
+  for (const [phase, sheet] of Object.entries(cues.rampage)) {
+    for (const c of sheet) assert.ok(names.includes(c.sound), `${phase}: ${c.sound}`);
+  }
+  const missile = cues.rampage.missile;
+  assert.equal(missile.filter((c) => c.sound === 'launch').length, 4, 'one launch per missile');
+  assert.equal(missile.filter((c) => c.sound === 'boom').length, 4, 'one blast per missile');
+});
+
+test('sound: work signals only with Sound and Work sounds on (a switch of its own, on by default)', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const { DEFAULTS, normalizeSettings } = require('../app/settings');
+  const { buildTrayTemplate } = require('../app/tray');
+  assert.equal(DEFAULTS.workSounds, true);
+  assert.equal(normalizeSettings({ workSounds: false }).workSounds, false);
+  const on = new Proxy({}, { get: () => () => {} });
+  const flat = (s) => JSON.stringify(buildTrayTemplate({ settings: s, on, characters: [], soundAvailable: true }), (k, v) => (typeof v === 'function' ? undefined : v));
+  assert.ok(flat({ ...DEFAULTS, sound: false }).includes('"label":"Work sounds (done, failures, questions)","type":"checkbox","checked":true,"enabled":false'), 'greyed out while the sound is off');
+  assert.ok(flat({ ...DEFAULTS, sound: true, workSounds: false }).includes('"checked":false,"enabled":true'));
+  const page = fs.readFileSync(path.join(__dirname, '..', 'app', 'renderer', 'renderer.js'), 'utf8');
+  assert.ok(page.includes("if (paused || settings.workSounds === false) return false;"));
+  for (const piece of ["workSfx('done')", "workSfx('alert')", "workSfx('error')", "workSfx('holo')"]) assert.ok(page.includes(piece), piece);
+  assert.ok(page.includes('    if (BUSY.has(next.state)) sound.stopAll();\n    workSignals(previous, next);'), 'after the stop, so the signal is heard');
+  const main = fs.readFileSync(path.join(__dirname, '..', 'app', 'main.js'), 'utf8');
+  assert.ok(main.includes('workSounds: settings.workSounds !== false,'));
 });

@@ -60,9 +60,11 @@ const DEFAULTS = Object.freeze({
   playMode: false,
   /** The cat: it can be called from the menu, plays with the buddy, then naps. */
   cat: false,
-  /** Little sounds made in code (taps, the duel, the ball, the cat). Never for Claude Code's work. */
+  /** Little robot sounds made in code (taps, the duel, the ball, the cat, the rampage, a visitor). */
   sound: false,
   soundVolume: 'low',
+  /** With the sound on: short signals for the work too (done, a failure, a question, focus mode). */
+  workSounds: true,
 });
 
 const COORD_LIMIT = 1e6;
@@ -120,6 +122,7 @@ function normalizeSettings(raw) {
   if (typeof raw.cat === 'boolean') s.cat = raw.cat;
   if (typeof raw.sound === 'boolean') s.sound = raw.sound;
   if (SOUND_VOLUMES.includes(raw.soundVolume)) s.soundVolume = raw.soundVolume;
+  if (typeof raw.workSounds === 'boolean') s.workSounds = raw.workSounds;
   s.position = normalizePosition(raw.position);
   if (HOVER_MODES.includes(raw.hoverMode)) s.hoverMode = raw.hoverMode;
   if (typeof raw.account === 'string' && (raw.account === 'all' || ACCOUNT_RE.test(raw.account))) s.account = raw.account;

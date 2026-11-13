@@ -63,6 +63,7 @@
     "cat": "Kedi",
     "sound": "Ses",
     "soundVolume": "Ses düzeyi",
+    "workSounds": "İş sesleri (bitti, hata, soru)",
     "volume_low": "Düşük",
     "volume_medium": "Orta",
     "volume_high": "Yüksek",
