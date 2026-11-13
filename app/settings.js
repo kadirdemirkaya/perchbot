@@ -40,6 +40,13 @@ const DEFAULTS = Object.freeze({
   account: 'all',
   /** Accounts seen so far, offered in the tray menu (at most 8, most recent first). */
   knownAccounts: [],
+  /**
+   * One buddy per Claude account (app/instances.js): each account's sessions get an
+   * overlay of their own. Off: one buddy shows every account (filtered by "account").
+   */
+  perAccount: false,
+  /** perAccount: where each account's buddy was dragged to ({ name: {x, y} }); missing = its corner spot. */
+  positions: {},
   /** Ambient life: idle plays, walks and flights, varied cheers, getting annoyed when poked. */
   ambientLife: true,
   /** Play mode: the sword duel ("Play") and the whip. */
@@ -58,6 +65,18 @@ function normalizePosition(value) {
   const { x, y } = value;
   const ok = (n) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) < COORD_LIMIT;
   return ok(x) && ok(y) ? { x: Math.round(x), y: Math.round(y) } : null;
+}
+
+/** { account: {x, y} } with valid names and points only (at most MAX_KNOWN_ACCOUNTS). */
+function normalizePositions(value) {
+  const out = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  for (const [name, point] of Object.entries(value)) {
+    if (Object.keys(out).length >= MAX_KNOWN_ACCOUNTS) break;
+    const p = normalizePosition(point);
+    if (ACCOUNT_RE.test(name) && name !== 'all' && p) out[name] = p;
+  }
+  return out;
 }
 
 function buddyHome() {
@@ -96,6 +115,8 @@ function normalizeSettings(raw) {
   s.position = normalizePosition(raw.position);
   if (HOVER_MODES.includes(raw.hoverMode)) s.hoverMode = raw.hoverMode;
   if (typeof raw.account === 'string' && (raw.account === 'all' || ACCOUNT_RE.test(raw.account))) s.account = raw.account;
+  if (typeof raw.perAccount === 'boolean') s.perAccount = raw.perAccount;
+  s.positions = normalizePositions(raw.positions);
   if (Array.isArray(raw.knownAccounts)) {
     s.knownAccounts = [...new Set(raw.knownAccounts.filter((a) => typeof a === 'string' && ACCOUNT_RE.test(a) && a !== 'all'))].slice(
       0,
@@ -130,6 +151,21 @@ function loadSettings(file = settingsPath()) {
   }
 }
 
+/**
+ * Apply `patch` to what is in the file NOW and save that: with one buddy per
+ * account several overlays share the file, and none may undo another's change
+ * with a stale copy. `patch` may be a function of the current settings (for
+ * maps such as positions). A file that cannot be parsed is replaced by
+ * `fallback` (the caller's settings) with the patch, as before. Returns the
+ * saved settings.
+ */
+function patchSettings(patch, fallback = DEFAULTS, file = settingsPath()) {
+  const { settings: loaded, error } = loadSettings(file);
+  const current = error ? normalizeSettings(fallback) : loaded;
+  const changes = typeof patch === 'function' ? patch(current) : patch;
+  return saveSettings({ ...current, ...changes }, file);
+}
+
 /** Write atomically: temp file + rename, so a crash never leaves half a file. */
 function saveSettings(settings, file = settingsPath()) {
   const clean = normalizeSettings(settings);
@@ -160,5 +196,7 @@ module.exports = {
   normalizeSettings,
   loadSettings,
   saveSettings,
+  patchSettings,
+  normalizePositions,
   effectivePort,
 };

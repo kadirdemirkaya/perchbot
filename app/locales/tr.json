@@ -50,6 +50,8 @@
     "hoverStand": "Hep ayakta",
     "account": "Hesap",
     "allAccounts": "Tüm hesaplar",
+    "perAccount": "Her hesaba ayrı bot",
+    "thisAccount": "Bu bot: {name}",
     "noAccountEvents": "Bu hesaptan henüz olay gelmedi",
     "ambientLife": "Canlılık",
     "playMode": "Oyun modu",

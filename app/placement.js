@@ -17,6 +17,8 @@
  * resolution changed) falls back to corner mode on the primary display.
  */
 
+const { shiftAnchor } = require('./instances');
+
 const SLOT = Object.freeze({ width: 220, height: 270 });
 const SIDE_WIDTH = 64; // hover menu column
 const SCALE = Object.freeze({ small: 0.8, medium: 1, large: 1.3 });
@@ -54,10 +56,15 @@ function scaleFor(size) {
   return SCALE[size] || 1;
 }
 
-function cornerAnchor(workArea, corner, scale) {
+/**
+ * The corner spot. slot > 0: one buddy per account, the next one stands beside
+ * the first (instances.shiftAnchor) instead of on top of it.
+ */
+function cornerAnchor(workArea, corner, scale, slot = 0) {
   const half = (SLOT.width / 2) * scale;
   const x = corner === 'bottom-left' ? workArea.x + MARGIN + half : workArea.x + workArea.width - MARGIN - half;
-  return { x: Math.round(x), y: workArea.y + workArea.height };
+  const anchor = { x: Math.round(x), y: workArea.y + workArea.height };
+  return slot ? shiftAnchor(anchor, corner, slot, SLOT.width * scale, workArea) : anchor;
 }
 
 /** Screen rectangle covered by the character slot. */
@@ -87,12 +94,12 @@ function sideFor(anchor, workArea) {
  * @param {Array<{ id: number, workArea: object }>} displays
  * @param {{ id: number, workArea: object }} primary
  */
-function resolveAnchor(settings, displays, primary, scale) {
+function resolveAnchor(settings, displays, primary, scale, slot = 0) {
   if (settings.position) {
     const display = displays.find((d) => contains(d.workArea, slotRect(settings.position, scale)));
     if (display) return { anchor: { ...settings.position }, workArea: display.workArea, mode: 'free' };
   }
-  return { anchor: cornerAnchor(primary.workArea, settings.corner, scale), workArea: primary.workArea, mode: 'corner' };
+  return { anchor: cornerAnchor(primary.workArea, settings.corner, scale, slot), workArea: primary.workArea, mode: 'corner' };
 }
 
 /**
@@ -156,11 +163,11 @@ function clampAnchor(anchor, workArea, scale) {
  * primary display becomes corner mode; anything else is a free position.
  * @returns {{ position: {x,y}|null, corner?: string }}  a settings patch
  */
-function dropPlacement(anchor, displays, primary, scale) {
+function dropPlacement(anchor, displays, primary, scale, slot = 0) {
   const display = nearestDisplay(anchor, displays);
   const clamped = clampAnchor(anchor, display.workArea, scale);
   for (const corner of CORNERS) {
-    const target = cornerAnchor(display.workArea, corner, scale);
+    const target = cornerAnchor(display.workArea, corner, scale, slot);
     if (Math.hypot(target.x - clamped.x, target.y - clamped.y) <= SNAP_DISTANCE) {
       return display.id === primary.id ? { position: null, corner } : { position: target };
     }
@@ -169,8 +176,8 @@ function dropPlacement(anchor, displays, primary, scale) {
 }
 
 /** The anchor a drop patch (see dropPlacement) stands for. */
-function anchorOfPatch(patch, primary, scale) {
-  return patch.position ? { ...patch.position } : cornerAnchor(primary.workArea, patch.corner, scale);
+function anchorOfPatch(patch, primary, scale, slot = 0) {
+  return patch.position ? { ...patch.position } : cornerAnchor(primary.workArea, patch.corner, scale, slot);
 }
 
 /**
@@ -178,14 +185,14 @@ function anchorOfPatch(patch, primary, scale) {
  * or a throw: just above the ground it lands on it, then as dropPlacement
  * (inside the nearest work area, snapped to a corner nearby).
  */
-function settleAnchor(point, displays, primary, scale) {
+function settleAnchor(point, displays, primary, scale, slot = 0) {
   const p = { x: point.x, y: point.y };
   const workArea = nearestDisplay(p, displays).workArea;
   const ground = workArea.y + workArea.height;
   if (ground - p.y > 0 && ground - p.y <= HOVER_THRESHOLD * scale && p.x >= workArea.x && p.x <= workArea.x + workArea.width) {
     p.y = ground;
   }
-  return anchorOfPatch(dropPlacement(p, displays, primary, scale), primary, scale);
+  return anchorOfPatch(dropPlacement(p, displays, primary, scale, slot), primary, scale, slot);
 }
 
 /**

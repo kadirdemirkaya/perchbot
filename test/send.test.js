@@ -301,6 +301,67 @@ test('account: the hook sends it, and never starts the overlay for a filtered-ou
   assert.ok(!JSON.stringify(received[0]).includes('private-name'));
 });
 
+test('one buddy per account: each account goes to its own overlay (instance file, else its preferred port)', async () => {
+  const instances = require('../app/instances');
+  // The hook's own copy agrees with the app's.
+  for (const base of [7777, 7790, 20000, 70000, undefined]) {
+    for (const name of ['claude', 'claude-personal', 'claude-work', 'x', 'A.b_c-9']) {
+      assert.equal(send.preferredPort(base, name), instances.preferredPort(base, name), `${base} ${name}`);
+    }
+  }
+  assert.notEqual(send.preferredPort(7777, 'claude-personal'), send.preferredPort(7777, 'claude-work'));
+  const home = tmpHome();
+  const off = { home, port: 7777, perAccount: false };
+  const on = { home, port: 7777, perAccount: true };
+  assert.equal(send.targetPort(off, 'claude-work'), 7777, 'off: the one buddy');
+  assert.equal(send.targetPort(on, 'claude-work'), instances.preferredPort(7777, 'claude-work'), 'not running yet');
+  assert.equal(send.targetPort(on, undefined), 7777, 'no account: the one buddy');
+  fs.mkdirSync(path.join(home, 'instances'));
+  fs.writeFileSync(instances.instanceFile(home, 'claude-work'), JSON.stringify({ port: 7811, pid: 4 }));
+  assert.equal(send.targetPort(on, 'claude-work'), 7811, 'where its overlay listens');
+  fs.writeFileSync(instances.instanceFile(home, 'claude-work'), '{broken');
+  assert.equal(send.targetPort(on, 'claude-work'), instances.preferredPort(7777, 'claude-work'));
+  // The account filter is for one buddy only.
+  const ev = { event: 'UserPromptSubmit', session: 's', account: 'claude' };
+  assert.equal(send.shouldLaunch(ev, { home, account: 'claude-work', perAccount: false }), false);
+  assert.equal(send.shouldLaunch(ev, { home, account: 'claude-work', perAccount: true }), true);
+  // The command line: the account only when given (and valid), the event last.
+  const payload = { v: 1, event: 'SessionStart', session: 's', ts: 1, account: 'claude-work' };
+  const args = send.launchArgs(payload, 'claude-work');
+  assert.equal(args[1], '--account=claude-work');
+  assert.deepEqual(JSON.parse(Buffer.from(args[2].slice('--initial-event='.length), 'base64url').toString('utf8')), payload);
+  assert.equal(send.launchArgs(payload).length, 2);
+  assert.equal(send.launchArgs(payload, '../x').length, 2);
+  assert.equal(instances.accountArg(args), 'claude-work', 'the app reads the same argument');
+  // readConfig
+  fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ perAccount: true }));
+  assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home }).perAccount, true);
+  fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ perAccount: 'yes' }));
+  assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home }).perAccount, false);
+
+  // End to end: the real script, perAccount on, finds the account's overlay in its instance file.
+  const port = await freePort();
+  const received = [];
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => (body += d));
+    req.on('end', () => {
+      received.push(JSON.parse(body));
+      res.writeHead(204).end();
+    });
+  });
+  await new Promise((resolve) => server.listen(port, '127.0.0.1', resolve));
+  const e2e = tmpHome();
+  fs.writeFileSync(path.join(e2e, 'settings.json'), JSON.stringify({ perAccount: true, port: 7777 }));
+  fs.mkdirSync(path.join(e2e, 'instances'));
+  fs.writeFileSync(instances.instanceFile(e2e, 'claude-work'), JSON.stringify({ port, pid: 1 }));
+  const env = { AGENT_BUDDY_HOME: e2e, AGENT_BUDDY_PORT: '', CLAUDE_CONFIG_DIR: path.join(os.tmpdir(), '.claude-work') };
+  await runHook(JSON.stringify({ hook_event_name: 'Stop', session_id: 's' }), env);
+  await new Promise((resolve) => server.close(resolve));
+  assert.equal(received.length, 1);
+  assert.equal(received[0].account, 'claude-work');
+});
+
 // ------------------------------------------------------------- launch rules
 
 test('only SessionStart / UserPromptSubmit may launch, and muted sessions do not', () => {
@@ -326,7 +387,7 @@ test('only SessionStart / UserPromptSubmit may launch, and muted sessions do not
 test('config: env port beats settings file, invalid values fall back', () => {
   const home = tmpHome();
   fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ port: 8123, debug: true }));
-  assert.deepEqual(send.readConfig({ AGENT_BUDDY_HOME: home }), { home, port: 8123, debug: true, noLaunch: false, noPid: false, account: 'all' });
+  assert.deepEqual(send.readConfig({ AGENT_BUDDY_HOME: home }), { home, port: 8123, debug: true, noLaunch: false, noPid: false, account: 'all', perAccount: false });
   assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home, AGENT_BUDDY_NO_PID: '1' }).noPid, true);
   assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home, AGENT_BUDDY_PORT: '9001' }).port, 9001);
   assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home, AGENT_BUDDY_PORT: '80' }).port, 8123);

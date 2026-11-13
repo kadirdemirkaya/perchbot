@@ -50,6 +50,8 @@
     "hoverStand": "Always stand",
     "account": "Account",
     "allAccounts": "All accounts",
+    "perAccount": "One buddy per account",
+    "thisAccount": "This buddy: {name}",
     "noAccountEvents": "No events from this account yet",
     "ambientLife": "Ambient life",
     "playMode": "Play mode",

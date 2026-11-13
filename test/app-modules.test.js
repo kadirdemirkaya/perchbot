@@ -268,14 +268,36 @@ test('tray menu: account submenu, with a note while the chosen account is silent
   assert.equal(menu[0].label, 'All accounts');
   assert.deepEqual(menu.filter((i) => i.type === 'radio').map((i) => i.label), ['All accounts', 'claude', 'claude-work']);
   assert.equal(menu.find((i) => i.checked).label, 'claude-work');
-  assert.equal(menu.at(-1).label, 'No events from this account yet');
-  assert.equal(menu.at(-1).enabled, false);
+  const note = menu.find((i) => i.label === 'No events from this account yet');
+  assert.equal(note.enabled, false);
   menu[0].click();
   assert.deepEqual(calls, [['setAccount', 'all']]);
+  // Last: one buddy per account (off here).
+  assert.deepEqual([menu.at(-1).label, menu.at(-1).type, menu.at(-1).checked], ['One buddy per account', 'checkbox', false]);
+  menu.at(-1).click({ checked: true });
+  assert.deepEqual(calls.at(-1), ['setPerAccount', true]);
   const heard = buildTrayTemplate({ settings, characters, sessionCount: 0, seenAccount: () => true, on });
   assert.ok(!heard.find((i) => i.label === 'Account').submenu.some((i) => i.label === 'No events from this account yet'));
   const tr = buildTrayTemplate({ settings: { ...settings, language: 'tr' }, characters, sessionCount: 0, seenAccount: () => false, on });
-  assert.equal(tr.find((i) => i.label === 'Hesap').submenu.at(-1).label, 'Bu hesaptan henüz olay gelmedi');
+  assert.ok(tr.find((i) => i.label === 'Hesap').submenu.some((i) => i.label === 'Bu hesaptan henüz olay gelmedi'));
+});
+
+test('tray menu: a buddy of its own account says which one, and leads back to one buddy for all', () => {
+  const calls = [];
+  const on = new Proxy({}, { get: (_t, name) => (...args) => calls.push([name, ...args]) });
+  const settings = { ...DEFAULTS, perAccount: true, knownAccounts: ['claude', 'claude-work'] };
+  const menu = buildTrayTemplate({ settings, characters: new Map(), sessionCount: 1, instance: 'claude-work', on });
+  assert.equal(menu[0].label, 'Agent Buddy · claude-work');
+  const account = menu.find((i) => i.label === 'Account').submenu;
+  assert.ok(!account.some((i) => i.type === 'radio'), 'no account filter: it only shows its own');
+  assert.equal(account[0].label, 'This buddy: claude-work');
+  assert.deepEqual([account.at(-1).type, account.at(-1).checked], ['checkbox', true]);
+  account.at(-1).click({ checked: false });
+  assert.deepEqual(calls, [['setPerAccount', false]]);
+  const tr = buildTrayTemplate({ settings: { ...settings, language: 'tr' }, characters: new Map(), sessionCount: 1, instance: 'claude-work', on });
+  assert.equal(tr.find((i) => i.label === 'Hesap').submenu[0].label, 'Bu bot: claude-work');
+  // One buddy for all: the title as before.
+  assert.equal(buildTrayTemplate({ settings: DEFAULTS, characters: new Map(), sessionCount: 0, on })[0].label, 'Agent Buddy');
 });
 
 test('ambient life, play mode and the cat: settings, tray, right-click and hover menus', () => {

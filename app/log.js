@@ -3,7 +3,7 @@
 /**
  * Logging.
  *  - Console output only when the app runs with --dev.
- *  - File output (~/.agent-buddy/logs/overlay.log) only when "debug": true
+ *  - File output (~/.agent-buddy/logs/overlay.log, or overlay-<account>.log) only when "debug": true
  *    in settings. It is off by default.
  *
  * Privacy rule for callers: never pass file contents, full commands,
@@ -16,8 +16,9 @@ const path = require('node:path');
 
 const MAX_LOG_BYTES = 1024 * 1024;
 
-function createLogger({ dev = false, debug = false, dir } = {}) {
-  const file = debug && dir ? path.join(dir, 'overlay.log') : null;
+/** name: the file name (one buddy per account: overlay-<account>.log, so two never share a file). */
+function createLogger({ dev = false, debug = false, dir, name = 'overlay.log' } = {}) {
+  const file = debug && dir ? path.join(dir, name) : null;
 
   function writeFile(line) {
     if (!file) return;

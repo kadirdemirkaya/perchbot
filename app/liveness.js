@@ -126,6 +126,12 @@ class LivenessWatch {
     this.arm();
   }
 
+  /** The process id watched for a session, or null. */
+  pidOf(id) {
+    const entry = this.entries.get(id);
+    return entry ? entry.pid : null;
+  }
+
   untrack(id) {
     this.entries.delete(id);
     if (this.entries.size === 0) this.disarm();

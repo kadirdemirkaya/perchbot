@@ -4,6 +4,7 @@
  * Local HTTP endpoint the hook script talks to.
  *
  *   POST /event   body: one event (see app/validate.js)   -> 204
+ *                 (421 when it is meant for another overlay: one buddy per account)
  *   GET  /health  -> 200 { app: "agent-buddy", ... }
  *
  * Hardening: binds to 127.0.0.1 only; rejects browser requests (Origin /
@@ -33,9 +34,11 @@ function isAllowedHost(hostHeader, port) {
  * @param {number} options.port  0 picks a free port (used by tests)
  * @param {(evt: object) => void} options.onEvent
  * @param {() => object} [options.getHealth]
+ * @param {(evt: object) => boolean} [options.accept]  false: not for this overlay (421, the
+ *   hook then starts the right one; app/instances.js)
  * @returns {Promise<import('node:http').Server>}  rejects with the listen error (e.g. EADDRINUSE)
  */
-function startServer({ port, onEvent, getHealth = () => ({}) }) {
+function startServer({ port, onEvent, getHealth = () => ({}), accept = () => true }) {
   const server = http.createServer((req, res) => {
     const reply = (status, body) => {
       // One request per connection: a hook sends one event and exits. A client
@@ -95,6 +98,7 @@ function startServer({ port, onEvent, getHealth = () => ({}) }) {
       }
       const evt = validateEvent(parsed);
       if (!evt) return reply(400, { error: 'invalid event' });
+      if (!accept(evt)) return reply(421, { error: 'another account' });
       try {
         onEvent(evt);
       } catch {

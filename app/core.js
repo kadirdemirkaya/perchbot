@@ -168,6 +168,19 @@ class BuddyCore extends EventEmitter {
   }
 
   /**
+   * The live sessions, for another overlay to take over (one buddy per account
+   * switched on or off): id, account and the watched Claude Code pid.
+   * @returns {Array<{ session: string, account: string|null, pid: number|null }>}
+   */
+  handover() {
+    return [...this.sessions.entries()].map(([id, s]) => ({
+      session: id,
+      account: s.account || null,
+      pid: this.liveness ? this.liveness.pidOf(id) : null,
+    }));
+  }
+
+  /**
    * mood: null, or 'worried' after a failed tool (until the view changes).
    * skill: the skill in use by the main session, or null.
    */

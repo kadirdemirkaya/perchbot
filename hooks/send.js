@@ -519,7 +519,42 @@ function readConfig(env = process.env) {
     noPid: env.AGENT_BUDDY_NO_PID === '1',
     /** "all", or the one account the overlay shows (tray menu "Account"). */
     account: typeof settings.account === 'string' && ACCOUNT_RE.test(settings.account) ? settings.account : 'all',
+    /** One buddy per account (app/instances.js): every account has an overlay of its own. */
+    perAccount: settings.perAccount === true,
   };
+}
+
+// ---------------------------------------------------------------- one buddy per account
+// The same as app/instances.js (preferredPort, instanceFile); the hook loads no
+// app code, and a test checks that both agree.
+
+const PORT_SPAN = 200;
+const PORT_TRIES = 20;
+
+function preferredPort(base, account) {
+  const start = Number.isInteger(base) && base >= 1024 && base <= 65535 - PORT_SPAN - PORT_TRIES ? base : DEFAULT_PORT;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < account.length; i += 1) {
+    h ^= account.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return start + 1 + (h % PORT_SPAN);
+}
+
+/**
+ * Where this event goes. One buddy for all: config.port. One per account: the
+ * port in the account's instance file (written by its overlay), else the
+ * account's preferred port.
+ */
+function targetPort(config, account) {
+  if (!config.perAccount || typeof account !== 'string' || !ACCOUNT_RE.test(account)) return config.port;
+  try {
+    const data = JSON.parse(fs.readFileSync(path.join(config.home, 'instances', `${account}.json`), 'utf8'));
+    if (Number.isInteger(data.port) && data.port >= 1024 && data.port <= 65535) return data.port;
+  } catch {
+    // not running (or not listening yet)
+  }
+  return preferredPort(config.port, account);
 }
 
 /** Sessions the user closed the overlay for via the tray ("Quit now"). */
@@ -535,7 +570,8 @@ function isMuted(home, session, now = Date.now()) {
 function shouldLaunch(payload, config) {
   if (config.noLaunch || !LAUNCH_EVENTS.has(payload.event)) return false;
   // The overlay only shows one account: do not start it for another one.
-  if (config.account && config.account !== 'all' && payload.account !== config.account) return false;
+  // (One buddy per account: every account starts its own.)
+  if (!config.perAccount && config.account && config.account !== 'all' && payload.account !== config.account) return false;
   if (payload.event === 'SessionStart') return true; // a fresh start always brings the buddy back
   return !isMuted(config.home, payload.session);
 }
@@ -624,15 +660,22 @@ function electronBinary(root = ROOT) {
   return null;
 }
 
+/** The overlay's command line: the app, the account (one buddy per account), the first event. */
+function launchArgs(payload, account = null) {
+  const args = [ROOT];
+  if (typeof account === 'string' && ACCOUNT_RE.test(account) && account !== 'all') args.push(`--account=${account}`);
+  args.push('--initial-event=' + Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url'));
+  return args;
+}
+
 /** Start the overlay detached and hand it the event; do not wait for it. */
-function launchOverlay(payload) {
+function launchOverlay(payload, account = null) {
   const binary = electronBinary();
   if (!binary) return 'electron-missing';
   const env = { ...process.env };
   // Set inside VS Code's extension host; it would make Electron behave as plain Node.
   delete env.ELECTRON_RUN_AS_NODE;
-  const arg = '--initial-event=' + Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
-  const child = spawn(binary, [ROOT, arg], {
+  const child = spawn(binary, launchArgs(payload, account), {
     cwd: ROOT,
     env,
     detached: true,
@@ -751,8 +794,10 @@ async function main() {
     const pid = event === 'SessionStart' && !config.noPid ? await findClaudePid() : null;
     payload = buildPayload(input, argEvent, START_TS, { account: accountName(), pid });
     if (payload) {
-      result = await post(payload, config.port);
-      if (result === 'refused' && shouldLaunch(payload, config)) result = launchOverlay(payload);
+      result = await post(payload, targetPort(config, payload.account));
+      // Nobody listens there, or (one buddy per account) another account's buddy does (421).
+      const missing = result === 'refused' || (config.perAccount && result === 'http-421');
+      if (missing && shouldLaunch(payload, config)) result = launchOverlay(payload, config.perAccount ? payload.account : null);
     }
   } catch {
     result = 'error';
@@ -799,6 +844,9 @@ module.exports = {
   readConfig,
   isMuted,
   shouldLaunch,
+  preferredPort,
+  targetPort,
+  launchArgs,
   post,
   schemaRecord,
   electronBinary,

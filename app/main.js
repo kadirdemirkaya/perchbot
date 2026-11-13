@@ -22,6 +22,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawn } = require('node:child_process');
 const {
   app,
   BrowserWindow,
@@ -40,7 +41,8 @@ const {
 const { BuddyCore } = require('./core');
 const { validateEvent } = require('./validate');
 const { startServer } = require('./server');
-const { buddyHome, settingsPath, loadSettings, saveSettings, effectivePort, rememberAccount } = require('./settings');
+const { buddyHome, settingsPath, loadSettings, saveSettings, patchSettings, effectivePort, rememberAccount } = require('./settings');
+const instances = require('./instances');
 const { discoverCharacters } = require('./characters');
 const { translate } = require('./i18n');
 const placement = require('./placement');
@@ -119,6 +121,11 @@ const MIME = {
 
 const isDev = process.argv.includes('--dev');
 /**
+ * One buddy per account (settings "perAccount", app/instances.js): the Claude account
+ * this overlay is for (--account=<name>, given by the hook), or null: one buddy for all.
+ */
+const ACCOUNT = instances.accountArg(process.argv);
+/**
  * Developers only (npm run dev): AGENT_BUDDY_PERF=1 logs how often and how long the
  * window is moved and resized, and turns on the page's frame trace ("[perf]" lines).
  */
@@ -135,8 +142,9 @@ const DEMO_TRIPS = ['stroll', 'hop', 'screen', 'inspect', 'home'];
 const QUIPS = ['ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
 
 // Keep Chromium's own data (caches, the single-instance lock) under
-// ~/.agent-buddy too, so there is exactly one folder to delete on uninstall.
-app.setPath('userData', path.join(HOME, 'electron'));
+// ~/.agent-buddy too, so there is exactly one folder to delete on uninstall
+// (one per account with one buddy per account: each has its own lock).
+app.setPath('userData', path.join(HOME, ACCOUNT ? `electron-${ACCOUNT}` : 'electron'));
 
 protocol.registerSchemesAsPrivileged([
   { scheme: SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -153,12 +161,18 @@ if (!app.requestSingleInstanceLock({ event: initialEvent })) {
 
 function start() {
   let { settings, error: settingsError } = loadSettings();
-  const log = createLogger({ dev: isDev, debug: settings.debug, dir: path.join(HOME, 'logs') });
+  const log = createLogger({
+    dev: isDev,
+    debug: settings.debug,
+    dir: path.join(HOME, 'logs'),
+    name: ACCOUNT ? `overlay-${ACCOUNT}.log` : 'overlay.log',
+  });
+  if (ACCOUNT) log.info(`one buddy per account: this one is for ${ACCOUNT}`);
   if (settingsError) log.warn(settingsError);
 
   const core = new BuddyCore({
     timings: { idleTimeoutMs: settings.idleTimeoutMinutes * 60 * 1000 },
-    account: settings.account,
+    account: ACCOUNT || settings.account,
     // Sessions that report Claude Code's pid close when that process is gone.
     liveness: {},
   });
@@ -291,7 +305,7 @@ function start() {
   let relaunching = false;
   function relaunchFor(evt) {
     if (relaunching || !LAUNCH_EVENTS.has(evt.event)) return;
-    if (settings.account !== 'all' && evt.account !== settings.account) return;
+    if (ACCOUNT ? evt.account !== ACCOUNT : settings.account !== 'all' && evt.account !== settings.account) return;
     relaunching = true;
     const args = process.argv.slice(1).filter((a) => !a.startsWith('--initial-event='));
     args.push('--initial-event=' + Buffer.from(JSON.stringify(evt), 'utf8').toString('base64url'));
@@ -310,6 +324,8 @@ function start() {
 
   // We decide when to quit (last session ended, tray, idle timeout).
   app.on('window-all-closed', () => {});
+  // However it ends: the hooks must not keep sending to a port nobody listens on.
+  app.on('will-quit', () => removeInstanceFile());
 
   app.on('web-contents-created', (_event, contents) => {
     contents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -406,21 +422,39 @@ function start() {
     if (process.platform === 'darwin' && app.dock) app.dock.hide();
     reloadCharacters();
 
-    const port = effectivePort(settings);
-    try {
-      server = await startServer({
-        port,
-        onEvent: (evt) => dispatch(evt, 'http'),
-        getHealth: () => ({
-          version: app.getVersion(),
-          state: core.state,
-          sessions: core.sessionCount,
-          mouse: capturing ? 'captured' : 'passthrough',
-          flight: flight.airborne ? 'hover' : 'ground',
-          trip: trip ? trip.plan.kind : roamAnchor ? 'away' : 'home',
-        }),
-      });
-    } catch (err) {
+    // One buddy for all: settings.port (7777). One per account: the account's
+    // preferred port, or the next free one (the hook finds it in the instance file).
+    const base = effectivePort(settings);
+    const ports = ACCOUNT ? instances.candidatePorts(base, ACCOUNT) : [base];
+    let port = ports[0];
+    let failure = null;
+    for (const candidate of ports) {
+      try {
+        server = await startServer({
+          port: candidate,
+          onEvent: (evt) => dispatch(evt, 'http'),
+          // An event of another account is not for this buddy: 421, and the hook starts the right one.
+          accept: (evt) => !ACCOUNT || evt.event === 'Demo' || evt.account === ACCOUNT,
+          getHealth: () => ({
+            version: app.getVersion(),
+            state: core.state,
+            sessions: core.sessionCount,
+            account: ACCOUNT,
+            mouse: capturing ? 'captured' : 'passthrough',
+            flight: flight.airborne ? 'hover' : 'ground',
+            trip: trip ? trip.plan.kind : roamAnchor ? 'away' : 'home',
+          }),
+        });
+        port = candidate;
+        failure = null;
+        break;
+      } catch (err) {
+        failure = err || new Error('unknown error');
+        if (!(err && err.code === 'EADDRINUSE')) break;
+      }
+    }
+    if (failure) {
+      const err = failure;
       const message =
         err && err.code === 'EADDRINUSE'
           ? `Port ${port} on 127.0.0.1 is already in use by another program.\n\n` +
@@ -433,6 +467,9 @@ function start() {
       return;
     }
     log.info(`listening on 127.0.0.1:${port}`);
+    if (ACCOUNT) writeInstanceFile(port);
+    // One buddy per account switched on or off by another overlay (they share the file).
+    fs.watchFile(settingsPath(), { interval: 2000, persistent: false }, onSettingsFileChange);
 
     createWindow();
     createTray();
@@ -541,7 +578,7 @@ function start() {
    * the crew: the side column is as wide as the minis that fit need.
    */
   function computePlacement() {
-    const resolved = placement.resolveAnchor(settings, displays(), primaryDisplay(), scale());
+    const resolved = placement.resolveAnchor(placeSettings(), displays(), primaryDisplay(), scale(), cornerSlot());
     // Away on a trip: stay there while that place is still on a screen.
     if (roamAnchor) {
       const display = displays().find((d) => placement.contains(d.workArea, placement.slotRect(roamAnchor, scale())));
@@ -841,7 +878,7 @@ function start() {
       velocity,
       workArea: placement.nearestDisplay(dropped, displays()).workArea,
       scale: scale(),
-      settle: (point) => placement.settleAnchor(point, displays(), primaryDisplay(), scale()),
+      settle: (point) => placement.settleAnchor(point, displays(), primaryDisplay(), scale(), cornerSlot()),
     });
     if (plan) {
       startFling(plan, side);
@@ -852,10 +889,10 @@ function start() {
 
   /** Where it came to rest after a drag or a throw is its new home. */
   function saveDrop(point) {
-    const patch = placement.dropPlacement(point, displays(), primaryDisplay(), scale());
+    const patch = placement.dropPlacement(point, displays(), primaryDisplay(), scale(), cornerSlot());
     log.info(patch.position ? 'dropped at a free position' : `snapped to ${patch.corner}`);
     roamAnchor = null;
-    updateSettings(patch, placeWindow);
+    savePlace(patch, placeWindow);
   }
 
   /** The glide after a throw (or the short settle after a drop): stepped like a trip. */
@@ -879,7 +916,7 @@ function start() {
   // ------------------------------------------------------------------ trips (fun mode)
 
   function homeAnchor() {
-    return placement.resolveAnchor(settings, displays(), primaryDisplay(), scale()).anchor;
+    return placement.resolveAnchor(placeSettings(), displays(), primaryDisplay(), scale(), cornerSlot()).anchor;
   }
 
   /**
@@ -992,9 +1029,9 @@ function start() {
     if (moved && plan.kind === 'fling') {
       saveDrop(anchor);
     } else if (moved) {
-      const patch = placement.dropPlacement(anchor, displays(), primaryDisplay(), scale());
+      const patch = placement.dropPlacement(anchor, displays(), primaryDisplay(), scale(), cornerSlot());
       log.info('moved after being hit: new place saved');
-      updateSettings(patch, placeWindow);
+      savePlace(patch, placeWindow);
     } else if (!cancelled && then) {
       then(); // at the edge: on to the other screen
       return;
@@ -1319,7 +1356,7 @@ function start() {
       velocity: { vx: towards * 2.2, vy: -1.1 },
       workArea,
       scale: scale(),
-      settle: (point) => placement.settleAnchor(point, displays(), primaryDisplay(), scale()),
+      settle: (point) => placement.settleAnchor(point, displays(), primaryDisplay(), scale(), cornerSlot()),
     });
     if (plan) startFling(plan, pageLayout.side);
   }
@@ -1472,6 +1509,8 @@ function start() {
       // Switched off (app/features.js): off whatever settings.json says.
       sound: FEATURES.sound && settings.sound,
       soundVolume: settings.soundVolume,
+      // One buddy per account: the page shows which account this one is for.
+      account: ACCOUNT,
       strings: pageStrings(),
     };
   }
@@ -1596,11 +1635,12 @@ function start() {
 
   function trayTemplate() {
     return buildTrayTemplate({
-      settings,
+      settings: placeSettings(),
       characters,
       sessionCount: core.sessionCount,
       seenAccount: (name) => core.hasSeenAccount(name),
       soundAvailable: FEATURES.sound,
+      instance: ACCOUNT,
       on: actions,
     });
   }
@@ -1608,7 +1648,7 @@ function start() {
   function createTray() {
     const icon = nativeImage.createFromPath(path.join(ASSETS_DIR, 'tray.png'));
     tray = new Tray(icon);
-    tray.setToolTip('Agent Buddy');
+    tray.setToolTip(ACCOUNT ? `Agent Buddy · ${ACCOUNT}` : 'Agent Buddy');
     if (process.platform === 'win32') tray.on('click', () => tray && tray.popUpContextMenu());
     refreshTray();
   }
@@ -1623,12 +1663,16 @@ function start() {
     if (tray && core.sessionCount !== traySessionCount) refreshTray();
   }
 
+  /**
+   * Save a change. It is applied to what is in the file now (patchSettings):
+   * with one buddy per account, several overlays share the file. `patch` may
+   * be a function of the current settings.
+   */
   function updateSettings(patch, after) {
-    const next = { ...settings, ...patch };
     try {
-      settings = saveSettings(next);
+      settings = patchSettings(patch, settings);
     } catch (err) {
-      settings = next; // keep working with the in-memory value
+      settings = { ...settings, ...(typeof patch === 'function' ? patch(settings) : patch) }; // keep working in memory
       log.error(`could not save settings: ${err.message}`);
     }
     if (after) after();
@@ -1636,11 +1680,112 @@ function start() {
     refreshTray();
   }
 
+  // ------------------------------------------------------------------ one buddy per account
+
+  /** What placement works with: with one buddy per account, each has a place of its own. */
+  function placeSettings() {
+    return ACCOUNT ? { ...settings, position: (settings.positions || {})[ACCOUNT] || null } : settings;
+  }
+
+  /** Its corner spot: beside the buddies of the other accounts (0 = the corner itself). */
+  function cornerSlot() {
+    return ACCOUNT ? instances.slotIndex(ACCOUNT, settings.knownAccounts) : 0;
+  }
+
+  /** A patch that sets this buddy's own place (null: its corner spot), plus `extra`. */
+  function withPlace(position, extra = {}) {
+    if (!ACCOUNT) return { ...extra, position };
+    return (current) => {
+      const positions = { ...current.positions };
+      if (position) positions[ACCOUNT] = position;
+      else delete positions[ACCOUNT];
+      return { ...extra, positions };
+    };
+  }
+
+  /**
+   * A drop's place (placement.dropPlacement). One buddy per account: snapped to
+   * the shared corner it takes its own spot there; the other corner is kept as
+   * a place of its own (the corner setting stays shared).
+   */
+  function savePlace(patch, after) {
+    if (!ACCOUNT) {
+      updateSettings(patch, after);
+      return;
+    }
+    const position =
+      patch.position || (patch.corner === settings.corner ? null : placement.anchorOfPatch(patch, primaryDisplay(), scale(), cornerSlot()));
+    updateSettings(withPlace(position), after);
+  }
+
+  const instancePath = ACCOUNT ? instances.instanceFile(HOME, ACCOUNT) : null;
+
+  /** Tell the hooks of this account which port this buddy listens on. */
+  function writeInstanceFile(port) {
+    try {
+      fs.mkdirSync(path.dirname(instancePath), { recursive: true });
+      fs.writeFileSync(instancePath, JSON.stringify({ port, pid: process.pid }) + '\n', 'utf8');
+    } catch (err) {
+      log.warn(`could not write the instance file: ${err.message}`);
+    }
+  }
+
+  /** Remove it again when this buddy goes (only if it is still ours). */
+  function removeInstanceFile() {
+    if (!instancePath) return;
+    try {
+      const current = instances.parseInstance(fs.readFileSync(instancePath, 'utf8'));
+      if (current && current.pid === process.pid) fs.unlinkSync(instancePath);
+    } catch {
+      // already gone
+    }
+  }
+
+  /** Another overlay changed the shared settings file: only the mode matters here. */
+  function onSettingsFileChange() {
+    if (quitting) return;
+    const { settings: fresh, error } = loadSettings();
+    if (error || Boolean(fresh.perAccount) === Boolean(settings.perAccount)) return;
+    settings = { ...settings, perAccount: fresh.perAccount };
+    checkMode();
+  }
+
+  /**
+   * One buddy per account was switched on or off (here or in another overlay):
+   * an overlay of the old kind hands its live sessions over to the new one(s),
+   * so they show up at once, and goes.
+   */
+  function checkMode() {
+    if (quitting || Boolean(settings.perAccount) === Boolean(ACCOUNT)) return;
+    const launches = instances.handoverLaunches(core.handover(), settings.perAccount);
+    log.info(`one buddy per account ${settings.perAccount ? 'on' : 'off'}: handing over ${launches.length} session(s)`);
+    for (const launch of launches) launchOverlay(launch.account, launch.event);
+    quitApp();
+  }
+
+  /** Start an overlay (for `account`, or the shared one) with `event` as its first event. */
+  function launchOverlay(account, event) {
+    const args = [app.getAppPath()];
+    if (account) args.push(`--account=${account}`);
+    if (isDev) args.push('--dev');
+    args.push('--initial-event=' + Buffer.from(JSON.stringify(event), 'utf8').toString('base64url'));
+    const env = { ...process.env };
+    delete env.ELECTRON_RUN_AS_NODE;
+    try {
+      const child = spawn(process.execPath, args, { detached: true, stdio: 'ignore', windowsHide: true, env });
+      child.on('error', () => {});
+      child.unref();
+    } catch (err) {
+      log.error(`could not start the overlay for ${account || 'all accounts'}: ${err.message}`);
+    }
+  }
+
   const actions = {
     setCorner: (corner) => {
       roamAnchor = null;
-      updateSettings({ corner, position: null }, placeWindow);
+      updateSettings(withPlace(null, { corner }), placeWindow);
     },
+    setPerAccount: (perAccount) => updateSettings({ perAccount }, checkMode),
     setSize: (size) => updateSettings({ size }, placeWindow),
     setHoverMode: (hoverMode) => updateSettings({ hoverMode }, placeWindow),
     setCharacter: (id) =>
@@ -1680,7 +1825,7 @@ function start() {
       }),
     backToCorner: () => {
       roamAnchor = null;
-      updateSettings({ position: null }, placeWindow);
+      updateSettings(withPlace(null), placeWindow);
     },
     openSettings: () => {
       try {
@@ -1700,11 +1845,17 @@ function start() {
   function muteCurrentSessions() {
     try {
       fs.mkdirSync(HOME, { recursive: true });
-      fs.writeFileSync(
-        path.join(HOME, 'muted.json'),
-        JSON.stringify({ sessions: core.sessionIds(), until: Date.now() + MUTE_MS }) + '\n',
-        'utf8',
-      );
+      const file = path.join(HOME, 'muted.json');
+      // One buddy per account: keep what another buddy muted a moment ago.
+      let earlier = [];
+      try {
+        const muted = JSON.parse(fs.readFileSync(file, 'utf8'));
+        if (ACCOUNT && muted.until > Date.now() && Array.isArray(muted.sessions)) earlier = muted.sessions.filter((s) => typeof s === 'string');
+      } catch {
+        // none yet
+      }
+      const sessions = [...new Set([...earlier, ...core.sessionIds()])].slice(-64);
+      fs.writeFileSync(file, JSON.stringify({ sessions, until: Date.now() + MUTE_MS }) + '\n', 'utf8');
     } catch (err) {
       log.error(`could not write muted.json: ${err.message}`);
     }
@@ -1718,6 +1869,8 @@ function start() {
     stopWatchdog();
     core.dispose();
     if (server) server.close();
+    removeInstanceFile();
+    fs.unwatchFile(settingsPath(), onSettingsFileChange);
     if (tray) {
       tray.destroy();
       tray = null;

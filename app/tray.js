@@ -14,16 +14,17 @@ const { translate, languageOptions } = require('./i18n');
  * @param {number} p.sessionCount
  * @param {(account: string) => boolean} [p.seenAccount]  did that account send events in this run?
  * @param {boolean} [p.soundAvailable]  the sound feature is switched on (app/features.js)
+ * @param {string|null} [p.instance]  one buddy per account: the account this buddy is for
  * @param {object} p.on  callbacks: setCorner, setSize, setHoverMode, setCharacter, setLanguage,
  *   setQuiet, setEyeTracking, setAmbientLife, setPlayMode, setCat, setSound, setSoundVolume,
- *   setAccount, backToCorner, openSettings, quit
+ *   setAccount, setPerAccount, backToCorner, openSettings, quit
  */
-function buildTrayTemplate({ settings, characters, sessionCount, seenAccount = () => true, soundAvailable = false, on }) {
+function buildTrayTemplate({ settings, characters, sessionCount, seenAccount = () => true, soundAvailable = false, instance = null, on }) {
   const t = (key, vars) => translate(settings.language, 'menu', key, vars);
   const radio = (label, checked, click) => ({ label, type: 'radio', checked, click });
 
   return [
-    { label: t('title'), enabled: false },
+    { label: instance ? `${t('title')} · ${instance}` : t('title'), enabled: false },
     { label: t('sessions', { count: sessionCount }), enabled: false },
     { type: 'separator' },
     {
@@ -48,7 +49,7 @@ function buildTrayTemplate({ settings, characters, sessionCount, seenAccount = (
     },
     {
       label: t('account'),
-      submenu: accountMenu(settings, seenAccount, t, radio, on),
+      submenu: instance ? instanceMenu(instance, t, on) : accountMenu(settings, seenAccount, t, radio, on),
     },
     {
       label: t('character'),
@@ -99,7 +100,17 @@ function accountMenu(settings, seenAccount, t, radio, on) {
   if (selected !== 'all' && !seenAccount(selected)) {
     items.push({ type: 'separator' }, { label: t('noAccountEvents'), enabled: false });
   }
+  items.push({ type: 'separator' }, perAccountBox(false, t, on));
   return items;
+}
+
+/** One buddy per account: which account this one is for, and the way back to one buddy. */
+function instanceMenu(instance, t, on) {
+  return [{ label: t('thisAccount', { name: instance }), enabled: false }, { type: 'separator' }, perAccountBox(true, t, on)];
+}
+
+function perAccountBox(checked, t, on) {
+  return { label: t('perAccount'), type: 'checkbox', checked, click: (item) => on.setPerAccount(Boolean(item && item.checked)) };
 }
 
 /** Sound on / off and the volume (only while the sound feature is switched on). */

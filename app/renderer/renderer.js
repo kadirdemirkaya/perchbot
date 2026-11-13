@@ -55,6 +55,7 @@
   const tooltip = document.getElementById('tooltip');
   const actors = document.getElementById('actors');
   const skillTag = document.getElementById('skill-tag');
+  const accountTag = document.getElementById('account-tag');
   const skillName = document.getElementById('skill-name');
   const duelHud = document.getElementById('duel-hud');
   const duelPad = document.getElementById('duel-pad');
@@ -1029,6 +1030,18 @@
     }
     fx.replaceChildren(...pieces);
     later('confetti', 1900, () => fx.replaceChildren());
+  }
+
+  /**
+   * One buddy per account: the account it is for, beside its feet ("claude-work"
+   * shows as "work"). Not in quiet mode: an account name can say more than it should
+   * while the screen is shared. As text, never as markup.
+   */
+  function renderAccountTag() {
+    const name = typeof settings.account === 'string' ? settings.account : '';
+    const show = Boolean(name) && !settings.quiet;
+    accountTag.textContent = show ? name.replace(/^claude-(?=.)/, '') : '';
+    accountTag.classList.toggle('show', show);
   }
 
   /** Tapped and it liked it: two little hearts float up from its head. */
@@ -2048,6 +2061,7 @@
     settings = { ...settings, ...(data.settings || {}) };
     crew.setStrings(settings.strings);
     syncSound();
+    renderAccountTag();
     applyLayout(data.layout);
     renderMenu(data.menu);
     setPaused(data.paused);
@@ -2100,6 +2114,7 @@
   });
   window.buddy.onSettings((next) => {
     settings = { ...settings, ...next };
+    renderAccountTag();
     crew.setStrings(settings.strings);
     syncSound();
     if (!settings.eyeTracking) resetLook();
