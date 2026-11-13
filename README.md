@@ -1,85 +1,47 @@
 # Agent Buddy
 
-A tiny animated robot on your desktop that shows what Claude Code is doing: thinking,
-reading, typing, running a command, waiting for your approval, done. Sub-agents show up as
-little helper robots, and a failing test brings a bug that the buddy fights until the fix
-lands. Everything runs on your computer; nothing is sent anywhere.
-
-Unofficial; not affiliated with or endorsed by Anthropic.
+A tiny robot on your desktop that shows what Claude Code is doing: thinking, reading, typing,
+running a command, waiting for you, done. Sub-agents show up as little helpers; a failing test
+brings a bug it fights until the fix lands. Runs locally, sends nothing anywhere.
+Unofficial; not affiliated with Anthropic.
 
 ## Install
 
-Needs [Node.js](https://nodejs.org) 20+ and Claude Code.
+Needs Node.js 20+ and Claude Code.
 
 ```sh
-npm install -g agent-buddy          # or a package file: npm install -g ./agent-buddy-0.2.0.tgz
-agent-buddy setup                   # hooks into every Claude Code account on this computer
+npm install -g agent-buddy
+agent-buddy setup        # adds the hooks to every Claude Code account on this computer
+agent-buddy doctor       # checks that each account brings up the buddy
 ```
 
-`setup` finds every Claude Code account by itself: `~/.claude`, `~/.claude-<name>`
-(e.g. `~/.claude-personal`, `~/.claude-work`) and `$CLAUDE_CONFIG_DIR`. It shows what it will
-add, asks once, and backs up each settings file first. Other hooks and settings stay as they
-are. Done: the buddy appears with the next Claude Code session, in any of those accounts.
+From a clone instead: `npm install`, then `npm run setup`.
+Open Claude Code sessions pick up the hooks after a restart (VS Code: *Developer: Reload Window*).
 
-From a clone of this repository instead: `npm install`, then `npm run setup`.
+## Commands
 
-## Use
-
-| Command | What it does |
+| | |
 |---|---|
-| `agent-buddy status` | which accounts have the hooks, and whether the buddy is running |
+| `agent-buddy setup` | add the hooks (`~/.claude`, `~/.claude-<name>`, `$CLAUDE_CONFIG_DIR`); asks once, backs up each file |
+| `agent-buddy doctor` | fix missing hooks, test each account live (`--account <name>` for one) |
+| `agent-buddy status` | which accounts have the hooks, is the buddy running |
+| `agent-buddy start` | start the buddy now |
 | `agent-buddy demo` | a tour of every state, no Claude Code needed |
-| `agent-buddy start` | start the buddy now (normally the first Claude Code event does) |
-| `agent-buddy setup` | run again after adding a Claude account, or after updating Agent Buddy |
-| `agent-buddy uninstall` | remove the hooks again (only Agent Buddy's) |
+| `agent-buddy uninstall` | remove the hooks again |
 
-`--dry-run` shows the changes without writing anything; `--config-dir <dir>` limits `setup`
-or `uninstall` to one account.
+## Using it
 
-On the buddy:
+- **Hover** the buddy for its menu (quiet mode, chat, settings, quit); **drag** it anywhere.
+- **Right-click** it: walk, fly, home, sword duel, the cat. More in the **tray icon**.
+- **Quiet mode** hides file names and commands: use it while sharing your screen.
+- **Ambient life** (tray) lets it and its helpers roam your screens when idle; switch it off to keep it still.
 
-- **Hover:** a small menu (quiet mode, eyes, play, cat, chat, corner, settings, quit).
-- **Drag** it anywhere; dropped higher up, it hovers on its thrusters.
-- **Click:** a tap. Idle it loves it; at work, three quick taps and it moves away.
-- **Right-click:** walk, fly, home, sword duel, the whip, the cat.
-- **Tray icon:** corner, size, account, character, language (English / Türkçe), quiet mode,
-  ambient life, play mode, the cat, settings file, quit.
-
-**Ambient life** (on by default): when idle it plays, walks and flies around the screen, also
-over to a second screen, and helpers roam the screen too. Switch it off in the tray to keep
-everything still. **Quiet mode** hides the speech bubble (file names, commands): use it while
-sharing your screen.
-
-## Privacy
-
-- The hook passes only the event, the tool name, the **file name** (not the path) or a
-  **shortened command** with secrets masked, and the account folder's name. Never file
-  contents, prompts, full commands or tool output.
-- The overlay listens on `127.0.0.1` only. No telemetry, no update checks, no network.
-- Settings live in `~/.agent-buddy/settings.json`. The debug log is off by default.
-
-## Troubleshooting
-
-- **No buddy:** run `agent-buddy status`, then restart open Claude Code sessions.
-- **After updating or moving Agent Buddy:** run `agent-buddy setup` again (the hooks point at
-  the installed copy; `status` tells you when they point at another one).
-- **"Electron missing":** reinstall (`npm install -g agent-buddy`), or `npm install` in a clone.
-- **Port 7777 taken:** set another `"port"` in `~/.agent-buddy/settings.json`.
+Only the event, the tool name, a file name (not the path) and a shortened command (secrets
+masked) leave the hook, and only to `127.0.0.1`. Settings: `~/.agent-buddy/settings.json`.
 
 ## Development
 
-```sh
-npm install
-npm test                                     # unit tests (node:test)
-npm run dev                                  # overlay with console logs
-npm run simulate [-- bug | life | chat | two-sessions | lifecycle | playground]
-npm pack                                     # the package file (agent-buddy-<version>.tgz)
-```
+`npm test` · `npm run dev` · `npm run simulate [-- bug | life | chat]` · `npm pack`.
+Characters: [characters/README.md](characters/README.md).
 
-Making a character: [characters/README.md](characters/README.md). Windows checks
-(screenshots, CPU, click-through): [scripts/windows/README.md](scripts/windows/README.md).
-
-## License
-
-MIT, see [LICENSE](LICENSE). All artwork is original; see
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+MIT, see [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
