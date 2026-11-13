@@ -103,6 +103,27 @@ the buddy itself never moves.
 - Up to four helpers are shown when there is room; the rest wait behind a "+N" badge. The
   main session's `Stop` does not end them: background agents keep working.
 
+### Bug hunt
+
+When a check fails, a little red bug turns up at the buddy's feet. A check is a `Bash` or
+`PowerShell` command that looks like a test, build, lint or type check (`npm test`,
+`pytest`, `cargo build`, `tsc`, `eslint`, `go test`, `make`, ...); `grep`, `ls`, `git`
+and the like never count. While Claude Code works on the fix, the buddy draws its toy sword
+and fights the bug: it winds up, lunges and strikes. Some strikes connect (a spark, the bug
+flinches), the bug hops out of the way of others. When the same check passes again
+(`npm test` and `npm test -- -t name` count as the same check, so do `pytest a.py` and
+`pytest b.py`), the last strike always lands: the bug is squashed in a little poof of
+stars, a few confetti fly and the buddy holds its sword up: "Bug fixed!".
+
+- It fights only while it works (thinking, reading, typing, running, working), and the
+  bubble and the chips still say what it does. While Claude Code waits for your approval or
+  asks a question, and when it is idle, the bug just sits there.
+- One bug at a time, from the main session (the helpers' checks are not watched yet). A bug
+  nobody fixes scuttles off after 20 minutes, or when its session ends.
+- Nothing new leaves the hook: the overlay pairs the shortened command it already gets when
+  a tool starts with the "finished" or "failed" event of the same tool id.
+- With reduced motion (a system setting) there is no fight: the bug shows up and goes.
+
 ### Ambient life, play mode and the cat
 
 Three switches, in the tray menu and in the right-click menu:
@@ -435,6 +456,9 @@ The full format, the list of states and performance tips are in
   Delete both files to turn it off; without the salt the hashes mean nothing.
 - **Sounds** are generated in the page (Web Audio): no audio files, no microphone, no
   network.
+- **Bug hunt.** The shortened command of a check stays in memory only until its result
+  arrives; an open bug keeps just its first word or two (e.g. `npm test`) to recognise the
+  same check later. None of it is stored, logged or shown anywhere new.
 - **Chat.** The answers are built from the same in-memory state as the bubble; no one is
   asked. A question typed into the chat panel stays in the overlay's page: it is matched to
   one of the ready-made questions there and the text is dropped at once. It is never stored,
@@ -515,6 +539,7 @@ npm run simulate -- --fast --keep   # shorter pauses, leave the overlay open
 npm run simulate -- life             # every ambient-life behaviour, 3 pokes, the duel, the cat
 npm run simulate -- lifecycle        # start, /clear, /resume, quick restart, crash, exit (PASS/FAIL)
 npm run simulate -- chat             # a short turn, then the chat panel answers two questions
+npm run simulate -- bug              # a failing check brings a bug, the buddy fights it and wins
 AGENT_BUDDY_DEMO=duel npm run dev   # developers: duel | trips | plays | cheers | menu by itself
 AGENT_BUDDY_PERF=1 npm run dev      # developers: frame times per transition, window move timing ([perf])
 npm test                            # unit tests (node:test, no extra dependencies)
@@ -532,6 +557,7 @@ agent-buddy/
 │   ├── core.js          state machine, session counter, idle safety net
 │   ├── liveness.js      closes sessions whose Claude Code process is gone
 │   ├── agents.js        sub-agent registry (the helpers)
+│   ├── bugs.js          bug hunt: a failing check opens a bug, the same check passing fixes it
 │   ├── roam.js          trips around the screen (ambient life, being poked)
 │   ├── placement.js     corners, dragging, snapping, monitor fallback
 │   ├── menu-items.js    the hover menu (add features here)
@@ -540,7 +566,7 @@ agent-buddy/
 │   ├── validate.js      event schema
 │   ├── renderer/        overlay page (HTML, CSS, JS); lib/ holds its pure, tested logic
 │   │                    (interaction.js: mouse, menu, rest; crew.js: the helpers' choreography;
-│   │                    fun.js: ambient life, pokes, cheers, the duel; pet.js: the cat;
+│   │                    fun.js: ambient life, pokes, cheers, the duel, the bug fight; pet.js: the cat;
 │   │                    chat-match.js: typed chat questions)
 │   └── locales/         en.json, tr.json
 ├── characters/robot/    the default character (SVG + CSS + manifest)

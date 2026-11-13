@@ -125,7 +125,7 @@ const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers', 'menu', 'chat']);
 const demo = isDev && DEMOS.has(process.env.AGENT_BUDDY_DEMO) ? process.env.AGENT_BUDDY_DEMO : null;
 const DEMO_TRIPS = ['stroll', 'hop', 'inspect', 'home'];
 /** Short lines in the speech bubble when it is hit or fights (locales: "quip"). */
-const QUIPS = ['ouch', 'hey', 'enough', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze'];
+const QUIPS = ['ouch', 'hey', 'enough', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
 
 // Keep Chromium's own data (caches, the single-instance lock) under
 // ~/.agent-buddy too, so there is exactly one folder to delete on uninstall.
@@ -187,6 +187,9 @@ function start() {
   let whipOn = false;
   /** The cat is on screen (called from a menu, which turns the "Cat" setting on). */
   let petOn = false;
+  /** The bug of the bug hunt ({ id, phase } from core) and where it sits (0..1, see placement.bugSpot). */
+  let bug = null;
+  let bugOffset = 0.5;
   let petTimer = null;
   /** The chat panel is open: the side column is wider (CHAT_WIDTH). */
   let chatOpen = false;
@@ -229,6 +232,18 @@ function start() {
       placeWindow();
     }
     sendView();
+  });
+
+  /** What the page gets of the bug: no session, no command, just which one and how it goes. */
+  const bugPayload = () => (bug ? { id: bug.id, phase: bug.phase } : null);
+
+  // Bug hunt (app/bugs.js): every new bug turns up at a slightly different spot at its feet.
+  core.on('bug', (next) => {
+    if (next && (!bug || next.id !== bug.id)) bugOffset = Math.random();
+    bug = next;
+    log.devOnly(`bug: ${next ? `${next.id} ${next.phase}` : '(none)'}`);
+    if (pageLayout && !drag) placeWindow();
+    if (canSend()) win.webContents.send('buddy:bug', bugPayload());
   });
 
   core.on('crew', (list) => {
@@ -514,10 +529,18 @@ function start() {
       character && character.mini ? placement.crewCapacity(resolved.anchor, side, resolved.workArea, scale()) : 0;
     const shown = Math.min(crew.length, capacity);
     const pet = petOn && character && character.pet ? placement.petSpots(shown, side) : null;
-    const sideWidth = Math.max(placement.SIDE_WIDTH, placement.crewWidth(shown, side), pet ? pet.width : 0, chatOpen ? CHAT_WIDTH : 0);
+    const bugAt = bug ? placement.bugSpot(side, bugOffset) : null;
+    const sideWidth = Math.max(
+      placement.SIDE_WIDTH,
+      placement.crewWidth(shown, side),
+      pet ? pet.width : 0,
+      bugAt ? bugAt.width : 0,
+      chatOpen ? CHAT_WIDTH : 0,
+    );
     const layout = placement.windowLayout(resolved.anchor, side, scale(), sideWidth);
     layout.page.crew = placement.crewGeometry(side, capacity);
     layout.page.pet = pet;
+    layout.page.bug = bugAt;
     return { anchor: resolved.anchor, ...layout };
   }
 
@@ -1161,6 +1184,7 @@ function start() {
       flight,
       crew,
       pet: petOn,
+      bug: bugPayload(),
       paused,
       dev: isDev,
       perf: PERF,

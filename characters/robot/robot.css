@@ -2016,6 +2016,24 @@
   to { transform: rotate(360deg) scaleY(1); }
 }
 
+/* ------------------------------------------------------------ the bug hunt (data-hunt) */
+
+/* A bug at its feet (the app's bug hunt): the duel poses above (data-duel),
+   plus data-hunt. It steps back for the windup and lunges in, so the sword
+   comes down right on the bug (app/placement.js BUG.reach), then eases back. */
+.buddy-character[data-hunt][data-duel='windup'] .rb-react {
+  transform: translateX(-4px);
+}
+
+.buddy-character[data-hunt][data-duel='strike'] .rb-react {
+  transform: translateX(30px);
+  transition: transform 0.12s ease-out;
+}
+
+.buddy-character[data-hunt][data-duel='recover'] .rb-react {
+  transform: translateX(14px);
+}
+
 /* ------------------------------------------------------------ reduced motion */
 
 @media (prefers-reduced-motion: reduce) {

@@ -6,6 +6,7 @@
  *   AmbientScheduler  ambient life: short plays and trips, every 20-90 s
  *   pickCheer      a different celebration for "done" now and then
  *   Duel           the sword fight started from the right-click menu
+ *   BugFight       the bug hunt: the robot fights a failing check's bug
  *
  * None of this runs by itself: the page feeds it clicks, states and time, and
  * turns its callbacks into data-* attributes for the character's CSS.
@@ -350,5 +351,115 @@
     }
   }
 
-  return { TapMeter, tapMood, TAP_LIKES, AmbientScheduler, PLAYS, TRIPS, pickCheer, CHEERS, Duel, DUEL_TIMINGS };
+  // ------------------------------------------------------------------ bug hunt
+
+  const BUG_FIGHT_TIMINGS = Object.freeze({
+    guardMinMs: 1200,
+    guardMaxMs: 2000,
+    windupMs: 500,
+    strikeMs: 250,
+    recoverMs: 600,
+    /** The finishing blow is telegraphed a little quicker. */
+    finishWindupMs: 350,
+    winMs: 1600,
+    /** How often an ordinary strike connects; the bug hops out of the way of the others. */
+    hitChance: 0.6,
+  });
+
+  /**
+   * The bug hunt (app/bugs.js): while Claude Code works on a failing check,
+   * the robot fights the bug beside it with the duel's sword poses. Nobody
+   * clicks and nobody loses hearts: guard -> windup -> strike -> recover ->
+   * guard ... until the page stops it.
+   *   onPhase(phase)    guard | windup | strike | recover | win | end
+   *   onStrike(final, hit)  each strike: hit = it connects (the bug flinches),
+   *                     otherwise the bug hops out of the way; final = the
+   *                     finishing blow, always a hit (the page squashes the bug)
+   * finish(): the fix landed. A quick windup (an ongoing windup just goes on),
+   * the finishing strike, 'win', then 'end'. stop() ends at once.
+   */
+  class BugFight {
+    constructor({ clock = realClock, random = Math.random, timings = {}, onPhase = () => {}, onStrike = () => {} } = {}) {
+      this.clock = clock;
+      this.random = random;
+      this.t = { ...BUG_FIGHT_TIMINGS, ...timings };
+      this.onPhase = onPhase;
+      this.onStrike = onStrike;
+      this.phase = null;
+      this.timer = null;
+      this.final = false;
+    }
+
+    get active() {
+      return this.phase !== null;
+    }
+
+    /** The finishing blow is on its way (or the victory pose is on). */
+    get finishing() {
+      return this.final && this.active;
+    }
+
+    /** Start the loop (nothing if it already runs). */
+    start() {
+      if (this.active) return;
+      this.final = false;
+      this.guard();
+    }
+
+    finish() {
+      if (this.final && this.active) return;
+      this.final = true;
+      if (this.phase === 'windup') return; // the strike coming up is the last one
+      this.go('windup', this.t.finishWindupMs, () => this.strike());
+    }
+
+    stop() {
+      if (!this.active) return;
+      if (this.timer) this.clock.clearTimeout(this.timer);
+      this.timer = null;
+      this.phase = null;
+      this.final = false;
+      this.onPhase('end');
+    }
+
+    guard() {
+      const ms = this.t.guardMinMs + this.random() * (this.t.guardMaxMs - this.t.guardMinMs);
+      this.go('guard', ms, () => this.go('windup', this.t.windupMs, () => this.strike()));
+    }
+
+    strike() {
+      const final = this.final;
+      const hit = final || this.random() < this.t.hitChance;
+      this.go('strike', this.t.strikeMs, () => {
+        if (final) this.go('win', this.t.winMs, () => this.stop());
+        else this.go('recover', this.t.recoverMs, () => this.guard());
+      });
+      this.onStrike(final, hit);
+    }
+
+    go(phase, ms, next) {
+      if (this.timer) this.clock.clearTimeout(this.timer);
+      this.phase = phase;
+      this.onPhase(phase);
+      this.timer = this.clock.setTimeout(() => {
+        this.timer = null;
+        next();
+      }, ms);
+    }
+  }
+
+  return {
+    TapMeter,
+    tapMood,
+    TAP_LIKES,
+    AmbientScheduler,
+    PLAYS,
+    TRIPS,
+    pickCheer,
+    CHEERS,
+    Duel,
+    DUEL_TIMINGS,
+    BugFight,
+    BUG_FIGHT_TIMINGS,
+  };
 });

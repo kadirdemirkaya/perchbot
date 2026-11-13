@@ -16,6 +16,7 @@ created for Agent Buddy and is released under the project's MIT license:
 | `characters/robot/cat.svg`, `cat.css` | Original: "Pip", Robo's cat (cream with lilac stripes, mint collar, round yellow tag), drawn and animated from scratch for this project |
 | `characters/robot/mini.svg`, `mini.css` | Original: the little helper robots ("Robo's kids") drawn and animated from scratch for this project, with five colour variants defined in `mini.css` |
 | Book, sword and cat icons (skill tag, hover menu) | Simple line drawings made for this project, inline in `app/renderer/index.html` |
+| Bug hunt: the little red bug and its poof of four-point stars | Original: a simple drawing made for this project from basic shapes in `app/renderer/bug-view.js`, animated in `app/renderer/overlay.css` |
 | Chat, close and speaker icons, chat panel | Simple line drawings and plain CSS made for this project, in `app/renderer/index.html` and `overlay.css` |
 | Sounds (bonk, clang, grumble, bounce, purr, scratch, crack) | Generated in code at run time with the Web Audio API (`app/renderer/lib/sound.js`, switched off for now); there are no audio files |
 

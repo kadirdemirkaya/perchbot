@@ -131,9 +131,10 @@ Use whatever you like; ignore the rest.
 | `data-glee` | ~0.65 s: tapped and it liked it (a happy hop; quick taps: back to back). The app adds the hearts |
 | `data-annoyed`, `data-ouch` | tapped and it did not want it (~1.5 s) / hit with the whip (~0.5 s) |
 | `data-move` | on a trip around the screen: `walk` or `fly` (the app also sets `data-fly` while flying). Also `fly` while it glides after being thrown, `toss` for the same with hover mode "Always stand", and `settle` for the short ease into place after a drop |
-| `data-face` | `left` while walking or fighting towards the left: the app mirrors your SVG, you do nothing |
+| `data-face` | `left` while walking or fighting towards the left (also towards a bug): the app mirrors your SVG, you do nothing |
 | `data-inspect` | `left` / `right` for ~4 s after it flew next to the cursor: have a look that way |
 | `data-duel` | the duel: `draw`, `guard`, `windup` (the telegraph, make it obvious), `strike`, `hit` (it got the user), `recover`, `stun` (parried), `block`, `hurt` (the user got it), `win`, `lose` |
+| `data-hunt` | the bug hunt: present while it fights a bug at its feet, together with `data-duel` (`guard`, `windup`, `strike`, `recover`, then `win` when the fix lands). This happens in the work states (`thinking`, `typing`, `reading`, `running`, `working`), so let the duel poses win over them. The bug sits ~16 px beyond the edge of the 220 px slot, where Robo's sword comes down when it lunges 30 px on `strike`; with a shorter reach, lunge further. The app draws the bug, the sparks and the confetti |
 
 ### Sub-agent helpers
 

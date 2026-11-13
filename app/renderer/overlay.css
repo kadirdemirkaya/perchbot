@@ -905,6 +905,119 @@ html[data-duel] .duel-pad {
   opacity: 1;
 }
 
+/* ---------------------------------------------------------------- bug hunt */
+
+/* The bug beside the buddy (bug-view.js), placed like the cat. It never takes the mouse. */
+.buddy-bug {
+  position: absolute;
+  z-index: 14;
+  bottom: 14px;
+  left: calc(var(--bug-size, 44px) * -0.5);
+  width: var(--bug-size, 44px);
+  height: var(--bug-size, 44px);
+  pointer-events: none;
+  transform: translateX(calc(var(--dir) * var(--off, 0px)));
+}
+
+.buddy-bug > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transform-origin: 50% 90%;
+}
+
+.buddy-bug[data-phase='arrive'] > svg {
+  animation:
+    bug-arrive 0.6s cubic-bezier(0.3, 1.4, 0.5, 1),
+    bug-wiggle 0.6s steps(2) 0.6s infinite;
+}
+
+.buddy-bug[data-phase='fight'] > svg {
+  animation: bug-dodge 0.8s ease-in-out infinite;
+}
+
+.buddy-bug[data-phase='squash'] > svg {
+  animation: bug-squash 0.7s ease-in forwards;
+}
+
+.buddy-bug[data-phase='escape'] > svg {
+  animation: bug-escape 1.2s ease-in forwards;
+}
+
+/* A strike connected: knocked back a little. Or it hopped out of the way. */
+.buddy-bug[data-hit] > svg {
+  animation: bug-flinch 0.32s ease-out;
+}
+
+.buddy-bug[data-hop] > svg {
+  animation: bug-hop 0.5s cubic-bezier(0.3, 0.7, 0.4, 1);
+}
+
+.buddy-bug[data-rest]:not([data-phase='squash'], [data-phase='escape']) > svg {
+  animation: none;
+}
+
+/* The poof of the finishing blow: five little stars fly out and fade. */
+.bug-star {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  background: #ffd25a;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  opacity: 0;
+  animation: bug-star 0.7s ease-out 0.12s forwards;
+}
+
+@keyframes bug-flinch {
+  0% { transform: none; }
+  30% { transform: translateX(calc(var(--dir) * 6px)) rotate(calc(var(--dir) * 14deg)) scale(0.92, 1.05); }
+  100% { transform: none; }
+}
+
+@keyframes bug-hop {
+  0% { transform: none; }
+  35% { transform: translate(calc(var(--dir) * 16px), -18px) rotate(calc(var(--dir) * 20deg)); }
+  70% { transform: translate(calc(var(--dir) * 12px), 0); }
+  100% { transform: none; }
+}
+
+@keyframes bug-star {
+  0% { opacity: 1; transform: rotate(var(--a)) translateX(4px) scale(0.6); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--a)) translateX(var(--r)) rotate(90deg) scale(1); }
+}
+
+@keyframes bug-arrive {
+  0% { opacity: 0; transform: translateY(-26px) scale(0.6); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes bug-wiggle {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+}
+
+@keyframes bug-dodge {
+  0%, 100% { transform: none; }
+  30% { transform: translate(-5px, -6px) rotate(-8deg); }
+  60% { transform: translate(4px, 0) rotate(6deg); }
+}
+
+@keyframes bug-squash {
+  0% { transform: none; opacity: 1; }
+  35% { transform: scale(1.35, 0.25); opacity: 1; }
+  100% { transform: scale(1.6, 0.1); opacity: 0; }
+}
+
+@keyframes bug-escape {
+  0% { transform: none; opacity: 1; }
+  100% { transform: translateX(calc(var(--dir) * 70px)); opacity: 0; }
+}
+
 /* ---------------------------------------------------------------- confetti */
 
 .fx {
@@ -988,6 +1101,14 @@ html[data-paused] *::after {
   .buddy-mini,
   .buddy-pet {
     transition: none;
+  }
+  /* The bug sits still; beaten or gone, it just disappears. */
+  .buddy-bug > svg,
+  .bug-star {
+    animation: none !important;
+  }
+  .buddy-bug:is([data-phase='squash'], [data-phase='escape']) {
+    visibility: hidden;
   }
   .stage.leaving {
     animation-duration: 0.6s;

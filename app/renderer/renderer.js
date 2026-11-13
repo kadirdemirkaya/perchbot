@@ -17,6 +17,7 @@
  *   fun        { action: 'duel' } from the right-click menu
  *   chat       { open, strings } the panel opens / closes; { answer, intent } an answer;
  *              { typing: false } the window lost the keyboard
+ *   bug        { id, phase: 'open' | 'fixed' | 'escaped' } or null: the bug hunt (app/bugs.js)
  *
  * To the main process (window.buddy): ready(), capture(bool), drag(phase), menu(id),
  * crewLeft(id), fun(action) (a trip, or the right-click menu), chat(op, intent)
@@ -31,6 +32,7 @@
  *   fun mode: data-play  data-cheer  data-annoyed  data-glee (tapped and liked it)
  *   data-move ("walk" | "fly")  data-face ("left")
  *   data-inspect ("left" | "right")  data-duel (phase, see lib/fun.js)
+ *   data-hunt (fights a bug at its feet, with data-duel phases; see "bug hunt")
  *   --look-x / --look-y (-1..1)  --type-line (0..7)  --fly-tilt (-1..1)
  *
  * The character SVG is inlined after removing scripts, event handlers and
@@ -39,7 +41,7 @@
 
 (() => {
   const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay } = window.BuddyInteraction;
-  const { TapMeter, AmbientScheduler, pickCheer, Duel } = window.BuddyFun;
+  const { TapMeter, AmbientScheduler, pickCheer, Duel, BugFight } = window.BuddyFun;
 
   const root = document.documentElement;
   const stage = document.getElementById('stage');
@@ -265,6 +267,9 @@
     trace,
   });
 
+  /** Bug hunt (app/bugs.js): the bug beside the buddy (the fight: see "bug hunt" below). */
+  const bugView = window.BuddyBugView.createBugView({ actors, trace });
+
   const crew = window.BuddyCrewView.createCrewView({
     actors,
     sanitizeSvg,
@@ -323,6 +328,7 @@
       }
       if (BUSY.has(next.state)) flag('greet', null);
     }
+    updateHunt();
     updateTyping();
     updateFun();
     blendFrom(parts);
@@ -522,6 +528,7 @@
     stage.classList.toggle('side-right', next.side !== 'left');
     crew.setLayout(next);
     pet.setLayout(next);
+    bugView.setLayout(next);
   }
 
   // ---------------------------------------------------------------- mouse: hit testing and capture
@@ -885,7 +892,8 @@
   let line = 0;
 
   function updateTyping() {
-    const want = view.state === 'typing' && motionAllowed();
+    // Not while it fights a bug: the typing arm would win over the sword arm in the CSS.
+    const want = view.state === 'typing' && motionAllowed() && !hunt.active;
     if (want === typingActive) return;
     typingActive = want;
     if (want) {
@@ -928,7 +936,9 @@
       flag('rest', resting ? true : null);
       crew.setRest(resting || paused);
       pet.setRest(resting || paused);
+      bugView.setRest(resting || paused);
       if (!resting) swayAntenna();
+      updateHunt();
       updateFun();
     },
   });
@@ -941,13 +951,19 @@
     later('sway', SWAY_MS, () => flag('sway', null));
   }
 
-  function burstConfetti() {
+  /** Confetti from the character's head, or from a point of the page (at = client coordinates). */
+  function burstConfetti(count = 18, at = null) {
     if (!motionAllowed() || !character || character.confetti === false) return;
     const anchor = character.bubbleAnchor || { x: 0.5, y: 0.1 };
-    const originX = CHAR_LEFT + anchor.x * CHAR_SIZE;
-    const originY = SLOT_HEIGHT - CHAR_BOTTOM - CHAR_SIZE + (anchor.y + 0.15) * CHAR_SIZE;
+    let originX = CHAR_LEFT + anchor.x * CHAR_SIZE;
+    let originY = SLOT_HEIGHT - CHAR_BOTTOM - CHAR_SIZE + (anchor.y + 0.15) * CHAR_SIZE;
+    if (at) {
+      const box = fx.getBoundingClientRect();
+      originX = at.x - box.left;
+      originY = at.y - box.top;
+    }
     const pieces = [];
-    for (let i = 0; i < 18; i += 1) {
+    for (let i = 0; i < count; i += 1) {
       const piece = document.createElement('i');
       piece.className = 'confetti';
       piece.style.left = `${originX + (Math.random() - 0.5) * 30}px`;
@@ -1025,6 +1041,7 @@
     else delete root.dataset.paused;
     crew.setRest(paused || rest.resting);
     pet.setRest(paused || rest.resting);
+    bugView.setRest(paused || rest.resting);
     if (paused) {
       if (duel.active) duel.stop();
       hover.closeNow();
@@ -1038,6 +1055,7 @@
       rest.resume();
       scheduleBlink();
     }
+    updateHunt();
     updateTyping();
     updateFun();
   }
@@ -1409,6 +1427,111 @@
     flag('face', pointerAt.x < rect.left + rect.width * 0.49 ? 'left' : null);
   }
 
+  // ---------------------------------------------------------------- bug hunt
+
+  /**
+   * Bug hunt (app/bugs.js): a failing check brings a little bug beside the
+   * buddy (bug-view.js). While Claude Code works on it, the robot fights it
+   * with the duel's sword poses, set here as data-duel plus data-hunt (no
+   * Duel, no hearts, no arena; the bug sits where the sword comes down):
+   * guard -> windup -> strike (it lunges; a hit sparks and the bug flinches, or
+   * the bug hops out of the way) -> recover ... (BugFight in lib/fun.js).
+   * When the same check passes, one last strike squashes it and the robot
+   * cheers: "Bug fixed!" and a little confetti. It fights only in the work
+   * states (the bubble and the chips still say what it does): never in
+   * waiting / asking (the prompt matters more), never resting, on a trip, in
+   * a duel or without motion. Otherwise the bug just sits there, and a fix
+   * squashes it at once.
+   */
+  const HUNT_STATES = new Set(['typing', 'reading', 'running', 'working', 'thinking']);
+  /** "Bug fixed!" would cover something more important here. */
+  const NO_BUG_QUIP = new Set(['waiting', 'asking', 'goodbye']);
+  const BUG_QUIP_MS = 1800;
+  /** The spark shows when the slash arrives (robot.css: the lunge takes 0.12 s). */
+  const STRIKE_LANDS_MS = 110;
+  let bugNow = null;
+  const hunt = new BugFight({ onPhase: onHuntPhase, onStrike: onHuntStrike });
+
+  const huntAllowed = () => motionAllowed() && !rest.resting && !moving && !duel.active && HUNT_STATES.has(view.state);
+
+  /** From the main process (and init). */
+  function applyBug(next) {
+    bugNow = next && typeof next === 'object' ? next : null;
+    bugView.setBug(bugNow);
+    if (bugNow && bugNow.phase === 'fixed') bugFixed();
+    else updateHunt();
+  }
+
+  /** Start or stop the fight as the state, rest, trips and motion change. */
+  function updateHunt() {
+    const want = Boolean(bugNow && bugNow.phase === 'open' && bugView.here) && huntAllowed();
+    if (want && !hunt.active) {
+      trace('bug hunt: fight');
+      hunt.start();
+      return;
+    }
+    if (want || !hunt.active) return;
+    // The finishing blow plays out, unless the prompt needs the character or it is off on a trip.
+    if (hunt.finishing && bugNow && motionAllowed() && !moving && !NO_BUG_QUIP.has(view.state)) return;
+    hunt.stop();
+  }
+
+  /** The fix landed: the finishing blow, or (no fight possible) squashed at once. */
+  function bugFixed() {
+    if (!bugView.here) return;
+    if (hunt.active || huntAllowed()) {
+      trace('bug hunt: finishing blow');
+      hunt.finish();
+      return;
+    }
+    bugView.squash();
+    if (!NO_BUG_QUIP.has(view.state)) quip('bugFixed', BUG_QUIP_MS);
+  }
+
+  function onHuntPhase(phase) {
+    trace(`bug hunt: ${phase}`);
+    if (phase === 'end') {
+      cancel('hunt-strike');
+      const parts = snapshotAnimated();
+      flag('duel', null);
+      flag('hunt', null);
+      flag('face', null);
+      blendFrom(parts);
+      bugView.setFight(false);
+      // Stopped before the finishing blow landed: the bug still goes.
+      if (bugNow && bugNow.phase === 'fixed' && bugView.here) bugView.squash();
+      updateTyping();
+      return;
+    }
+    if (!holder.dataset.duel) {
+      // The first pose: turn towards the bug, put the typing arm away.
+      flag('face', layout.side === 'right' ? null : 'left');
+      flag('hunt', true);
+      bugView.setFight(true);
+      updateTyping();
+    }
+    flag('duel', phase);
+    if (phase === 'win') {
+      if (!NO_BUG_QUIP.has(view.state)) quip('bugFixed', BUG_QUIP_MS);
+      burstConfetti(10, bugView.point());
+    }
+  }
+
+  function onHuntStrike(final, hit) {
+    // A miss: the bug sees it coming and hops away; the blade only cuts the air.
+    if (!hit) bugView.dodge();
+    later('hunt-strike', STRIKE_LANDS_MS, () => {
+      const at = bugView.point();
+      if (!hit) {
+        if (at) effect('swoosh', at.x, at.y - 10);
+        return;
+      }
+      if (at) effect('spark', at.x, at.y);
+      if (final) bugView.squash();
+      else bugView.flinch();
+    });
+  }
+
   const MOVE_MODES = new Set(['walk', 'fly', 'toss', 'settle']);
 
   /**
@@ -1440,6 +1563,7 @@
       // The window moves in step with the frames drawn here (see main.js stepTrip).
       if (!moving) requestAnimationFrame(tripTick);
       moving = m.mode;
+      updateHunt(); // off on a trip: the fight stops before the trip turns it round
       // (No rest.activity(): a trip of its own must not keep it from resting.)
       capture.pointer(false);
       // Off on a trip: the panel goes (a throw keeps it; the window keeps its size then).
@@ -1467,6 +1591,7 @@
       }
       trace(`trip: ${m.kind} ${m.arrived ? 'arrived' : 'stopped'}`);
     }
+    updateHunt();
     updateFun();
   }
 
@@ -1779,6 +1904,7 @@
     applyView(data.view || view);
     crew.setAgents(data.crew);
     pet.setOn(data.pet);
+    applyBug(data.bug || null);
   });
 
   window.buddy.onView((next) => applyView(next));
@@ -1798,6 +1924,7 @@
   window.buddy.onMove((m) => applyMove(m));
   window.buddy.onFlip((phase) => onFlip(phase));
   window.buddy.onChat((msg) => applyChat(msg));
+  window.buddy.onBug((bug) => applyBug(bug));
   window.buddy.onFun((msg) => {
     if (msg && msg.action === 'duel') startDuel();
     if (msg && msg.action === 'whip') setWeapon(msg.on ? 'whip' : 'hand');
@@ -1818,6 +1945,7 @@
 
   reducedMotion.addEventListener('change', () => {
     resetLook();
+    updateHunt();
     updateTyping();
   });
 

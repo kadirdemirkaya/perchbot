@@ -21,6 +21,10 @@
  *   npm run simulate -- chat            a short turn, then the chat panel opens by itself and
  *                                       two questions are answered from what the overlay knows
  *                                       (with the mouse: the chat button in the hover menu).
+ *   npm run simulate -- bug             the bug hunt: "npm test" fails, a bug turns up and the
+ *                                       buddy fights it while it works (not while it waits for
+ *                                       approval); "npm test" passes and it beats the bug. Then
+ *                                       a failing build whose session ends: that bug escapes.
  *   npm run simulate -- --fast          shorter pauses
  *   npm run simulate -- --keep          skip the final SessionEnd (overlay stays open)
  */
@@ -427,6 +431,46 @@ async function life() {
   if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
 }
 
+async function bugHunt() {
+  const s = `sim-bug-${randomId()}`;
+  let n = 0;
+  const run = async (label, command, ok, holdMs, afterMs) => {
+    const id = `toolu_bug_${(n += 1)}`;
+    await step(label, tool(s, 'PreToolUse', 'Bash', { command, description: 'Run a check' }, id), holdMs);
+    await step(ok ? '(passed)' : '(FAILED: a bug turns up)', tool(s, ok ? 'PostToolUse' : 'PostToolUseFailure', 'Bash', { command }, id), afterMs);
+  };
+  const edit = async (label, file, holdMs) => {
+    const id = `toolu_bug_${(n += 1)}`;
+    const input = { file_path: path.join(ROOT, 'app', file), old_string: 'a', new_string: 'b' };
+    await step(label, tool(s, 'PreToolUse', 'Edit', input, id), holdMs);
+    await step('(edit done)', tool(s, 'PostToolUse', 'Edit', input, id), 1200);
+  };
+
+  console.log(`Session ${s}
+`);
+  await step('greeting', base(s, 'SessionStart', { source: 'startup' }), 2500);
+  await step('thinking', base(s, 'UserPromptSubmit', { prompt: '(simulated prompt)' }), 1500);
+  await run('running   npm test', 'npm test', false, 2500, 4500);
+  await step('thinking  (still fighting)', null, 2500);
+  await edit('typing    core.js (fighting)', 'core.js', 4000);
+  await step('waiting   (fight pauses)', base(s, 'Notification', {
+    message: 'Claude needs your permission to use Bash',
+    notification_type: 'permission_prompt',
+  }), 4000);
+  await edit('typing    bugs.js (fighting again)', 'bugs.js', 3500);
+  await run('running   npm test -- -t bug', 'npm test -- -t bug', true, 2000, 4500);
+  await step('done', base(s, 'Stop', { stop_hook_active: false }), 3500);
+
+  // A second session whose build fails and which then just ends: its bug escapes.
+  const s2 = `sim-bug2-${randomId()}`;
+  const id = 'toolu_bug_build';
+  await step('second session', base(s2, 'SessionStart', { source: 'startup' }), 1500);
+  await step('running   npm run build', tool(s2, 'PreToolUse', 'Bash', { command: 'npm run build' }, id), 1500);
+  await step('(FAILED: another bug)', tool(s2, 'PostToolUseFailure', 'Bash', { command: 'npm run build' }, id), 4000);
+  await step('second session ends: it escapes', base(s2, 'SessionEnd', { reason: 'other' }), 3500);
+  if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
+}
+
 async function chatScenario() {
   const s = `sim-chat-${randomId()}`;
   console.log(`Session ${s}\n`);
@@ -455,8 +499,9 @@ async function chatScenario() {
   else if (scenario === 'life') await life();
   else if (scenario === 'lifecycle') await lifecycle();
   else if (scenario === 'chat') await chatScenario();
+  else if (scenario === 'bug') await bugHunt();
   else {
-    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life", "lifecycle" or "chat".`);
+    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life", "lifecycle", "chat" or "bug".`);
     process.exitCode = 1;
   }
 })();

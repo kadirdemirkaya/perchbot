@@ -172,6 +172,7 @@
     "youWin": "You win!",
     "busy": "Working, later!",
     "giggle": "Hehe!",
-    "sneeze": "Achoo!"
+    "sneeze": "Achoo!",
+    "bugFixed": "Bug fixed!"
   }
 }

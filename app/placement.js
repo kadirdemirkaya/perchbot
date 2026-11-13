@@ -244,6 +244,22 @@ const PET = Object.freeze({
   tail: 46,
 });
 
+/**
+ * Bug hunt: where the bug sits. Right at the main character's feet, where its
+ * sword comes down when it lunges (robot.css: data-hunt), so every strike
+ * really reaches it; in front of any helpers. reach is per side for the same
+ * reason as CREW.report (the drawing is not symmetric about its mirror axis).
+ * offset 0..1 moves it a little (jitter), so no two bugs sit on the same spot.
+ */
+const BUG = Object.freeze({ size: 44, reach: Object.freeze({ left: 18, right: 14 }), jitter: 12, tail: 34 });
+
+function bugSpot(side, offset = 0.5) {
+  const reach = BUG.reach[side === 'right' ? 'right' : 'left'];
+  const shift = (Math.max(0, Math.min(1, Number(offset) || 0)) - 0.5) * BUG.jitter;
+  const x = Math.round(reach + shift);
+  return { x, width: x + BUG.tail, size: BUG.size };
+}
+
 function petSpots(crewCount, side) {
   const play = CREW.report[side === 'right' ? 'right' : 'left'] + PET.play;
   const nap = crewCount > 0 ? crewWidth(crewCount, side) + PET.nap / 2 : play + PET.nap;
@@ -294,6 +310,8 @@ module.exports = {
   CREW,
   PET,
   petSpots,
+  BUG,
+  bugSpot,
   crewSpot,
   crewWidth,
   crewCapacity,

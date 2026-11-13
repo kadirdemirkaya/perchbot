@@ -73,6 +73,17 @@ comes out while a skill is in use; a page turns now and then.
 - **Hearts** (tapped and it liked it): two small pink hearts, the same outline as the duel
   hearts, drawn by the page.
 
+### The bug (bug hunt)
+
+Drawn by the page (`app/renderer/bug-view.js`), not part of the character, so every
+character gets the same one. A small, cute beetle seen from above: a round pink-red shell
+(`#E2577A`) with a middle line and four dark dots, a big round indigo head with two white
+eyes, two curled antennae and six short legs, all with the same dark indigo outline as Robo.
+Friendly, not scary: no pincers, no teeth, no stinger. It is a generic ladybird-like bug,
+kept clear of well-known ones (no wings spread like a logo, no face mask or superhero
+costume, no Ladybird Books-style emblem). When it is beaten it flattens and five small
+**four-point** stars fly out: separate little sparkles, never a many-rayed starburst.
+
 ## Robo's kids (the sub-agent helpers)
 
 Each sub-agent is drawn as one of Robo's kids (`mini.svg`, `mini.css`), at two thirds of

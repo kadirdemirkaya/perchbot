@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld('buddy', {
   onReleased: on('buddy:released'),
   onFlip: on('buddy:flip'),
   onChat: on('buddy:chat'),
+  onBug: on('buddy:bug'),
   ready: () => ipcRenderer.send('buddy:ready'),
   capture: (wanted) => ipcRenderer.send('buddy:capture', wanted === true),
   drag: (phase) => {

@@ -38,6 +38,7 @@ const { EventEmitter } = require('node:events');
 const { stateForTool, bubbleForTool, stepForTool, isFileTool, TOOL_STATES } = require('./tools');
 const { AgentRegistry } = require('./agents');
 const { LivenessWatch } = require('./liveness');
+const { BugWatch } = require('./bugs');
 
 const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse', 'PostToolUseFailure']);
 
@@ -144,6 +145,8 @@ class BuddyCore extends EventEmitter {
         })
       : null;
     this.crew.on('change', (agents) => this.emit('crew', agents));
+    /** Bug hunt (app/bugs.js): a failing check opens a bug, the same check passing fixes it. */
+    this.bugs = new BugWatch({ clock: this.clock, now: this.now, onChange: (bug) => this.emit('bug', bug) });
     this.armIdleTimeout();
   }
 
@@ -221,6 +224,7 @@ class BuddyCore extends EventEmitter {
         this.sessions.delete(id);
         if (this.liveness) this.liveness.untrack(id);
         this.crew.endSession(id);
+        this.bugs.sessionGone(id);
         if (this.skill && this.skill.session === id) this.skill = null;
         dropped = true;
       }
@@ -321,6 +325,7 @@ class BuddyCore extends EventEmitter {
         else session.anonymous += 1;
         this.countTool(owner, evt);
         this.addStep(stepForTool(evt.tool, evt.detail));
+        this.bugs.toolStart(owner, evt.id, evt.tool, evt.detail);
         this.show(stateForTool(evt.tool), bubbleForTool(evt.tool, evt.detail), 0, owner);
         break;
 
@@ -333,6 +338,7 @@ class BuddyCore extends EventEmitter {
           session.anonymous = Math.max(0, session.anonymous - 1);
         }
         if (stale) return;
+        this.bugs.toolEnd(owner, evt.id, evt.event === 'PostToolUse');
         // A failed tool gets a worried look for the rest of its hold time.
         if (evt.event === 'PostToolUseFailure' && TOOL_STATES.has(this.view.state)) this.setMood('worried');
         if (session.inflight.size > 0 || session.anonymous > 0) return; // parallel tools still running
@@ -383,6 +389,7 @@ class BuddyCore extends EventEmitter {
     this.ended.add(evt.session);
     if (this.ended.size > ENDED_ID_LIMIT) this.ended.delete(this.ended.values().next().value);
     this.crew.endSession(evt.session);
+    this.bugs.sessionGone(evt.session);
     const hadSkill = Boolean(this.skill && this.skill.session === evt.session);
     if (hadSkill) this.skill = null;
     if (this.leaving) return;
@@ -434,6 +441,7 @@ class BuddyCore extends EventEmitter {
     for (const name of Object.keys(this.timers)) this.clearTimer(name);
     if (this.liveness) this.liveness.dispose();
     this.crew.dispose();
+    this.bugs.dispose();
     this.removeAllListeners();
   }
 

@@ -512,3 +512,29 @@ test('chat facts: the turn, its tools, helpers, skill, what it waits for, when i
   assert.equal(f.waiting, null, 'done: waiting for nothing');
   assert.equal(f.sessions, 1);
 });
+
+test('bug hunt: a failing test opens a bug, the same test passing fixes it, the session ending chases it off', () => {
+  const { clock, core, send } = setup();
+  const bugs = [];
+  core.on('bug', (b) => bugs.push(b && b.phase));
+  send('SessionStart', { source: 'startup' });
+  send('UserPromptSubmit');
+  send('PreToolUse', { tool: 'Bash', id: 'b1', detail: 'npm test' });
+  send('PostToolUseFailure', { tool: 'Bash', id: 'b1' });
+  send('PreToolUse', { tool: 'Edit', id: 'e1', detail: 'parser.js' });
+  send('PostToolUse', { tool: 'Edit', id: 'e1' });
+  send('PreToolUse', { tool: 'Bash', id: 'b2', detail: 'npm test' });
+  send('PostToolUse', { tool: 'Bash', id: 'b2' });
+  assert.deepEqual(bugs, ['open', 'fixed']);
+  clock.tick(5000);
+  assert.deepEqual(bugs, ['open', 'fixed', null]);
+  // Sub-agents do not count (for now); a session that ends takes its bug along.
+  send('PreToolUse', { tool: 'Bash', id: 'b3', detail: 'npm test', agent: 'abcdef0123' });
+  send('PostToolUseFailure', { tool: 'Bash', id: 'b3', agent: 'abcdef0123' });
+  assert.equal(bugs.length, 3);
+  send('PreToolUse', { tool: 'Bash', id: 'b4', detail: 'cargo build' });
+  send('PostToolUseFailure', { tool: 'Bash', id: 'b4' });
+  send('SessionEnd', { reason: 'other' });
+  assert.deepEqual(bugs.slice(3), ['open', 'escaped']);
+  core.dispose();
+});

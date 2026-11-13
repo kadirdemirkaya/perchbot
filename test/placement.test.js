@@ -141,3 +141,16 @@ test('crew: the window grows inwards and keeps the anchor; capacity follows the 
   assert.ok(p.crewWidth(fit + 1, 'left') > near.x - 110, 'one more would not');
   assert.equal(p.crewCapacity({ x: 110, y: 600 }, 'left', small, 1), 0, 'no room at all');
 });
+
+test('bug hunt: the bug sits at the feet, where the sword comes down, give or take a little', () => {
+  for (const side of ['left', 'right']) {
+    const near = p.bugSpot(side, 0);
+    const far = p.bugSpot(side, 1);
+    assert.equal(far.x - near.x, p.BUG.jitter, side);
+    assert.equal(p.bugSpot(side, 0.5).x, p.BUG.reach[side], `${side}: the middle is the sword's reach`);
+    assert.equal(near.width, near.x + p.BUG.tail);
+    assert.ok(near.x > 0, `${side}: outside the main slot`);
+    assert.ok(far.width <= p.SIDE_WIDTH, `${side}: fits in the side column, the window does not grow`);
+    assert.deepEqual(p.bugSpot(side, 7), far, 'offset is clamped');
+  }
+});

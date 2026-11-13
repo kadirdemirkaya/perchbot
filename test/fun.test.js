@@ -1,10 +1,23 @@
 'use strict';
 
-/** Fun mode logic (app/renderer/lib/fun.js): whip clicks, idle plays, cheers, the duel. */
+/** Fun mode logic (app/renderer/lib/fun.js): whip clicks, idle plays, cheers, the duel, the bug fight. */
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { TapMeter, tapMood, TAP_LIKES, AmbientScheduler, PLAYS, TRIPS, pickCheer, CHEERS, Duel, DUEL_TIMINGS: D } = require('../app/renderer/lib/fun');
+const {
+  TapMeter,
+  tapMood,
+  TAP_LIKES,
+  AmbientScheduler,
+  PLAYS,
+  TRIPS,
+  pickCheer,
+  CHEERS,
+  Duel,
+  DUEL_TIMINGS: D,
+  BugFight,
+  BUG_FIGHT_TIMINGS: B,
+} = require('../app/renderer/lib/fun');
 const { FakeClock } = require('./helpers/fake-clock');
 
 /** A small seeded random (mulberry32), so the statistics below never flake. */
@@ -283,4 +296,99 @@ test('duel: stop() ends it at once, and a duel never runs forever', () => {
   // Nobody plays: hits until the robot wins, well before the time limit.
   clock.tick(D.maxMs + D.endMs + 10);
   assert.equal(d.active, false);
+});
+
+function bugFight() {
+  const clock = new FakeClock();
+  const phases = [];
+  const strikes = [];
+  const f = new BugFight({ clock, random: () => 0, onPhase: (p) => phases.push(p), onStrike: (final) => strikes.push(final) });
+  return { clock, f, phases, strikes };
+}
+
+test('bug fight: guard, windup, strike, recover, round and round; every strike lands on the bug', () => {
+  const { clock, f, phases, strikes } = bugFight();
+  f.start();
+  assert.equal(f.phase, 'guard');
+  f.start(); // already running: no restart
+  assert.deepEqual(phases, ['guard']);
+  clock.tick(B.guardMinMs);
+  assert.equal(f.phase, 'windup');
+  clock.tick(B.windupMs);
+  assert.equal(f.phase, 'strike');
+  assert.deepEqual(strikes, [false]);
+  clock.tick(B.strikeMs + B.recoverMs);
+  assert.equal(f.phase, 'guard');
+  clock.tick(B.guardMinMs + B.windupMs + B.strikeMs + B.recoverMs);
+  assert.deepEqual(phases, ['guard', 'windup', 'strike', 'recover', 'guard', 'windup', 'strike', 'recover', 'guard']);
+  assert.deepEqual(strikes, [false, false]);
+  assert.equal(f.finishing, false);
+  // Claude Code needs the character (or it rests): stop at once.
+  f.stop();
+  assert.equal(f.active, false);
+  assert.equal(phases.at(-1), 'end');
+  f.stop(); // harmless
+  assert.equal(phases.filter((p) => p === 'end').length, 1);
+});
+
+test('bug fight: finish() from guard winds up quickly, strikes the final blow, cheers and ends', () => {
+  const { clock, f, phases, strikes } = bugFight();
+  f.start();
+  clock.tick(100);
+  f.finish();
+  assert.equal(f.phase, 'windup');
+  assert.equal(f.finishing, true);
+  f.finish(); // the fix landing twice changes nothing
+  clock.tick(B.finishWindupMs);
+  assert.equal(f.phase, 'strike');
+  assert.deepEqual(strikes, [true], 'the finishing blow, no ordinary strike before it');
+  clock.tick(B.strikeMs);
+  assert.equal(f.phase, 'win');
+  clock.tick(B.winMs);
+  assert.equal(f.active, false);
+  assert.equal(f.finishing, false);
+  assert.deepEqual(phases, ['guard', 'windup', 'strike', 'win', 'end']);
+});
+
+test('bug fight: a windup already on its way becomes the final blow; finish() also works from rest', () => {
+  const { clock, f, phases, strikes } = bugFight();
+  f.start();
+  clock.tick(B.guardMinMs + 100);
+  assert.equal(f.phase, 'windup');
+  f.finish();
+  clock.tick(B.windupMs - 100);
+  assert.equal(f.phase, 'strike');
+  assert.deepEqual(strikes, [true]);
+  clock.tick(B.strikeMs + B.winMs);
+  assert.deepEqual(phases, ['guard', 'windup', 'strike', 'win', 'end']);
+  // Not fighting when the fix lands (the page only does this with motion): straight to the final blow.
+  phases.length = 0;
+  strikes.length = 0;
+  f.finish();
+  assert.equal(f.phase, 'windup');
+  clock.tick(B.finishWindupMs + B.strikeMs + B.winMs);
+  assert.deepEqual(phases, ['windup', 'strike', 'win', 'end']);
+  assert.deepEqual(strikes, [true]);
+  // After that a new bug starts a fresh fight, not a finished one.
+  f.start();
+  assert.equal(f.finishing, false);
+  clock.tick(B.guardMinMs + B.windupMs);
+  assert.deepEqual(strikes, [true, false]);
+});
+
+test('bug fight: some strikes connect, the bug dodges the others; the finishing blow always connects', () => {
+  const clock = new FakeClock();
+  const hits = [];
+  // random() is asked for the guard time, then for the strike: alternate a hit (0.1) and a miss (0.9).
+  const rolls = [0, 0.1, 0, 0.9, 0, 0.1, 0, 0.9];
+  const f = new BugFight({ clock, random: () => rolls.shift() ?? 0.99, onStrike: (final, hit) => hits.push([final, hit]) });
+  f.start();
+  const round = B.guardMinMs + B.windupMs + B.strikeMs + B.recoverMs;
+  clock.tick(round * 4);
+  assert.deepEqual(hits, [[false, true], [false, false], [false, true], [false, false]]);
+  // Even when the dice say miss, the fix gets its hit.
+  f.finish();
+  clock.tick(B.finishWindupMs);
+  assert.deepEqual(hits.at(-1), [true, true]);
+  assert.ok(B.hitChance > 0.3 && B.hitChance < 0.9, 'mostly hits, but not every time');
 });
