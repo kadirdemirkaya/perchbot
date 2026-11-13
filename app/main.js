@@ -54,6 +54,7 @@ const { buildMenuItems, MENU_IDS, switchFor } = require('./menu-items');
 const chat = require('./chat');
 const { taskFor } = require('./tools');
 const { greetingKey } = require('./moments');
+const { PresenceWatch, PRESENCE } = require('./presence');
 const FEATURES = require('./features');
 const { createLogger } = require('./log');
 
@@ -141,7 +142,7 @@ const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers', 'menu', 'chat']);
 const demo = isDev && DEMOS.has(process.env.AGENT_BUDDY_DEMO) ? process.env.AGENT_BUDDY_DEMO : null;
 const DEMO_TRIPS = ['stroll', 'hop', 'screen', 'inspect', 'home'];
 /** Short lines in the speech bubble when it is hit or fights (locales: "quip"). */
-const QUIPS = ['commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
+const QUIPS = ['welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
 
 // Keep Chromium's own data (caches, the single-instance lock) under
 // ~/.agent-buddy too, so there is exactly one folder to delete on uninstall
@@ -514,8 +515,29 @@ function start() {
       ['suspend', true],
       ['resume', false],
     ]) {
-      powerMonitor.on(name, () => setPaused(value));
+      powerMonitor.on(name, () => {
+        setPaused(value);
+        sendPresence(value ? presence.locked() : presence.unlocked());
+      });
     }
+    // Is the user at the computer? Only the system's idle time (app/presence.js).
+    presenceTimer = setInterval(() => {
+      try {
+        sendPresence(presence.feed(powerMonitor.getSystemIdleTime()));
+      } catch {
+        // not available on this system
+      }
+    }, PRESENCE.pollMs);
+  }
+
+  const presence = new PresenceWatch();
+  let presenceTimer = null;
+
+  /** Away, or back (welcome back!): the page decides what it shows. */
+  function sendPresence(change) {
+    if (!change) return;
+    log.devOnly(`presence: ${change.kind}${change.awayMs ? ` after ${Math.round(change.awayMs / 1000)} s` : ''}`);
+    if (canSend()) win.webContents.send('buddy:presence', change);
   }
 
   /** No network, no permissions, no spellchecker downloads. */
@@ -1916,6 +1938,7 @@ function start() {
     if (quitting) return;
     quitting = true;
     if (trip) clearInterval(trip.timer);
+    clearInterval(presenceTimer);
     endAllOutings();
     stopWatchdog();
     core.dispose();

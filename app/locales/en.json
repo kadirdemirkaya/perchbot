@@ -189,6 +189,15 @@
     "phew": "Phew!",
     "squeeze": "Squeezing it all in…",
     "nudge": "Psst! Claude needs you",
-    "knock": "Knock knock!"
+    "knock": "Knock knock!",
+    "welcomeBack": "Welcome back!",
+    "welcomeBackLong": "There you are! Missed you!",
+    "whatsThis": "What's this?",
+    "choiceCode": "Code",
+    "choiceGame": "A game",
+    "choiceNone": "Secret!",
+    "curiousCode": "Ooh, nice code!",
+    "curiousGame": "Can I play too?",
+    "curiousNone": "Hmph, fine!"
   }
 }

@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('buddy', {
   onCrew: on('buddy:crew'),
   onMove: on('buddy:move'),
   onMoment: on('buddy:moment'),
+  onPresence: on('buddy:presence'),
   onPet: on('buddy:pet'),
   onFun: on('buddy:fun'),
   onReleased: on('buddy:released'),

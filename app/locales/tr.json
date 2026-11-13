@@ -189,6 +189,15 @@
     "phew": "Oh be!",
     "squeeze": "Hepsini sığdırıyorum…",
     "nudge": "Psst! Claude seni bekliyor",
-    "knock": "Tık tık!"
+    "knock": "Tık tık!",
+    "welcomeBack": "Hoş geldin!",
+    "welcomeBackLong": "Neredeydin? Özledim!",
+    "whatsThis": "Bu ne?",
+    "choiceCode": "Kod",
+    "choiceGame": "Oyun",
+    "choiceNone": "Sana ne :D",
+    "curiousCode": "Vay, güzel kodmuş!",
+    "curiousGame": "Ben de oynayabilir miyim?",
+    "curiousNone": "Hıh, peki!"
   }
 }

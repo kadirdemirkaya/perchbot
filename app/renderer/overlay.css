@@ -190,6 +190,36 @@ body {
   text-overflow: ellipsis;
 }
 
+/* "What's this?" (next to the cursor): three little answers to click. */
+.bubble-choices {
+  display: none;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.bubble.ask .bubble-choices {
+  display: flex;
+}
+
+.bubble.ask.show {
+  pointer-events: auto;
+}
+
+.bubble-choice {
+  padding: 1px 7px 2px;
+  border: 1.5px solid var(--ink);
+  border-radius: 8px;
+  background: #fff6e8;
+  color: var(--ink);
+  font: 700 10px/1.3 system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bubble-choice:hover {
+  background: #4fd6b4;
+}
+
 /* A chat answer: up to three lines, a little wider; a click puts it away. */
 .bubble.answer {
   max-width: 212px;

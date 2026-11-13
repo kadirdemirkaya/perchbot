@@ -65,6 +65,9 @@ const DEMOS = new Set([
   'walk',
   'fly',
   'inspect',
+  // It asks "What's this?" (with answers to click); the user is back after a while.
+  'curious',
+  'welcome',
   // Moments of the work: a flag (commit), a rocket (push), sweat, phew, a squeezed head (compaction),
   // and the nudges while Claude Code waits for the user.
   'commit',

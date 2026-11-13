@@ -342,6 +342,8 @@
     }
     // A chat answer gives way to work news at once (never the other way round).
     if (answerText && next.text && (next.state !== previous.state || next.text !== previous.text)) dropAnswer();
+    // Work comes in: the question can wait.
+    if (curious && !CALM.has(next.state)) dropCurious();
     renderBubble();
 
     // Every event wakes the character; idle starts the rest countdown again.
@@ -439,8 +441,9 @@
 
   function renderBubble() {
     // A chat answer shows even in quiet mode: the user asked for it.
-    const text = answerText || (settings.quiet ? '' : quipText || view.text);
+    const text = answerText || (settings.quiet ? '' : curious ? curious.text : quipText || view.text);
     bubble.classList.toggle('answer', Boolean(answerText));
+    renderChoices();
     if (!text) {
       bubble.classList.remove('show');
       renderTrail();
@@ -590,6 +593,7 @@
     // The open chat panel, and a chat answer in the bubble (a click puts it away).
     if (el.closest('.chat.open .chat-card')) return 'chat';
     if (el.closest('.bubble.answer.show')) return 'bubble';
+    if (el.closest('.bubble.ask.show .bubble-choice')) return 'bubble';
     // An open menu's buttons; in a duel only the Play button (it ends the duel).
     if (el.closest('.menu.open .menu-button, .menu.duel .menu-button[data-id="play"]')) return 'menu';
     if (holder.contains(el) && el !== holder && el.closest('svg') && el.tagName.toLowerCase() !== 'svg') {
@@ -1094,6 +1098,107 @@
     cancel('pace');
     flag('think', null);
     if (paced && !moving && !hunt.active) flag('face', null);
+  }
+
+  // ---------------------------------------------------------------- "What's this?"
+
+  /**
+   * Next to the cursor it now and then asks what that is, with three little
+   * answers to click (no answer: it lets it go after CURIOUS_MS). Nothing is
+   * sent anywhere: the answer only picks its reaction.
+   */
+  const CURIOUS_CHANCE = 0.35;
+  const CURIOUS_MS = 9000;
+  const CHOICES = [
+    { id: 'code', label: 'choiceCode', reply: 'curiousCode' },
+    { id: 'game', label: 'choiceGame', reply: 'curiousGame' },
+    { id: 'none', label: 'choiceNone', reply: 'curiousNone' },
+  ];
+  const choicesEl = document.getElementById('bubble-choices');
+  let curious = null;
+  let choicesKey = '';
+
+  function quipString(key) {
+    return (settings.strings && settings.strings.quips && settings.strings.quips[key]) || '';
+  }
+
+  function askWhatsThis() {
+    if (curious || settings.quiet || !ambientOn() || !CALM.has(view.state) || chatOpen || answerText) return;
+    const text = quipString('whatsThis');
+    if (!text) return;
+    trace('curious: what is this?');
+    dropQuip();
+    curious = { text };
+    renderBubble();
+    if (motionAllowed()) {
+      flag('talk', true, true);
+      later('talk', 900, () => flag('talk', null));
+    }
+    later('curious-end', CURIOUS_MS, () => dropCurious(true));
+  }
+
+  function renderChoices() {
+    bubble.classList.toggle('ask', Boolean(curious));
+    const key = curious ? CHOICES.map((c) => quipString(c.label)).join('|') : '';
+    if (key === choicesKey) return;
+    choicesKey = key;
+    choicesEl.replaceChildren(
+      ...(curious
+        ? CHOICES.map((c) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'bubble-choice';
+            button.dataset.choice = c.id;
+            button.textContent = quipString(c.label);
+            return button;
+          })
+        : []),
+    );
+  }
+
+  function dropCurious(render = false) {
+    if (!curious) return;
+    curious = null;
+    cancel('curious-end');
+    if (render) renderBubble();
+    else renderChoices();
+    const under = pointerAt ? zoneOf(document.elementFromPoint(pointerAt.x, pointerAt.y)) : null;
+    capture.pointer(takesMouse(under));
+    setZone(under);
+  }
+
+  choicesEl.addEventListener('click', (e) => {
+    const button = e.target instanceof Element ? e.target.closest('.bubble-choice') : null;
+    if (!button || !curious) return;
+    const choice = CHOICES.find((c) => c.id === button.dataset.choice);
+    rest.activity();
+    dropCurious();
+    if (!choice) return;
+    trace(`curious: ${choice.id}`);
+    if (choice.id === 'game' && motionAllowed()) glee.trigger();
+    if (choice.id === 'none') {
+      const { level } = temper.flare('annoyed');
+      flag('annoyed', level, !holder.dataset.annoyed);
+      coolDown();
+    }
+    if (choice.id === 'code' && motionAllowed()) {
+      flag('talk', true, true);
+      later('talk', 1200, () => flag('talk', null));
+    }
+    quip(choice.reply, 1800);
+  });
+
+  // ---------------------------------------------------------------- the user away and back (app/presence.js)
+
+  /** Back at the computer after a while: it wakes up and says hello again. */
+  function onPresence(change) {
+    if (!change || change.kind !== 'back') return;
+    if (!ambientOn() || !CALM.has(view.state)) return;
+    rest.activity();
+    updateFun();
+    if (motionAllowed()) glee.trigger();
+    quip(change.awayMs > 3600000 ? 'welcomeBackLong' : 'welcomeBack', 2200);
+    trace('presence: welcome back');
   }
 
   // ---------------------------------------------------------------- moments (app/moments.js)
@@ -1953,6 +2058,8 @@
       if (m.kind === 'inspect' && m.arrived && motionAllowed()) {
         flag('inspect', m.look === 'left' ? 'left' : 'right');
         later('inspect', INSPECT_MS, () => flag('inspect', null));
+        // Now and then it asks what that is.
+        if (Math.random() < CURIOUS_CHANCE) later('curious', 900, askWhatsThis);
       }
       trace(`trip: ${m.kind} ${m.arrived ? 'arrived' : 'stopped'}`);
     }
@@ -2201,6 +2308,10 @@
       const fixed = new TapMeter({ random: () => 0.99, likes: { calm: 0, busy: 0 } });
       temper.reset();
       [0, 300, 600, 3600, 3900, 4200].forEach((ms, i) => later(`rage-${i}`, ms, () => onClick(null, { meter: fixed, busy: true })));
+    } else if (name === 'curious') {
+      askWhatsThis();
+    } else if (name === 'welcome') {
+      onPresence({ kind: 'back', awayMs: 600000 });
     } else if (name === 'commit' || name === 'push' || name === 'phew' || name === 'squeeze') {
       onMoment(name);
     } else if (name === 'sweat') {
@@ -2310,6 +2421,7 @@
   });
   window.buddy.onMove((m) => applyMove(m));
   window.buddy.onMoment((kind) => onMoment(kind));
+  window.buddy.onPresence((change) => onPresence(change));
   window.buddy.onFlip((phase) => onFlip(phase));
   window.buddy.onChat((msg) => applyChat(msg));
   window.buddy.onBug((bug) => applyBug(bug));
