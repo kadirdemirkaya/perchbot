@@ -198,6 +198,24 @@
     return sound.play(name, { pitch });
   }
 
+  /**
+   * The sounds that go with a play or the cat's routine (BuddySound.CUES).
+   * With the sound off this sets no timers at all; each one checks `still()`
+   * when it fires, so a play cut short goes quiet. A little random wobble in
+   * pitch, so a repeated sound is never quite the same.
+   */
+  function playCues(key, cues, still) {
+    if (sound === SILENT_BOARD) return;
+    window.BuddySound.scheduleCues(cues, {
+      on: settings.sound === true || soundDemo,
+      key: `cue-${key}`,
+      later,
+      still,
+      play: (name, pitch) => trace(`sound: ${name} (${key}) ${sfx(name, pitch * (0.97 + Math.random() * 0.06)) ? 'played' : 'skipped'}`),
+    });
+  }
+  const CUES = window.BuddySound ? window.BuddySound.CUES : { play: {}, cat: {} };
+
   // ---------------------------------------------------------------- character loading
 
   function sanitizeSvg(markup) {
@@ -254,16 +272,19 @@
 
   // ---------------------------------------------------------------- crew view (sub-agents)
 
+  /** The cat's phase (lib/pet.js), null while there is no cat: its sounds check it. */
+  let catPhase = null;
   const pet = window.BuddyPetView.createPetView({
     actors,
     sanitizeSvg,
     // The cat plays: the main character joins in (data-pet="play").
     onCue: (name, on) => {
       flag('pet', on && motionAllowed() ? name : null);
-      if (name === 'play' && on) {
-        sfx('scratch');
-        later('purr', 1200, () => sfx('purr'));
-      }
+    },
+    // Its sounds: hello on the way in, the ball while it plays, a purr as it dozes off.
+    onPhase: (phase) => {
+      catPhase = phase;
+      if (phase) playCues(`cat-${phase}`, CUES.cat[phase], () => catPhase === phase);
     },
     trace,
   });
@@ -1156,7 +1177,7 @@
       const parts = name ? null : snapshotAnimated();
       flag('play', name);
       blendFrom(parts);
-      if (name === 'ball') later('ball-sound', BALL_FLOOR_MS, ballBounce);
+      if (name) playCues(`play-${name}`, CUES.play[name], () => holder.dataset.play === name);
       // "Achoo!" right when it sneezes (not if the play was cut short before).
       if (name === 'sneeze') later('sneeze', SNEEZE_AT_MS, () => holder.dataset.play === 'sneeze' && quip('sneeze', 1000));
     },
@@ -1169,13 +1190,6 @@
 
   /** robot.css rb-sneeze-head: the "choo" at ~50 % of 2.6 s. */
   const SNEEZE_AT_MS = 1300;
-  const BALL_FLOOR_MS = 288;
-  const BALL_PERIOD_MS = 600;
-  function ballBounce() {
-    if (holder.dataset.play !== 'ball') return;
-    sfx('bounce', 0.96 + Math.random() * 0.08);
-    later('ball-sound', BALL_PERIOD_MS, ballBounce);
-  }
 
   /**
    * Ambient life runs in short bursts, only while nothing else goes on: idle
@@ -1872,22 +1886,12 @@
     } else if (name === 'sound') {
       soundDemo = true;
       syncSound();
-      const list = [
-        ['clang', 1],
-        ['bonk', 1],
-        ['bonk', 1.12],
-        ['bonk', 1.24],
-        ['grumble', 1],
-        ['bounce', 1],
-        ['bounce', 0.97],
-        ['purr', 1],
-        ['scratch', 1],
-        ['crack', 1],
-      ];
-      list.forEach(([item, pitch], i) =>
-        later(`demo-sound-${i}`, 400 + i * 700, () => trace(`sound: ${item} ${sfx(item, pitch) ? 'played' : 'skipped'}`)),
+      // Every sound once, in turn (a tap streak climbs in the tap-spam demo).
+      const list = window.BuddySound.NAMES;
+      list.forEach((item, i) =>
+        later(`demo-sound-${i}`, 400 + i * 900, () => trace(`sound: ${item} ${sfx(item) ? 'played' : 'skipped'}`)),
       );
-      later('demo-sound-end', 400 + list.length * 700 + 1500, () => {
+      later('demo-sound-end', 400 + list.length * 900 + 1500, () => {
         soundDemo = false;
         syncSound();
       });

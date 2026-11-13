@@ -9,7 +9,7 @@ const { FakeClock } = require('./helpers/fake-clock');
 
 function setup() {
   const clock = new FakeClock();
-  const log = { views: [], cues: [], gone: 0 };
+  const log = { views: [], cues: [], gone: 0, phases: [] };
   const d = new PetDirector({
     clock,
     onUpdate: (v) => log.views.push(v),
@@ -17,6 +17,7 @@ function setup() {
     onGone: () => {
       log.gone += 1;
     },
+    onPhase: (phase) => log.phases.push(phase),
   });
   d.setGeometry({ play: 60, nap: 150, width: 200 });
   const last = () => log.views.at(-1);
@@ -75,4 +76,22 @@ test('called twice: one cat; geometry changes move a resting cat', () => {
   clock.tick(last().walkMs);
   d.setGeometry({ play: 80, nap: 300, width: 360 });
   assert.equal(last().off, 300, 'naps beyond the helpers that arrived');
+});
+
+test('phases (for its sounds): told once per change, and null once the cat is gone', () => {
+  const { clock, d, log, last } = setup();
+  d.call();
+  clock.tick(last().walkMs);
+  clock.tick(T.playMs);
+  clock.tick(last().walkMs);
+  d.setGeometry({ play: 70, nap: 160, width: 210 }); // re-placed while napping: same phase
+  assert.deepEqual(log.phases, ['enter', 'play', 'aside', 'nap']);
+  d.dismiss();
+  clock.tick(last().walkMs);
+  assert.deepEqual(log.phases.slice(4), ['leave', null], 'walked out');
+  d.call();
+  d.dispose();
+  assert.deepEqual(log.phases.slice(6), ['enter', null], 'the pet was changed');
+  d.dispose();
+  assert.equal(log.phases.length, 8, 'no second null');
 });

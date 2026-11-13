@@ -4,7 +4,9 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { SoundBoard, VOLUMES, NAMES } = require('../app/renderer/lib/sound');
+const { SoundBoard, VOLUMES, NAMES, CUES, scheduleCues } = require('../app/renderer/lib/sound');
+const { PLAYS } = require('../app/renderer/lib/fun');
+const { PET_TIMINGS } = require('../app/renderer/lib/pet');
 
 /** Records what a sound builds; enough of the Web Audio API for the recipes. */
 function fakeAudio() {
@@ -116,7 +118,63 @@ test('sound: every sound builds and plays with the fake context', () => {
     assert.equal(b.play(name), true, name);
     clock.advance(2000);
   }
-  assert.deepEqual([...NAMES].sort(), ['bonk', 'bounce', 'clang', 'crack', 'grumble', 'purr', 'scratch']);
+  assert.deepEqual([...NAMES].sort(), [
+    'achoo', 'beep', 'boing', 'bonk', 'boot', 'bounce', 'clang', 'crack', 'grumble', 'hum',
+    'meow', 'powerdown', 'purr', 'scratch', 'sparkle', 'squeak', 'tick', 'whoosh',
+  ]);
+});
+
+test('sound cues: known sounds, and each one is over before its play ends', () => {
+  const { b, clock } = board();
+  b.setEnabled(true);
+  // How long each sound rings (ms), measured with the fake context.
+  const length = new Map();
+  for (const name of NAMES) {
+    clock.advance(5000);
+    assert.equal(b.play(name), true, name);
+    length.set(name, b.voices.at(-1).end - clock.now() - 30);
+  }
+  const check = (where, cues, limit, { startOnly = false } = {}) => {
+    assert.ok(cues.length > 0, `${where}: a sheet with no cues should not be listed`);
+    for (const c of cues) {
+      assert.ok(NAMES.includes(c.sound), `${where}: ${c.sound} is a sound`);
+      assert.ok(c.pitch >= 0.25 && c.pitch <= 4, `${where}: pitch ${c.pitch}`);
+      const end = c.at + (startOnly ? 0 : length.get(c.sound));
+      assert.ok(c.at >= 0 && end <= limit, `${where}: ${c.sound} at ${c.at} ms ${startOnly ? 'starts' : 'is over'} by ${limit} ms`);
+    }
+    assert.deepEqual(cues.map((c) => c.at), cues.map((c) => c.at).sort((x, y) => x - y), `${where}: in order`);
+  };
+  for (const [play, cues] of Object.entries(CUES.play)) {
+    assert.ok(PLAYS[play], `${play} is one of the plays`);
+    check(`play ${play}`, cues, PLAYS[play]);
+  }
+  const silent = Object.keys(PLAYS).filter((name) => !CUES.play[name]).sort();
+  assert.deepEqual(silent, ['look', 'moonwalk', 'peek', 'stretch'], 'the quiet plays stay quiet');
+  assert.deepEqual(Object.keys(CUES.cat).sort(), ['enter', 'nap', 'play']);
+  // It may still ring as the play starts; it only has to begin while the cat walks in.
+  check('cat enter', CUES.cat.enter, PET_TIMINGS.minWalkMs, { startOnly: true });
+  check('cat play', CUES.cat.play, PET_TIMINGS.playMs);
+  assert.ok(CUES.cat.play.some((c) => c.sound === 'tick'), 'the ball is heard while the cat plays');
+  assert.equal(CUES.cat.nap.length, 1, 'one purr as it dozes off, not all the time it sleeps');
+  assert.ok(CUES.cat.enter.some((c) => c.sound === 'meow'));
+});
+
+test('sound cues: nothing is scheduled while the sound is off; a play cut short goes quiet', () => {
+  const timers = [];
+  const later = (key, ms, fn) => timers.push({ key, ms, fn });
+  const played = [];
+  const play = (sound, pitch) => played.push([sound, pitch]);
+  assert.equal(scheduleCues(CUES.play.ball, { on: false, key: 'ball', later, still: () => true, play }), 0);
+  assert.equal(scheduleCues(CUES.cat.play, { on: false, key: 'cat', later, still: () => true, play }), 0);
+  assert.equal(timers.length, 0, 'no timers at all with the sound off');
+  assert.equal(scheduleCues(undefined, { on: true, key: 'look', later, still: () => true, play }), 0, 'a quiet play');
+  let going = true;
+  assert.equal(scheduleCues(CUES.play.jump, { on: true, key: 'jump', later, still: () => going, play }), 2);
+  assert.deepEqual(timers.map((t) => [t.key, t.ms]), [['jump-0', 200], ['jump-1', 900]]);
+  timers[0].fn();
+  going = false;
+  timers[1].fn();
+  assert.deepEqual(played, [['boing', 1]], 'the second boing is dropped: the jump was over');
 });
 
 test('sound: at most five at once, the same one at most every 45 ms', () => {

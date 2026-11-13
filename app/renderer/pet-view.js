@@ -16,6 +16,7 @@
    * @param {HTMLElement} o.actors
    * @param {(markup: string) => SVGElement} o.sanitizeSvg
    * @param {(name: string, on: boolean) => void} o.onCue  'play' starts / ends
+   * @param {(phase: string | null) => void} [o.onPhase]  enter, play, aside, nap, leave; null: gone
    * @param {(message: string) => void} o.trace
    */
   function createPetView(o) {
@@ -30,6 +31,7 @@
     const director = new PetDirector({
       onUpdate: render,
       onCue: (name, on) => o.onCue(name, on),
+      onPhase: (phase) => o.onPhase && o.onPhase(phase),
       onGone: () => {
         if (el) el.remove();
         el = null;

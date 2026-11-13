@@ -13,6 +13,9 @@
  *
  * interrupt() (Claude Code needs the main character): no more playing, it
  * goes straight to its nap spot.
+ *
+ * onPhase(phase) is told each time the phase changes, and null once the cat
+ * is gone (walked out, or the pet was changed): the page plays its sounds.
  */
 (function (root, factory) {
   const api = factory();
@@ -36,12 +39,14 @@
   });
 
   class PetDirector {
-    constructor({ clock = realClock, timings = {}, onUpdate = () => {}, onCue = () => {}, onGone = () => {} } = {}) {
+    constructor({ clock = realClock, timings = {}, onUpdate = () => {}, onCue = () => {}, onGone = () => {}, onPhase = () => {} } = {}) {
       this.clock = clock;
       this.t = { ...PET_TIMINGS, ...timings };
       this.onUpdate = onUpdate;
       this.onCue = onCue;
       this.onGone = onGone;
+      this.onPhase = onPhase;
+      this.phase = null;
       this.geo = { play: 60, nap: 140, width: 190 };
       this.pet = null;
       this.timer = null;
@@ -79,6 +84,7 @@
       this.walk(this.geo.width + this.t.outside, 'out', () => {
         this.clear();
         this.pet = null;
+        this.setPhase(null);
         this.onGone();
       });
     }
@@ -149,12 +155,21 @@
     }
 
     emit() {
-      if (this.pet) this.onUpdate({ ...this.pet });
+      if (!this.pet) return;
+      this.onUpdate({ ...this.pet });
+      this.setPhase(this.pet.phase);
+    }
+
+    setPhase(phase) {
+      if (phase === this.phase) return;
+      this.phase = phase;
+      this.onPhase(phase);
     }
 
     dispose() {
       this.clear();
       this.pet = null;
+      this.setPhase(null);
     }
   }
 
