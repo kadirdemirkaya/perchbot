@@ -35,6 +35,7 @@
  *   data-inspect ("left" | "right")  data-duel (phase, see lib/fun.js)
  *   data-rampage ("charge" | "laser" | "missile" | "smug" | "heal"; see "the rampage")
  *   data-holo (focus mode: intense work, see "focus mode")
+ *   data-lens (a look through the magnifier where the cursor rested, see "following the cursor")
  *   data-hunt (fights a bug at its feet, with data-duel phases; see "bug hunt")
  *   --look-x / --look-y (-1..1)  --type-line (0..7)  --fly-tilt (-1..1)
  *
@@ -1585,7 +1586,8 @@
       ambientOn() && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen && !raging;
     ambient.update({
       enabled: calm && AMBIENT_STATES.has(view.state),
-      trips: crewCount === 0 && !pet.here,
+      // "Stay here": plays on the spot only.
+      trips: crewCount === 0 && !pet.here && !settings.stayPut,
       // Sitting needs the ground; hanging from the top edge, the next thing is a trip away.
       grounded: !flight.airborne,
       hanging: Boolean(holder.dataset.hang),
@@ -1653,7 +1655,8 @@
         burstEmbers();
       }
       quip(erupt ? 'erupt' : 'enough', 1800);
-      later('flee', erupt ? ERUPT_MS : 450, () => window.buddy.fun('flee'));
+      // ("Stay here": it stays where it is, cross.)
+      if (!settings.stayPut) later('flee', erupt ? ERUPT_MS : 450, () => window.buddy.fun('flee'));
     } else {
       trace(`temper: ${level}`);
       quip(tapper.fedUp ? 'fedUp' : TEMPER_QUIPS[level] || (busy ? 'busy' : 'hey'), 1100);
@@ -2209,6 +2212,8 @@
       hover.closeNow();
       flag('play', null);
       flag('inspect', null);
+      flag('lens', null);
+      cancel('lens');
       flag('hang', null);
       startLoop(m.loop);
       // walk / fly: trips; toss (thrown, "Always stand"), settle (easing into place after a drop).
@@ -2230,7 +2235,9 @@
       if (m.kind === 'fall') quip('whoa', 1200);
       crew.setTravel(null);
       pet.setTravel(null);
-      if (m.kind === 'inspect' && m.arrived && motionAllowed()) {
+      if (m.kind === 'inspect' && m.arrived && motionAllowed() && m.lens) {
+        peerThroughLens(m.look === 'left' ? 'left' : 'right');
+      } else if (m.kind === 'inspect' && m.arrived && motionAllowed()) {
         flag('inspect', m.look === 'left' ? 'left' : 'right');
         later('inspect', INSPECT_MS, () => flag('inspect', null));
         // Now and then it asks what that is.
@@ -2240,6 +2247,48 @@
     }
     updateHunt();
     updateFun();
+  }
+
+  // ---------------------------------------------------------------- following the cursor (app/follow.js)
+
+  /**
+   * The cursor moved somewhere and rests there (main.js samples its position,
+   * nothing else): the user is probably looking at that spot. Idle, awake and
+   * free to move, now and then (FOLLOW chance, at most every 40 s) it flies
+   * over and peers at it through a big magnifier, held up to its eye on the
+   * side of the spot (data-lens; the figure turns to put that side towards it).
+   * Never with "Stay here".
+   */
+  const FOLLOW_CHANCE = 0.5;
+  const FOLLOW_GAP_MS = 40000;
+  const LENS_MS = 5200;
+  let lastFollow = -Infinity;
+
+  function onFollow(msg) {
+    if (!msg || !msg.dwell) return;
+    const demo = Boolean(msg.demo);
+    if (settings.stayPut || !ambientOn() || raging || moving || drag || duel.active || hunt.active || chatOpen || rest.resting) return;
+    // As for its own trips: idle, nobody else around, the pointer not on it.
+    if (!AMBIENT_STATES.has(view.state) || crewCount > 0 || pet.here || zone !== null) return;
+    if (!demo && (Date.now() - lastFollow < FOLLOW_GAP_MS || Math.random() >= FOLLOW_CHANCE)) return;
+    lastFollow = Date.now();
+    trace('follow: off to look at where the cursor rests');
+    window.buddy.fun('peek');
+  }
+
+  /** The magnifier pose, its far side towards the spot (the artwork holds it up to the far eye). */
+  function peerThroughLens(look) {
+    flag('face', look === 'right' ? 'left' : null);
+    flag('inspect', 'left');
+    flag('lens', true, true);
+    quip('lensHmm', 1600);
+    later('lens', LENS_MS, () => {
+      flag('lens', null);
+      flag('inspect', null);
+      if (!moving && !hunt.active) flag('face', null);
+    });
+    // Now and then it asks what that is, after a good look.
+    if (Math.random() < CURIOUS_CHANCE) later('curious', 2200, askWhatsThis);
   }
 
   // ---------------------------------------------------------------- chat
@@ -2502,6 +2551,9 @@
       temper.reset();
       fury.reset();
       [0, 300, 600, 3600, 3900, 4200].forEach((ms, i) => later(`rage-${i}`, ms, () => onClick(null, { meter: fixed, busy: true })));
+    } else if (name === 'lens') {
+      // The magnifier pose on the spot (normally where the cursor rested, app/follow.js).
+      peerThroughLens(Math.random() < 0.5 ? 'left' : 'right');
     } else if (name === 'focus') {
       // Focus mode at once (as after a burst of edits); it ends with the next calm spell.
       for (let i = 0; i < FOCUS.on; i += 1) focus.step('typing');
@@ -2646,6 +2698,7 @@
   window.buddy.onChat((msg) => applyChat(msg));
   window.buddy.onBug((bug) => applyBug(bug));
   window.buddy.onRampage((msg) => onRampage(msg));
+  window.buddy.onFollow((msg) => onFollow(msg));
   window.buddy.onOutingBack((id) => {
     if (typeof id !== 'string') return;
     trace(`crew: ${id.slice(0, 4)} back from roaming`);

@@ -2225,6 +2225,69 @@
   transform: rotate(-82deg);
 }
 
+/* ------------------------------------------------------------ the magnifier (data-lens)
+
+   Where the cursor rested (app/follow.js): the far hand holds a big magnifier
+   up to the far eye, which looks huge through it; the app turns the figure so
+   that side faces the spot. Comes after data-inspect and wins over it. */
+
+.rb-magnifier {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.buddy-character[data-lens] .rb-magnifier {
+  opacity: 1;
+  transition-delay: 0.18s;
+}
+
+.buddy-character[data-lens] .rb-arm-back {
+  transform: rotate(-150deg);
+}
+
+.buddy-character[data-lens] .rb-forearm-back {
+  transform: rotate(36.4deg);
+}
+
+.buddy-character[data-lens] .rb-face {
+  transform: translate(-4px, 1px);
+}
+
+.buddy-character[data-lens] .rb-head {
+  transform: rotate(-2deg);
+}
+
+.buddy-character[data-lens] .rb-glasses {
+  opacity: 0;
+}
+
+.buddy-character[data-lens] .rb-brow-l {
+  transform: translateY(-3.5px) rotate(-6deg);
+}
+
+.buddy-character[data-lens] .rb-brow-r {
+  transform: translateY(1.5px) rotate(-10deg);
+}
+
+.buddy-character[data-lens] :is(.rb-mouth, .rb-mouth-grin, .rb-mouth-worry) {
+  opacity: 0;
+}
+
+.buddy-character[data-lens] .rb-mouth-o {
+  opacity: 1;
+}
+
+/* A slow look around through it, a few still frames a second. */
+.buddy-character[data-lens]:not([data-rest]) .rb-torso {
+  animation: rb-lens-peer 2.4s steps(8) infinite;
+}
+
+@keyframes rb-lens-peer {
+  0%, 100% { transform: none; }
+  30% { transform: translateY(-1.5px) rotate(-1.5deg); }
+  65% { transform: translateY(0.5px) rotate(1.5deg); }
+}
+
 /* ------------------------------------------------------------ the duel (data-duel) */
 
 /* Sword out, laptop away. */

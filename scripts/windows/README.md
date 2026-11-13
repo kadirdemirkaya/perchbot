@@ -25,6 +25,7 @@ screenshots and the click-through test are repeatable. Add `-Fun` to turn all th
 `npm run simulate -- life` (with `$env:AGENT_BUDDY_PORT = '7790'` and `$env:AGENT_BUDDY_HOME`
 set to the test home) then plays every behaviour in turn. Developers can also set
 `$env:AGENT_BUDDY_DEMO` to `duel`, `trips`, `plays` or `cheers` before starting it.
+`-StayPut` starts it with **Stay here** on (no trips of its own, no fleeing, no following the cursor).
 
 If PowerShell refuses to run scripts, use
 `powershell -NoProfile -ExecutionPolicy Bypass -File <script>`.

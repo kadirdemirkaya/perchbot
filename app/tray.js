@@ -136,6 +136,7 @@ function lifeToggles(settings, t, on) {
   const box = (key, checked, set) => ({ label: t(key), type: 'checkbox', checked, click: (item) => set(Boolean(item && item.checked)) });
   return [
     box('ambientLife', settings.ambientLife !== false, on.setAmbientLife),
+    box('stayPut', Boolean(settings.stayPut), on.setStayPut),
     box('playMode', Boolean(settings.playMode), on.setPlayMode),
     box('cat', Boolean(settings.cat), on.setCat),
     box('hands', Boolean(settings.hands), on.setHands),

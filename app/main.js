@@ -49,6 +49,7 @@ const placement = require('./placement');
 const roam = require('./roam');
 const outingsLib = require('./outings');
 const rampageLib = require('./rampage');
+const { DwellWatch, FOLLOW } = require('./follow');
 const fling = require('./fling');
 const { buildTrayTemplate, buildFunMenuTemplate } = require('./tray');
 const { buildMenuItems, MENU_IDS, switchFor } = require('./menu-items');
@@ -81,7 +82,9 @@ const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
 /** Events that start the overlay (as in hooks/send.js). */
 const LAUNCH_EVENTS = new Set(['SessionStart', 'UserPromptSubmit']);
 /** What the page may ask for (fun mode): a trip, or the right-click menu. */
-const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch']);
+const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch', 'peek']);
+/** What the page may not start by itself while "Stay here" is on (the menu still can). */
+const STAY_PUT_BLOCKS = new Set(['flee', 'stroll', 'hop', 'inspect', 'cruise', 'hang', 'loop', 'perch', 'peek']);
 /**
  * While the window travels, the page reports every frame it draws (vsync) and
  * the window moves then. This timer only fills in if those reports stop: Node
@@ -146,7 +149,7 @@ const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers', 'menu', 'chat']);
 const demo = isDev && DEMOS.has(process.env.AGENT_BUDDY_DEMO) ? process.env.AGENT_BUDDY_DEMO : null;
 const DEMO_TRIPS = ['stroll', 'hop', 'screen', 'inspect', 'home'];
 /** Short lines in the speech bubble when it is hit or fights (locales: "quip"). */
-const QUIPS = ['whoa', 'welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'rampage', 'rampageFix', 'focusOn', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
+const QUIPS = ['whoa', 'welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'rampage', 'rampageFix', 'focusOn', 'lensHmm', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
 
 // Keep Chromium's own data (caches, the single-instance lock) under
 // ~/.agent-buddy too, so there is exactly one folder to delete on uninstall
@@ -394,7 +397,13 @@ function start() {
   // Ambient life / play mode: the page asks for a trip or the right-click menu.
   ipcMain.on('buddy:fun', (event, action) => {
     if (!fromPage(event) || !FUN_ACTIONS.has(action)) return;
+    if (settings.stayPut && STAY_PUT_BLOCKS.has(action)) {
+      log.devOnly(`fun: ${action} skipped (stay here)`);
+      return;
+    }
     if (action === 'context') popUpFunMenu();
+    // To where the user's cursor rested a moment ago, with the magnifier (app/follow.js).
+    else if (action === 'peek') settings.ambientLife && peekAtDwell();
     else if (action === 'whip-off') whipOn = false;
     // With two screens, now and then a walk or a hop goes over to the other one.
     // 'loop' (a demo): a hop with a loop-the-loop.
@@ -551,6 +560,47 @@ function start() {
         // not available on this system
       }
     }, PRESENCE.pollMs);
+    // Where the cursor rests (ambient life, not "Stay here"): the page may go and have a look.
+    followTimer = setInterval(followTick, FOLLOW.sampleMs);
+  }
+
+  // ------------------------------------------------------------------ following the cursor (app/follow.js)
+
+  const dwell = new DwellWatch();
+  let followTimer = null;
+  /** The last spot the cursor rested at: { x, y, at }. */
+  let dwellSpot = null;
+
+  /** One look at where the cursor is (its position only). Quiet unless it rests somewhere new. */
+  function followTick() {
+    if (!settings.ambientLife || settings.stayPut || paused || quitting || !win || win.isDestroyed() || drag || trip || rampage) {
+      dwell.reset();
+      return;
+    }
+    if (!CALM_STATES.has(core.snapshot().state)) return;
+    const spot = dwell.sample(screen.getCursorScreenPoint(), Date.now(), anchor);
+    if (!spot) return;
+    dwellSpot = { ...spot, at: Date.now() };
+    log.devOnly(`follow: the cursor rests at ${spot.x},${spot.y}`);
+    if (canSend()) win.webContents.send('buddy:follow', { dwell: true });
+  }
+
+  /** The simulator: the cursor "rests" where it is now. */
+  function demoFollow() {
+    if (!canSend() || settings.stayPut) return;
+    const p = screen.getCursorScreenPoint();
+    dwellSpot = { x: p.x, y: p.y, at: Date.now() };
+    win.webContents.send('buddy:follow', { dwell: true, demo: true });
+  }
+
+  /** The page wants a look: fly over beside that spot (same screen only) with the magnifier. */
+  function peekAtDwell() {
+    const spot = dwellSpot;
+    dwellSpot = null;
+    if (!spot || Date.now() - spot.at > FOLLOW.freshMs || !anchor) return;
+    const all = displays();
+    if (placement.nearestDisplay(spot, all).id !== placement.nearestDisplay(anchor, all).id) return;
+    startTrip('inspect', { at: { x: spot.x, y: spot.y }, lens: true });
   }
 
   const presence = new PresenceWatch();
@@ -1008,11 +1058,12 @@ function start() {
    * over there, home from over there, 'screen') goes in two legs: to the edge
    * that faces it, a fade, and on from the facing edge of the other screen.
    */
-  function startTrip(kind, { stayHere = false, style = null } = {}) {
+  function startTrip(kind, { stayHere = false, style = null, at = null, lens = false } = {}) {
     if (!win || win.isDestroyed() || drag || trip || warping || paused || !anchor || !pageLayout) return;
     const all = displays();
     const here = placement.nearestDisplay(anchor, all);
-    const cursor = screen.getCursorScreenPoint();
+    // 'inspect' at a given spot (where the cursor rested) instead of where it is now.
+    const cursor = at || screen.getCursorScreenPoint();
     const home = homeAnchor();
     const b = win.getBounds();
     // The whole window (helpers, the cat) must stay on the screen, not only the slot.
@@ -1045,7 +1096,7 @@ function start() {
       style,
       ...spans,
     });
-    if (plan) beginTrip(plan, kind);
+    if (plan) beginTrip(plan, kind, null, { lens: lens && at ? at : null });
   }
 
   // ------------------------------------------------------------------ hands: Chrome tabs (opt-in)
@@ -1255,7 +1306,7 @@ function start() {
   }
 
   /** then: what comes after arriving (the second leg of a trip to another screen). */
-  function beginTrip(plan, kind, then = null) {
+  function beginTrip(plan, kind, then = null, { lens = null } = {}) {
     // Off on a trip: it no longer sits on a window.
     if (perching || pendingPerch) stopPerch();
     log.devOnly(`trip: ${plan.kind} by ${plan.mode}, ${plan.ms} ms`);
@@ -1270,6 +1321,8 @@ function start() {
       timer: setInterval(() => trip && Date.now() - trip.lastStep >= TRIP_FALLBACK_MS && stepTrip(), TRIP_FALLBACK_MS),
       stats: moveStats(),
       then,
+      // A look through the magnifier on arrival, at this spot (screen DIP).
+      lens,
     };
     // A loop-the-loop: the page turns the figure once while the window flies the circle.
     const path = plan.path || {};
@@ -1308,7 +1361,7 @@ function start() {
     if (!trip) return;
     clearInterval(trip.timer);
     if (PERF) log.devOnly(`[perf] trip ${trip.plan.kind}: setBounds ${trip.stats.summary()}`);
-    const { plan, then } = trip;
+    const { plan, then, lens } = trip;
     trip = null;
     const home = homeAnchor();
     roamAnchor = Math.hypot(anchor.x - home.x, anchor.y - home.y) < 3 ? null : { ...anchor };
@@ -1327,11 +1380,13 @@ function start() {
       pendingPerch = null;
     }
     if (canSend()) {
+      const seen = lens || cursor;
       win.webContents.send('buddy:move', {
         mode: null,
         kind: plan.kind,
         arrived: !cancelled,
-        look: cursor.x < anchor.x ? 'left' : 'right',
+        look: seen.x < anchor.x ? 'left' : 'right',
+        ...(lens ? { lens: true } : {}),
       });
     }
     if (moved && plan.kind === 'fling') {
@@ -1759,6 +1814,8 @@ function start() {
     else if (name === 'cat') setPet(true, true); // the simulator shows it even with the setting off
     else if (name === 'cat-away') setPet(false);
     else if (name === 'chat') demoChat();
+    // As if the cursor had rested where it is now: the page goes for a look (no chance roll).
+    else if (name === 'follow') demoFollow();
     // Hands, for a test overlay only (--dev): a real tab is opened or closed, so a plain
     // overlay never does this for an event, only for the user in its chat panel.
     else if ((name === 'newtab' || name === 'closetab') && isDev) runHands(name);
@@ -1948,6 +2005,8 @@ function start() {
       account: ACCOUNT,
       // Hands: typed "open" / "close" become commands.
       hands: Boolean(settings.hands),
+      // Stay here: no trips of its own, no fleeing, no following the cursor.
+      stayPut: Boolean(settings.stayPut),
       strings: pageStrings(),
     };
   }
@@ -2250,6 +2309,12 @@ function start() {
       updateSettings({ ambientLife }, () => {
         if (!ambientLife && roamAnchor) startTrip('home');
       }),
+    // Stay here: where it is now becomes its place (as after a drag), and it stays there.
+    setStayPut: (stayPut) =>
+      updateSettings({ stayPut }, () => {
+        dwell.reset();
+        if (stayPut && roamAnchor && !trip) saveDrop(roamAnchor);
+      }),
     // Play mode off: the whip goes too.
     setPlayMode: (playMode) =>
       updateSettings({ playMode }, () => {
@@ -2308,6 +2373,7 @@ function start() {
     quitting = true;
     if (trip) clearInterval(trip.timer);
     clearInterval(presenceTimer);
+    clearInterval(followTimer);
     stopPerch();
     scanner.stop();
     hands.stop();

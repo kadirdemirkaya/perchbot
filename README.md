@@ -37,6 +37,8 @@ Open Claude Code sessions pick up the hooks after a restart (VS Code: *Developer
 - **Several Claude accounts** (`CLAUDE_CONFIG_DIR`)? Tray > Account > **One buddy per account**
   gives each account a buddy of its own, side by side, each with a small name tag.
 - **Ambient life** (tray) lets it and its helpers roam your screens when idle; switch it off to keep it still.
+  Now and then it flies over to where your cursor came to rest and peers at it through a magnifier.
+  **Stay here** (tray or right-click) keeps it on its spot: it still plays there, but no trips, no fleeing.
 - **Focus mode:** when the work gets intense (lots of edits in a couple of minutes) it puts on a headband
   and codes on a screen of light projected from its eye instead of the laptop.
 - **Tap** it: idle it mostly likes that. Keep tapping and it gets cross, fumes, and its head catches fire.
@@ -48,7 +50,8 @@ Open Claude Code sessions pick up the hooks after a restart (VS Code: *Developer
 
 Only the event, the tool name, a file name (not the path) and a shortened command (secrets
 masked) leave the hook, and only to `127.0.0.1`. Settings: `~/.agent-buddy/settings.json`.
-With ambient life on, the overlay also looks at the system idle time (to say welcome back) and,
+With ambient life on, the overlay also looks at the system idle time (to say welcome back), where the
+cursor is (its position only, to fly over to where it rests) and,
 on Windows, at where windows are (frames only, never titles or contents) to sit on title bars.
 Nothing of it is stored or sent anywhere.
 

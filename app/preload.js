@@ -18,7 +18,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const on = (channel) => (callback) => ipcRenderer.on(channel, (_event, data) => callback(data));
 const DRAG_PHASES = new Set(['start', 'move', 'end', 'cancel']);
 const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
-const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch']);
+const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch', 'peek']);
 const CHAT_OPS = new Set(['open', 'close', 'type', 'untype', 'ask']);
 const INTENT_RE = /^[a-z]{2,12}$/;
 
@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('buddy', {
   onBug: on('buddy:bug'),
   onOutingBack: on('buddy:outing-back'),
   onRampage: on('buddy:rampage'),
+  onFollow: on('buddy:follow'),
   ready: () => ipcRenderer.send('buddy:ready'),
   capture: (wanted) => ipcRenderer.send('buddy:capture', wanted === true),
   drag: (phase) => {

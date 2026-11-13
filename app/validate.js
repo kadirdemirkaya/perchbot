@@ -100,6 +100,9 @@ const DEMOS = new Set([
   'rampage',
   // Focus mode at once (intense work): a headband, and a screen of light instead of the laptop.
   'focus',
+  // As if the cursor rested where it is: it flies over and looks through its magnifier; 'lens': the pose only.
+  'follow',
+  'lens',
   // Five quick taps it loves (happy hops, hearts).
   'glee',
   'duel',

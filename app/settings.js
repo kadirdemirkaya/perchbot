@@ -54,6 +54,8 @@ const DEFAULTS = Object.freeze({
   hands: false,
   /** Ambient life: idle plays, walks and flights, varied cheers, getting annoyed when poked. */
   ambientLife: true,
+  /** Stay here: it keeps to its place (plays on the spot; no trips of its own, no fleeing, no following the cursor). */
+  stayPut: false,
   /** Play mode: the sword duel ("Play") and the whip. */
   playMode: false,
   /** The cat: it can be called from the menu, plays with the buddy, then naps. */
@@ -113,6 +115,7 @@ function normalizeSettings(raw) {
   // "funMode" (before 0.3) became "ambientLife".
   if (typeof raw.ambientLife === 'boolean') s.ambientLife = raw.ambientLife;
   else if (typeof raw.funMode === 'boolean') s.ambientLife = raw.funMode;
+  if (typeof raw.stayPut === 'boolean') s.stayPut = raw.stayPut;
   if (typeof raw.playMode === 'boolean') s.playMode = raw.playMode;
   if (typeof raw.cat === 'boolean') s.cat = raw.cat;
   if (typeof raw.sound === 'boolean') s.sound = raw.sound;

@@ -7,7 +7,9 @@ param(
   # middle of a test would move the window. -Fun turns all three on.
   [switch]$Fun,
   # Hands (open / close Chrome tabs when asked): off unless -Hands.
-  [switch]$Hands
+  [switch]$Hands,
+  # Stay here (no trips of its own, no fleeing, no following the cursor): off unless -StayPut.
+  [switch]$StayPut
 )
 # Starts an ISOLATED overlay for interactive tests: its own port and its own
 # settings folder, so the hooks of a live Claude Code session (which talk to
@@ -30,7 +32,7 @@ $busy = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Silentl
 if ($busy) { throw "port $Port is already in use (pid $($busy.OwningProcess)); stop that process first, e.g. an older test overlay" }
 
 New-Item -ItemType Directory -Force $TestHome | Out-Null
-$settings = @{ quiet = $false; ambientLife = [bool]$Fun; playMode = [bool]$Fun; cat = [bool]$Fun; hands = [bool]$Hands }
+$settings = @{ quiet = $false; ambientLife = [bool]$Fun; playMode = [bool]$Fun; cat = [bool]$Fun; hands = [bool]$Hands; stayPut = [bool]$StayPut }
 if ($X -or $Y) { $settings.position = @{ x = $X; y = $Y } }
 $settings | ConvertTo-Json -Compress | Out-File -Encoding ascii (Join-Path $TestHome 'settings.json')
 
