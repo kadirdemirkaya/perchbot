@@ -633,6 +633,18 @@
         ...every(150, 320, 1400, 'launch', [1, 1.08, 0.94, 1.04]),
         ...every(1150, 320, 2400, 'boom', [1, 0.9, 1.1, 0.95]),
       ]),
+      // After the cursor (app/rampage.js chaseLaunches, flights of 0.7-0.9 s): the beams, a launch and a blast each.
+      chase: sheet([
+        cue(0, 'laser', 0.9),
+        cue(700, 'launch'),
+        cue(1500, 'boom', 1.05),
+        cue(1800, 'launch', 1.08),
+        cue(2600, 'boom'),
+        cue(2900, 'launch', 0.95),
+        cue(3700, 'boom', 0.92),
+        cue(3900, 'launch', 1.04),
+        cue(4700, 'boom', 1.1),
+      ]),
       heal: sheet([cue(0, 'sparkle'), cue(350, 'sparkle', 1.2), cue(700, 'chirp', 0.9)]),
     }),
     cat: Object.freeze({

@@ -1713,7 +1713,7 @@ function start() {
     });
     ew.setIgnoreMouseEvents(true);
     ew.setAlwaysOnTop(true, TOP_LEVEL);
-    const r = { ew, timers: [], started: false };
+    const r = { ew, timers: [], started: false, aim: null };
     rampage = r;
     log.info('rampage: laser eyes and missiles');
     ew.on('closed', () => {
@@ -1734,6 +1734,17 @@ function start() {
           // The buddy stays in front of what it shoots.
           if (win && !win.isDestroyed()) win.moveTop();
           r.ew.webContents.send('effects:plan', plan);
+          // The chase: where the cursor is (its position only, to the effect window only).
+          r.timers.push(
+            setTimeout(() => {
+              if (rampage !== r || !r.ew) return;
+              r.aim = setInterval(() => {
+                if (rampage !== r || !r.ew || r.ew.isDestroyed() || r.ew.webContents.isDestroyed()) return;
+                r.ew.webContents.send('effects:aim', rampageLib.aimPoint(screen.getCursorScreenPoint(), display.bounds));
+              }, rampageLib.RAMPAGE.aimMs);
+              r.timers.push(setTimeout(() => stopAim(r), plan.chase.ms));
+            }, plan.chase.at),
+          );
           for (const step of plan.phases) {
             r.timers.push(
               setTimeout(() => {
@@ -1750,12 +1761,19 @@ function start() {
     return undefined;
   }
 
+  /** The chase is over: no more cursor positions. */
+  function stopAim(r) {
+    if (r.aim) clearInterval(r.aim);
+    r.aim = null;
+  }
+
   /** The show is over, or cut short (screen locked, quitting, the page gone). */
   function endRampage(why) {
     const r = rampage;
     if (!r) return;
     rampage = null;
     for (const t of r.timers) clearTimeout(t);
+    stopAim(r);
     if (r.ew && !r.ew.isDestroyed()) {
       if (!r.ew.webContents.isDestroyed()) r.ew.webContents.send('effects:stop');
       r.ew.destroy();

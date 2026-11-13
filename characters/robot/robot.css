@@ -3188,6 +3188,8 @@
               (the beams themselves are drawn over the screen by the app)
      missile  the gauge window drops open as a hatch; four missiles pop out
               (the app flies them across the screen), a kick for each one
+     chase    it goes after the cursor: eyes blazing, hatch open, a kick for
+              each missile it fires at it
      smug     a nasty grin, hands on the hips
      heal     the marks fade: sheepish, a hand behind the head, a drop of sweat
    Only transforms and opacity; every loop stops with the phase. */
@@ -3212,11 +3214,11 @@
   transform: translateY(6px);
 }
 
-.buddy-character:is([data-rampage='charge'], [data-rampage='laser'], [data-rampage='missile']) .rb-laser {
+.buddy-character:is([data-rampage='charge'], [data-rampage='laser'], [data-rampage='missile'], [data-rampage='chase']) .rb-laser {
   opacity: 1;
 }
 
-.buddy-character:is([data-rampage='charge'], [data-rampage='laser'], [data-rampage='missile']) :is(.rb-eyes, .rb-eyes-happy) {
+.buddy-character:is([data-rampage='charge'], [data-rampage='laser'], [data-rampage='missile'], [data-rampage='chase']) :is(.rb-eyes, .rb-eyes-happy) {
   opacity: 0;
 }
 
@@ -3240,19 +3242,19 @@
   transform: rotate(12deg);
 }
 
-.buddy-character[data-rampage='laser'] .rb-laser-halo {
+.buddy-character:is([data-rampage='laser'], [data-rampage='chase']) .rb-laser-halo {
   animation: rb-laser-blaze 0.14s steps(2) infinite;
 }
 
-.buddy-character[data-rampage='laser'] .rb-head {
+.buddy-character:is([data-rampage='laser'], [data-rampage='chase']) .rb-head {
   animation: rb-laser-recoil 0.12s linear infinite;
 }
 
-.buddy-character[data-rampage='laser'] :is(.rb-mouth, .rb-mouth-worry) {
+.buddy-character:is([data-rampage='laser'], [data-rampage='chase']) :is(.rb-mouth, .rb-mouth-worry) {
   opacity: 0;
 }
 
-.buddy-character[data-rampage='laser'] .rb-mouth-grin {
+.buddy-character:is([data-rampage='laser'], [data-rampage='chase']) .rb-mouth-grin {
   opacity: 1;
 }
 
@@ -3260,12 +3262,30 @@
   opacity: 0.75;
 }
 
-.buddy-character:is([data-rampage='missile'], [data-rampage='smug']) .rb-hatch {
+.buddy-character:is([data-rampage='missile'], [data-rampage='chase'], [data-rampage='smug']) .rb-hatch {
   opacity: 1;
 }
 
-.buddy-character[data-rampage='missile'] .rb-hatch-door {
+.buddy-character:is([data-rampage='missile'], [data-rampage='chase']) .rb-hatch-door {
   transform: translateY(1px) scaleY(-0.18);
+}
+
+/* The chase: a kick for each missile it fires at the cursor (app/rampage.js chaseLaunches). */
+.buddy-character[data-rampage='chase'] .rb-figure {
+  animation: rb-chase-kicks 5s linear both;
+}
+
+.buddy-character[data-rampage='chase'] .rb-arm-back {
+  transform: rotate(28deg);
+}
+
+.buddy-character[data-rampage='chase'] .rb-arm-front {
+  transform: rotate(-28deg);
+}
+
+@keyframes rb-chase-kicks {
+  0%, 13.4%, 17%, 35.4%, 39%, 57.4%, 61%, 77.4%, 81%, 100% { transform: none; }
+  14%, 36%, 58%, 78% { transform: translateX(-3px) scale(0.98, 1.02); }
 }
 
 .buddy-character[data-rampage='missile'] .rb-hatch-missile {

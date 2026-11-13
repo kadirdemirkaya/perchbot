@@ -12,7 +12,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { Fury, FURY, TEMPER_MAX } = require('../app/renderer/lib/fun');
-const { RAMPAGE, parseRampage, planRampage, toEffect } = require('../app/rampage');
+const { RAMPAGE, parseRampage, planRampage, toEffect, aimPoint } = require('../app/rampage');
 const { DEMOS } = require('../app/validate');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -102,19 +102,72 @@ test('rampage plan: the beams, four missiles away from the buddy and each other,
         assert.ok(d >= RAMPAGE.spacing, `marks apart (${Math.round(d)} px)`);
       }
     }
-    const lastBlast = Math.max(...missiles.map((m) => m.at + m.ms));
+    const lastBlast = Math.max(...missiles.map((m) => m.at + m.ms), plan.chase.at + plan.chase.ms, ...plan.chase.launches.map((l) => l.at + l.ms));
     const hold = plan.healAt - lastBlast;
     assert.ok(hold >= 5000 && hold <= 10000, `the marks stay 5-10 s after the last blast (${hold} ms)`);
     holds.push(hold);
     assert.equal(plan.endAt, plan.healAt + RAMPAGE.healMs);
     assert.deepEqual(
       plan.phases.map((p) => p.phase),
-      ['laser', 'missile', 'smug', 'heal', null],
+      ['laser', 'missile', 'chase', 'smug', 'heal', null],
     );
     for (let i = 1; i < plan.phases.length; i += 1) assert.ok(plan.phases[i].at > plan.phases[i - 1].at, 'phases in order');
   }
   assert.deepEqual(RAMPAGE.holdMs, [5000, 10000]);
   assert.ok(Math.min(...holds) < 6500 && Math.max(...holds) > 8500, 'a different length each time');
+});
+
+test('rampage plan: then five seconds after the cursor, with a missile at it now and then', () => {
+  const area = { x: 0, y: 0, width: 1920, height: 1040 };
+  for (let seed = 1; seed <= 20; seed += 1) {
+    const eyes = [{ x: 1700, y: 900 }, { x: 1726, y: 900 }];
+    const hatch = { x: 1713, y: 950 };
+    const plan = planRampage({ area, eyes, hatch, random: seeded(seed) });
+    const { chase, missiles, laser } = plan;
+    const lastLaunch = missiles.at(-1).at;
+    assert.equal(chase.at, lastLaunch + RAMPAGE.chaseGapMs, 'after the last of the first missiles');
+    assert.equal(chase.ms, 5000);
+    assert.deepEqual(chase.eyes, eyes);
+    assert.deepEqual(chase.hatch, hatch);
+    assert.deepEqual(chase.from, laser.to, 'the beams start where the burn line ended');
+    assert.ok(chase.speed > 0);
+    assert.deepEqual(chase.area, area);
+    assert.equal(chase.launches.length, 4);
+    for (const l of chase.launches) {
+      assert.ok(l.at > chase.at && l.at + l.ms <= chase.at + chase.ms, 'every chasing missile lands within the chase');
+      assert.ok(l.ms >= RAMPAGE.chaseFlightMs[0] && l.ms <= RAMPAGE.chaseFlightMs[1]);
+    }
+    const phase = (name) => plan.phases.find((p) => p.phase === name).at;
+    assert.equal(phase('chase'), chase.at);
+    assert.equal(phase('smug'), chase.at + chase.ms + 300, 'smug once the chase is over');
+    assert.ok(plan.healAt - (chase.at + chase.ms) >= 5000, 'the trail stays at least five seconds too');
+    assert.ok(RAMPAGE.chargeMs + plan.endAt < 30000, 'within the page guard');
+  }
+});
+
+test('rampage chase: the cursor, as page px of the effect window on its display; elsewhere: null', () => {
+  const bounds = { x: 1920, y: 0, width: 2560, height: 1440 };
+  assert.deepEqual(aimPoint({ x: 2000.4, y: 300.6 }, bounds), { x: 80, y: 301 });
+  assert.equal(aimPoint({ x: 100, y: 300 }, bounds), null, 'on the other screen');
+  assert.equal(aimPoint({ x: 1920 + 2560, y: 10 }, bounds), null);
+  assert.equal(aimPoint({ x: Number.NaN, y: 1 }, bounds), null);
+  assert.equal(aimPoint(null, bounds), null);
+  const main = read('app', 'main.js');
+  const at = main.indexOf('function startRampage(req)');
+  const body = main.slice(at, main.indexOf('function endRampage(why)'));
+  assert.ok(body.includes("r.ew.webContents.send('effects:aim', rampageLib.aimPoint(screen.getCursorScreenPoint(), display.bounds));"), 'the position only, to the effect window only');
+  assert.ok(body.includes('}, rampageLib.RAMPAGE.aimMs);'));
+  assert.ok(body.includes('r.timers.push(setTimeout(() => stopAim(r), plan.chase.ms));'), 'only during the chase');
+  assert.ok(main.slice(main.indexOf('function endRampage(why)')).includes('stopAim(r);'), 'and never after the show');
+  const effects = read('app', 'rampage-preload.js');
+  assert.ok(effects.includes("onAim: on('effects:aim'),"));
+  const page = read('app', 'renderer', 'rampage.js');
+  assert.ok(page.includes('aim = p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { x: p.x, y: p.y } : null;'), 'checked on arrival');
+  assert.ok(page.includes('at(c.at, () => chase(c));'));
+  assert.ok(page.includes('for (const l of c.launches || []) at(l.at, () => launchAt(c, l));'));
+  const buddy = read('app', 'renderer', 'renderer.js');
+  assert.ok(buddy.includes('const RAMPAGE_GUARD_MS = 30000;'));
+  assert.ok(read('characters', 'robot', 'robot.css').includes(".buddy-character[data-rampage='chase'] .rb-figure {"));
 });
 
 test('rampage plan: a small screen still gets a plan inside it', () => {

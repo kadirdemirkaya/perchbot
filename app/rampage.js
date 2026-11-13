@@ -3,17 +3,21 @@
 /**
  * The rampage: its head caught fire twice within five minutes (lib/fun.js
  * Fury). Beams from its eyes burn a line into the screen, then missiles fly
- * out of a hatch in its chest and leave blast marks elsewhere on the screen;
- * five to ten seconds after the last blast (at random) the marks fade and the
- * screen is as it was.
+ * out of a hatch in its chest and leave blast marks elsewhere on the screen.
+ * Then, for five seconds, it goes after the cursor: the beams chase it (a
+ * little slower than a quick hand) and burn a trail behind it, and missiles
+ * fly at where the cursor is. Five to ten seconds after the last blast (at
+ * random) the marks fade and the screen is as it was.
  *
  * All of it is drawn in one click-through window over the buddy's screen
  * (renderer/rampage.html); nothing on the real screen is touched, the mouse
  * goes through, and the window closes when the show is over.
  *
  * Pure: this file only checks the page's request and plans the show (where
- * the beams sweep, where the missiles land, and when). Points are in the
- * effect window's page px: DIP from the top-left corner of the display.
+ * the beams sweep, where the missiles land, and when; during the chase the
+ * effect page aims at the cursor, which main.js passes on: its position only).
+ * Points are in the effect window's page px: DIP from the top-left corner of
+ * the display.
  */
 
 const RAMPAGE = Object.freeze({
@@ -28,6 +32,18 @@ const RAMPAGE = Object.freeze({
   launchGapMs: 320,
   /** One missile's flight (shortest, longest). */
   flightMs: Object.freeze([850, 1150]),
+  /** After the last launch, the chase starts this much later... */
+  chaseGapMs: 500,
+  /** ...and lasts this long: the beams follow the cursor... */
+  chaseMs: 5000,
+  /** ...at most this fast (px per second; a quick flick of the hand gets away)... */
+  chaseSpeed: 900,
+  /** ...and missiles fly at the cursor this long after the chase began (one each). */
+  chaseLaunches: Object.freeze([700, 1800, 2900, 3900]),
+  /** A chasing missile's flight (shortest, longest): quicker than the others. */
+  chaseFlightMs: Object.freeze([700, 900]),
+  /** How often main.js tells the effect window where the cursor is. */
+  aimMs: 40,
   /** The marks stay this long after the last blast (shortest, longest; at random), then fade. */
   holdMs: Object.freeze([5000, 10000]),
   healMs: 1400,
@@ -90,7 +106,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
  * @param {{x:number,y:number}} o.hatch  effect page px
  * @param {'left'|'right'} [o.face]
  * @param {() => number} [o.random]
- * @returns {{ laser: object, missiles: object[], healAt: number, endAt: number, phases: {phase: string|null, at: number}[] }}
+ * @returns {{ laser: object, missiles: object[], chase: object, healAt: number, endAt: number, phases: {phase: string|null, at: number}[] }}
  */
 function planRampage({ area, eyes, hatch, face = 'right', random = Math.random, timings = RAMPAGE }) {
   const t = { ...RAMPAGE, ...timings };
@@ -145,14 +161,49 @@ function planRampage({ area, eyes, hatch, face = 'right', random = Math.random, 
     missiles.push({ from: { ...hatch }, ctrl: control, to: target, at, ms });
   }
 
-  const lastBlast = missiles.reduce((max, x) => Math.max(max, x.at + x.ms), t.laserMs);
+  // The chase: from the end of the burn line, the beams go after the cursor;
+  // missiles fly at it (the page picks the target when each one launches).
+  const lastLaunch = missiles.length ? missiles[missiles.length - 1].at : t.laserMs;
+  const chaseAt = lastLaunch + t.chaseGapMs;
+  const chase = {
+    at: chaseAt,
+    ms: t.chaseMs,
+    eyes: eyes.map((e) => ({ ...e })),
+    hatch: { ...hatch },
+    from: { ...to },
+    speed: t.chaseSpeed,
+    area: { x: area.x, y: area.y, width: area.width, height: area.height },
+    launches: t.chaseLaunches.map((after) => ({
+      at: chaseAt + after,
+      ms: Math.round(t.chaseFlightMs[0] + random() * (t.chaseFlightMs[1] - t.chaseFlightMs[0])),
+    })),
+  };
+  const chaseEnd = chaseAt + t.chaseMs;
+
+  const lastBlast = Math.max(
+    missiles.reduce((max, x) => Math.max(max, x.at + x.ms), t.laserMs),
+    chase.launches.reduce((max, x) => Math.max(max, x.at + x.ms), chaseEnd),
+  );
   const healAt = lastBlast + Math.round(t.holdMs[0] + random() * (t.holdMs[1] - t.holdMs[0]));
   const endAt = healAt + t.healMs;
-  const lastLaunch = missiles.length ? missiles[missiles.length - 1].at : t.laserMs;
   const phases = [{ phase: 'laser', at: 0 }];
   if (missiles.length) phases.push({ phase: 'missile', at: missiles[0].at - 150 });
-  phases.push({ phase: 'smug', at: lastLaunch + 450 }, { phase: 'heal', at: healAt }, { phase: null, at: endAt });
-  return { laser, missiles, healAt, endAt, phases };
+  phases.push({ phase: 'chase', at: chaseAt }, { phase: 'smug', at: chaseEnd + 300 }, { phase: 'heal', at: healAt }, { phase: null, at: endAt });
+  return { laser, missiles, chase, healAt, endAt, phases };
 }
 
-module.exports = { RAMPAGE, parseRampage, planRampage, toEffect };
+/**
+ * Where the cursor is, for the chase: screen DIP -> the effect window's page
+ * px, or null when it is not on that display.
+ * @param {{x:number,y:number}} p  screen DIP
+ * @param {{x:number,y:number,width:number,height:number}} bounds  the display
+ */
+function aimPoint(p, bounds) {
+  if (!p || !finite(p.x) || !finite(p.y) || !bounds) return null;
+  const x = Math.round(p.x - bounds.x);
+  const y = Math.round(p.y - bounds.y);
+  if (x < 0 || y < 0 || x >= bounds.width || y >= bounds.height) return null;
+  return { x, y };
+}
+
+module.exports = { RAMPAGE, parseRampage, planRampage, toEffect, aimPoint };

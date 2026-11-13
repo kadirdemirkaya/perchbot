@@ -1589,7 +1589,7 @@
   const temper = new Temper();
   /** Its head on fire twice in five minutes: a rampage (see "the rampage"). */
   const fury = new Fury();
-  /** The rampage's phase while it lasts ('charge', 'laser', 'missile', 'smug', 'heal'; 'away': work came in). */
+  /** The rampage's phase while it lasts ('charge', 'laser', 'missile', 'chase', 'smug', 'heal'; 'away': work came in). */
   let raging = null;
   const ambient = new AmbientScheduler({
     onPlay: (name) => {
@@ -1762,10 +1762,11 @@
    * off it stays, its eyes glow, beams from its eyes burn a line into the
    * screen and missiles fly out of a hatch in its chest. The main process
    * draws that in a click-through window over the screen and sends the
-   * phases; the marks fade 5-10 s after the last blast and it calms down, a little
+   * phases; then for five seconds it goes after the cursor ('chase': beams and
+   * missiles at it); the marks fade 5-10 s after the last blast and it calms down, a little
    * sheepish. Taps wait until it is over.
    */
-  const RAMPAGE_GUARD_MS = 20000;
+  const RAMPAGE_GUARD_MS = 30000;
 
   function centerOf(el) {
     const r = el.getBoundingClientRect();

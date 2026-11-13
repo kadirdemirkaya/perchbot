@@ -262,13 +262,19 @@ test('sound: no audio available is not an error', () => {
 
 test('sound: the rampage has its sheets (charge, beams, launches and blasts, healing)', () => {
   const { NAMES: names, CUES: cues } = require('../app/renderer/lib/sound');
-  assert.deepEqual(Object.keys(cues.rampage).sort(), ['charge', 'heal', 'laser', 'missile']);
+  assert.deepEqual(Object.keys(cues.rampage).sort(), ['charge', 'chase', 'heal', 'laser', 'missile']);
   for (const [phase, sheet] of Object.entries(cues.rampage)) {
     for (const c of sheet) assert.ok(names.includes(c.sound), `${phase}: ${c.sound}`);
   }
   const missile = cues.rampage.missile;
   assert.equal(missile.filter((c) => c.sound === 'launch').length, 4, 'one launch per missile');
   assert.equal(missile.filter((c) => c.sound === 'boom').length, 4, 'one blast per missile');
+  // The chase: a launch per chasing missile (app/rampage.js chaseLaunches), a blast after each.
+  const { RAMPAGE } = require('../app/rampage');
+  const launches = cues.rampage.chase.filter((c) => c.sound === 'launch').map((c) => c.at);
+  assert.deepEqual(launches, [...RAMPAGE.chaseLaunches]);
+  assert.equal(cues.rampage.chase.filter((c) => c.sound === 'boom').length, launches.length);
+  assert.ok(cues.rampage.chase.every((c) => c.at < RAMPAGE.chaseMs));
 });
 
 test('sound: work signals only with Sound and Work sounds on (a switch of its own, on by default)', () => {

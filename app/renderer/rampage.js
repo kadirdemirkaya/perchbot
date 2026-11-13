@@ -9,6 +9,9 @@
  *   missiles  fly out of the hatch in its chest on arcs, with smoke trails;
  *             each one bursts (flash, shock ring, debris, smoke) and leaves
  *             a blast mark with cracks and glowing embers
+ *   chase     for five seconds the beams go after the cursor (main.js says
+ *             where it is: its position only), a little slower than a quick
+ *             hand, burning a trail; missiles fly at where the cursor is
  *   heal      5-10 s after the last blast the marks sparkle and fade away
  *
  * Only the beams and the missiles in flight move frame by frame (a shared
@@ -173,6 +176,88 @@
     });
   }
 
+  // ---------------------------------------------------------------- the chase: after the cursor
+
+  /** Where the cursor is (page px), or null: on another screen, or not told yet. */
+  let aim = null;
+  /** Where the chasing beams hit now (missiles fly there when the cursor is away). */
+  let chasePoint = null;
+
+  function chase(c) {
+    let p = { x: c.from.x, y: c.from.y };
+    chasePoint = p;
+    // The trail it burns: the same layers as the burn line, a path that grows as it goes.
+    let d = `M${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
+    const trail = ['scorch-ash', 'scorch-halo', 'scorch-line', 'scorch-hot'].map((cls) => svg('path', { d, class: cls }, burns));
+    let last = { ...p };
+    const lines = c.eyes.map((eye) =>
+      ['glow', 'ray', 'core'].map((kind) => svg('line', { class: `beam-${kind}`, x1: eye.x, y1: eye.y, x2: p.x, y2: p.y }, beams)),
+    );
+    const flares = c.eyes.map((eye) => spark('eye-flare', eye.x, eye.y, c.ms + 200));
+    document.body.classList.add('firing');
+    const spot = document.createElement('i');
+    spot.className = 'hit-spot';
+    fx.appendChild(spot);
+    const start = performance.now();
+    let prev = start;
+    let lastPuff = 0;
+    /** Where the beams were drawn last frame: nothing to redraw while they rest on the cursor. */
+    let drawn = null;
+    move((now) => {
+      const dt = Math.min(64, now - prev) / 1000;
+      prev = now;
+      // Towards the cursor, at most c.speed px a second.
+      if (aim) {
+        const dx = aim.x - p.x;
+        const dy = aim.y - p.y;
+        const dist = Math.hypot(dx, dy);
+        const step = c.speed * dt;
+        p = dist <= step ? { x: aim.x, y: aim.y } : { x: p.x + (dx / dist) * step, y: p.y + (dy / dist) * step };
+        chasePoint = p;
+      }
+      if (!drawn || drawn.x !== p.x || drawn.y !== p.y) {
+        drawn = p;
+        for (const group of lines) {
+          for (const line of group) {
+            line.setAttribute('x2', p.x.toFixed(1));
+            line.setAttribute('y2', p.y.toFixed(1));
+          }
+        }
+        spot.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+      }
+      if (Math.hypot(p.x - last.x, p.y - last.y) >= 6) {
+        last = { ...p };
+        d += ` L${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
+        for (const path of trail) path.setAttribute('d', d);
+      }
+      if (now - lastPuff > 140) {
+        lastPuff = now;
+        spark('smoke smoke-small', p.x + rand(-6, 6), p.y + rand(-6, 6), 1300, { '--dx': `${rand(-14, 14).toFixed(0)}px` });
+        spark('cinder', p.x, p.y, 700, { '--dx': `${rand(-46, 46).toFixed(0)}px`, '--dy': `${rand(-50, 10).toFixed(0)}px` });
+      }
+      if (now - start < c.ms) return true;
+      beams.replaceChildren();
+      document.body.classList.remove('firing');
+      spot.remove();
+      for (const f of flares) f.remove();
+      trail[3].classList.add('cool');
+      return false;
+    });
+  }
+
+  /** A chasing missile: out of the hatch, up and over, at where the cursor is now. */
+  function launchAt(c, l) {
+    const target = aim || chasePoint || c.from;
+    const area = c.area;
+    const to = {
+      x: Math.round(Math.min(area.x + area.width - 20, Math.max(area.x + 20, target.x))),
+      y: Math.round(Math.min(area.y + area.height - 20, Math.max(area.y + 20, target.y))),
+    };
+    const top = Math.min(c.hatch.y, to.y) - (120 + Math.random() * 160);
+    const ctrl = { x: Math.round((c.hatch.x + to.x) / 2 + rand(-120, 120)), y: Math.round(Math.max(area.y + 12, top)) };
+    launch({ from: { ...c.hatch }, ctrl, to, ms: l.ms });
+  }
+
   // ---------------------------------------------------------------- a blast and its mark
 
   function blast(p) {
@@ -262,10 +347,9 @@
       const m = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(g.getAttribute('transform') || '');
       return m ? { x: Number(m[1]), y: Number(m[2]) } : null;
     });
-    const line = burns.querySelector('.scorch-line');
-    if (line) {
+    for (const line of burns.querySelectorAll('.scorch-line')) {
       const len = line.getTotalLength();
-      for (const f of [0.15, 0.5, 0.85]) spots.push(line.getPointAtLength(len * f));
+      if (len > 0) for (const f of [0.15, 0.5, 0.85]) spots.push(line.getPointAtLength(len * f));
     }
     spots.filter(Boolean).forEach((p, i) => {
       for (let k = 0; k < 3; k += 1) {
@@ -282,7 +366,17 @@
     if (reducedMotion.matches) return;
     at(plan.laser.at, () => fireBeams(plan.laser));
     for (const m of plan.missiles || []) at(m.at, () => launch(m));
+    const c = plan.chase;
+    if (c && Array.isArray(c.eyes) && c.hatch && c.from && c.area) {
+      at(c.at, () => chase(c));
+      for (const l of c.launches || []) at(l.at, () => launchAt(c, l));
+    }
     at(plan.healAt, () => heal(Math.max(200, plan.endAt - plan.healAt)));
+  });
+
+  // Where the cursor is, during the chase (a position, or null).
+  window.effects.onAim((p) => {
+    aim = p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { x: p.x, y: p.y } : null;
   });
 
   window.effects.onStop(() => {
