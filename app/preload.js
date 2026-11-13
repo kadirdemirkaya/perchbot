@@ -35,6 +35,10 @@ contextBridge.exposeInMainWorld('buddy', {
   onMoment: on('buddy:moment'),
   onPresence: on('buddy:presence'),
   onHands: on('buddy:hands'),
+  /** Hands were off; the user clicked "Yes" in the bubble: turn them on and do `intent`. */
+  handsOn: (intent) => {
+    if (intent === 'newtab' || intent === 'closetab') ipcRenderer.send('buddy:hands-on', intent);
+  },
   onPet: on('buddy:pet'),
   onFun: on('buddy:fun'),
   onReleased: on('buddy:released'),

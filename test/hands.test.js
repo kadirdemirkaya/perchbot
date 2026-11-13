@@ -137,7 +137,7 @@ test('a hands demo acts only on a test overlay (--dev); a plain overlay never do
   assert.ok(main.includes("else if ((name === 'newtab' || name === 'closetab') && isDev) runHands(name);"));
   // Otherwise only the chat panel (the user) asks for it.
   const calls = main.match(/runHands\(/g) || [];
-  assert.equal(calls.length, 3, 'defined once, called from the chat and from the dev demo');
+  assert.equal(calls.length, 4, 'defined once, called from the chat, from the "Yes" in the bubble and from the dev demo');
 });
 
 test('typed "open" / "close" always reach main: with hands off it says how to turn them on', () => {
@@ -145,8 +145,17 @@ test('typed "open" / "close" always reach main: with hands off it says how to tu
   assert.ok(page.includes('const intent = matchIntent(chatInput.value, { hands: true });'));
   const main = fs.readFileSync(path.join(ROOT, 'app', 'main.js'), 'utf8');
   const off = main.indexOf('if (!settings.hands) {');
-  const says = main.indexOf("return handsSay('handsOff');", off);
-  assert.ok(off > 0 && says > off && says - off < 200, 'hands off: it says how to turn them on');
+  const asks = main.indexOf("send('buddy:hands', { ask: { intent, text: t('handsAskOn'), yes: t('handsYes'), no: t('handsNo') } })", off);
+  assert.ok(off > 0 && asks > off && asks - off < 400, 'hands off: it asks to turn them on');
+  // "Yes": only from our page, only the two commands; it turns hands on and does it.
+  assert.ok(main.includes("if (!fromPage(event) || !chat.HAND_SET.has(intent)) return;"));
+  assert.ok(/actions\.setHands\(true\);\s+runHands\(intent\);/.test(main));
+  const preload = fs.readFileSync(path.join(ROOT, 'app', 'preload.js'), 'utf8');
+  assert.ok(preload.includes("if (intent === 'newtab' || intent === 'closetab') ipcRenderer.send('buddy:hands-on', intent);"));
+  for (const lang of ['en', 'tr']) {
+    const strings = JSON.parse(fs.readFileSync(path.join(ROOT, 'app', 'locales', `${lang}.json`), 'utf8'));
+    for (const key of ['handsAskOn', 'handsYes', 'handsNo']) assert.ok(strings.chat[key], `${lang}: ${key}`);
+  }
   assert.equal(matchIntent('son chrome sekmesini kapatır mısın', { hands: true }), 'closetab');
   assert.equal(matchIntent('aç', { hands: true }), 'newtab');
 });

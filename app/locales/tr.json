@@ -173,7 +173,10 @@
     "handsCloseTab": "Son sekmeyi kapatıyorum!",
     "handsNoChrome": "Açık bir Chrome penceresi göremiyorum.",
     "handsLastTab": "Tek sekme kaldı, onu kapatmıyorum!",
-    "handsNoButton": "Düğmeyi bulamadım."
+    "handsNoButton": "Düğmeyi bulamadım.",
+    "handsAskOn": "Eller kapalı. Açıp yapayım mı?",
+    "handsYes": "Evet",
+    "handsNo": "Hayır"
   },
   "quip": {
     "ouch": "Ay!",

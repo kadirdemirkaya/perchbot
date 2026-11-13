@@ -343,7 +343,7 @@
     // A chat answer gives way to work news at once (never the other way round).
     if (answerText && next.text && (next.state !== previous.state || next.text !== previous.text)) dropAnswer();
     // Work comes in: the question can wait.
-    if (curious && !CALM.has(next.state)) dropCurious();
+    if (curious && !curious.always && !CALM.has(next.state)) dropCurious();
     renderBubble();
 
     // Every event wakes the character; idle starts the rest countdown again.
@@ -441,7 +441,8 @@
 
   function renderBubble() {
     // A chat answer shows even in quiet mode: the user asked for it.
-    const text = answerText || (settings.quiet ? '' : curious ? curious.text : quipText || view.text);
+    // A question it asks about a command (hands) shows even in quiet mode: the user just asked.
+    const text = answerText || (curious && curious.always ? curious.text : settings.quiet ? '' : curious ? curious.text : quipText || view.text);
     bubble.classList.toggle('answer', Boolean(answerText));
     renderChoices();
     if (!text) {
@@ -1122,13 +1123,18 @@
     return (settings.strings && settings.strings.quips && settings.strings.quips[key]) || '';
   }
 
+  /**
+   * The bubble with answers to click: { text, choices: [{ id, label }], pick(id),
+   * always } (always: a question about a command, shown in quiet mode too and
+   * kept when work comes in).
+   */
   function askWhatsThis() {
     if (curious || settings.quiet || !ambientOn() || !CALM.has(view.state) || chatOpen || answerText) return;
     const text = quipString('whatsThis');
     if (!text) return;
     trace('curious: what is this?');
     dropQuip();
-    curious = { text };
+    curious = { text, choices: CHOICES.map((c) => ({ id: c.id, label: quipString(c.label) })), pick: pickWhatsThis };
     renderBubble();
     if (motionAllowed()) {
       flag('talk', true, true);
@@ -1139,20 +1145,19 @@
 
   function renderChoices() {
     bubble.classList.toggle('ask', Boolean(curious));
-    const key = curious ? CHOICES.map((c) => quipString(c.label)).join('|') : '';
+    const choices = curious ? curious.choices : [];
+    const key = choices.map((c) => `${c.id}:${c.label}`).join('|');
     if (key === choicesKey) return;
     choicesKey = key;
     choicesEl.replaceChildren(
-      ...(curious
-        ? CHOICES.map((c) => {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'bubble-choice';
-            button.dataset.choice = c.id;
-            button.textContent = quipString(c.label);
-            return button;
-          })
-        : []),
+      ...choices.map((c) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'bubble-choice';
+        button.dataset.choice = c.id;
+        button.textContent = c.label;
+        return button;
+      }),
     );
   }
 
@@ -1170,9 +1175,16 @@
   choicesEl.addEventListener('click', (e) => {
     const button = e.target instanceof Element ? e.target.closest('.bubble-choice') : null;
     if (!button || !curious) return;
-    const choice = CHOICES.find((c) => c.id === button.dataset.choice);
+    const { pick } = curious;
+    const id = button.dataset.choice;
     rest.activity();
-    dropCurious();
+    dropCurious(true);
+    if (pick) pick(id);
+  });
+
+  /** "What's this?" answered: its reaction. */
+  function pickWhatsThis(id) {
+    const choice = CHOICES.find((c) => c.id === id);
     if (!choice) return;
     trace(`curious: ${choice.id}`);
     if (choice.id === 'game' && motionAllowed()) glee.trigger();
@@ -1186,7 +1198,34 @@
       later('talk', 1200, () => flag('talk', null));
     }
     quip(choice.reply, 1800);
-  });
+  }
+
+  /**
+   * Hands are off and the user asked for a tab: "Turn them on and do it?" with
+   * Yes / No. Yes turns hands on (main) and does it; nothing happens otherwise.
+   */
+  const HANDS_ASK_MS = 12000;
+  function askHandsOn(ask) {
+    if (!ask || typeof ask.text !== 'string' || (ask.intent !== 'newtab' && ask.intent !== 'closetab')) return;
+    dropAnswer();
+    dropQuip();
+    if (curious) dropCurious();
+    trace(`hands: ask to turn on (${ask.intent})`);
+    curious = {
+      text: ask.text,
+      always: true,
+      choices: [
+        { id: 'yes', label: String(ask.yes || 'Yes') },
+        { id: 'no', label: String(ask.no || 'No') },
+      ],
+      pick: (id) => {
+        trace(`hands: ${id === 'yes' ? 'turned on' : 'left off'}`);
+        if (id === 'yes') window.buddy.handsOn(ask.intent);
+      },
+    };
+    renderBubble();
+    later('curious-end', HANDS_ASK_MS, () => dropCurious(true));
+  }
 
   // ---------------------------------------------------------------- the user away and back (app/presence.js)
 
@@ -2453,6 +2492,7 @@
       later('press', PRESS_MS, () => flag('press', null));
     }
     if (typeof msg.say === 'string' && msg.say) sayAnswer(msg.say);
+    if (msg.ask) askHandsOn(msg.ask);
   });
   window.buddy.onFlip((phase) => onFlip(phase));
   window.buddy.onChat((msg) => applyChat(msg));

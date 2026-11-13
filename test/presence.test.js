@@ -56,7 +56,8 @@ test('the page asks "What\'s this?" with answers to click, and says welcome back
   for (const rule of ['.bubble.ask .bubble-choices', '.bubble.ask.show', '.bubble-choice {']) assert.ok(css.includes(rule), rule);
   const page = fs.readFileSync(path.join(ROOT, 'app', 'renderer', 'renderer.js'), 'utf8');
   assert.ok(page.includes("if (el.closest('.bubble.ask.show .bubble-choice')) return 'bubble';"), 'the answers take the mouse');
-  assert.ok(page.includes('button.textContent = quipString(c.label);'), 'as text, never markup');
+  assert.ok(page.includes('button.textContent = c.label;'), 'as text, never markup');
+  assert.ok(page.includes('choices: CHOICES.map((c) => ({ id: c.id, label: quipString(c.label) }))'));
   const main = fs.readFileSync(path.join(ROOT, 'app', 'main.js'), 'utf8');
   for (const lang of ['en', 'tr']) {
     const strings = JSON.parse(fs.readFileSync(path.join(ROOT, 'app', 'locales', `${lang}.json`), 'utf8'));

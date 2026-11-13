@@ -403,6 +403,14 @@ function start() {
     else if (action === 'home' || settings.ambientLife) startTrip(roam.pickTrip(action, displays().length));
   });
 
+  // Hands were off; the user said "Yes" in the bubble: turn them on, then do what was asked.
+  ipcMain.on('buddy:hands-on', (event, intent) => {
+    if (!fromPage(event) || !chat.HAND_SET.has(intent)) return;
+    log.info('hands: turned on from the bubble');
+    actions.setHands(true);
+    runHands(intent);
+  });
+
   // A mini finished its exit scene: forget the agent (the window may shrink).
   // A trip: one step per frame the page draws.
   ipcMain.on('buddy:trip-frame', (event) => {
@@ -1062,7 +1070,10 @@ function start() {
     const target = intent === 'newtab' ? 'newtab' : 'close';
     if (!settings.hands) {
       log.info(`hands: ${intent} asked, but hands are off`);
-      return handsSay('handsOff');
+      // Ask in the bubble: "Turn them on and do it?" (Yes: 'buddy:hands-on').
+      const t = (key) => translate(settings.language, 'chat', key);
+      if (canSend()) win.webContents.send('buddy:hands', { ask: { intent, text: t('handsAskOn'), yes: t('handsYes'), no: t('handsNo') } });
+      return undefined;
     }
     if (!hands.supported()) return handsSay('handsOnlyWindows');
     if (handsBusy) return undefined;

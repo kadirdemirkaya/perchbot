@@ -201,6 +201,15 @@ body {
   display: flex;
 }
 
+/* A question may need two lines ("Hands are off. Turn them on and do it?"). */
+.bubble.ask .bubble-text {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
 .bubble.ask.show {
   pointer-events: auto;
 }

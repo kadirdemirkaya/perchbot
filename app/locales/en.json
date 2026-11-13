@@ -173,7 +173,10 @@
     "handsCloseTab": "Closing the last tab!",
     "handsNoChrome": "I can't see a Chrome window.",
     "handsLastTab": "That's the only tab left, I'll leave it.",
-    "handsNoButton": "I couldn't find the button."
+    "handsNoButton": "I couldn't find the button.",
+    "handsAskOn": "Hands are off. Turn them on and do it?",
+    "handsYes": "Yes",
+    "handsNo": "No"
   },
   "quip": {
     "ouch": "Ouch!",
