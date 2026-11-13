@@ -132,8 +132,21 @@ test('rampage plan: the beams, four missiles away from the buddy and each other,
     assert.ok(laser.from.x < 1700 && laser.to.x < 1700, 'in front, where there is room');
     assert.equal(laser.at, 0);
     assert.equal(laser.ms, RAMPAGE.laserMs);
+    // Then more lines elsewhere, one after another, inside the screen and away from the buddy.
+    assert.equal(plan.beams.length, RAMPAGE.extraBeams);
+    assert.equal(RAMPAGE.extraBeams, 2, 'three lines in all');
+    let end = laser.ms;
+    for (const b of plan.beams) {
+      assert.deepEqual(b.eyes, eyes);
+      for (const p of [b.from, b.to, b.ctrl]) assert.ok(inside(p), `beam point inside: ${JSON.stringify(p)}`);
+      const mid = { x: (b.from.x + b.to.x) / 2, y: (b.from.y + b.to.y) / 2 };
+      assert.ok(Math.hypot(mid.x - hatch.x, mid.y - hatch.y) >= RAMPAGE.clearance - 40, 'away from the buddy');
+      assert.equal(b.at, end + RAMPAGE.beamGapMs);
+      assert.equal(b.ms, RAMPAGE.extraBeamMs);
+      end = b.at + b.ms;
+    }
     assert.equal(missiles.length, RAMPAGE.missiles);
-    let previous = laser.ms;
+    let previous = end;
     for (const m of missiles) {
       assert.deepEqual(m.from, hatch);
       assert.ok(inside(m.to), `target inside: ${JSON.stringify(m.to)}`);
@@ -177,7 +190,8 @@ test('rampage plan: then five seconds after the cursor, with a missile at it now
     assert.equal(chase.ms, 5000);
     assert.deepEqual(chase.eyes, eyes);
     assert.deepEqual(chase.hatch, hatch);
-    assert.deepEqual(chase.from, laser.to, 'the beams start where the burn line ended');
+    assert.deepEqual(chase.from, plan.beams.at(-1).to, 'the beams start where the last burn line ended');
+    assert.ok(laser.at === 0);
     assert.ok(chase.speed > 0);
     assert.deepEqual(chase.area, area);
     assert.equal(chase.launches.length, 4);
@@ -193,7 +207,7 @@ test('rampage plan: then five seconds after the cursor, with a missile at it now
   }
 });
 
-test('rampage plan without the chase (first and second in a row): beams and missiles only, smug after the last launch', () => {
+test('rampage plan without the chase (Streak every n-th): beams and missiles only, smug after the last launch', () => {
   const area = { x: 0, y: 0, width: 1920, height: 1040 };
   for (let seed = 1; seed <= 40; seed += 1) {
     const eyes = [{ x: 1700, y: 900 }, { x: 1726, y: 900 }];
@@ -203,6 +217,7 @@ test('rampage plan without the chase (first and second in a row): beams and miss
     const full = planRampage({ area, eyes, hatch, face, chase: true, random: seeded(seed) });
     assert.equal(plan.chase, null, 'no chase');
     assert.deepEqual(plan.laser, full.laser, 'the same beams');
+    assert.deepEqual(plan.beams, full.beams);
     assert.deepEqual(plan.missiles, full.missiles, 'the same missiles');
     assert.deepEqual(
       plan.phases.map((p) => p.phase),
@@ -219,22 +234,25 @@ test('rampage plan without the chase (first and second in a row): beams and miss
   }
 });
 
-test('rampage streak: the third in a row goes after the cursor, then it counts from one; a five-minute pause starts over', () => {
-  assert.equal(RAMPAGE.chaseEvery, 3);
+test('rampage streak: every rampage goes after the cursor; set to every third, the count works as before', () => {
+  assert.equal(RAMPAGE.chaseEvery, 1, 'every rampage chases the cursor');
+  const each = new Streak();
+  assert.deepEqual([0, 1, 2, 9].map((m) => each.next(m * 60 * 1000)), [true, true, true, true]);
   assert.equal(RAMPAGE.streakMs, 5 * 60 * 1000);
   const minute = 60 * 1000;
-  const streak = new Streak();
+  const every = 3;
+  const streak = new Streak({ every });
   // Three in a row (each a minute after the last): the third chases; then it counts from one again.
   assert.deepEqual([0, 1, 2, 3, 4, 5].map((m) => streak.next(m * minute)), [false, false, true, false, false, true]);
   // A pause of five minutes or more: it starts over.
-  const pause = new Streak();
+  const pause = new Streak({ every });
   assert.equal(pause.next(0), false);
   assert.equal(pause.next(minute), false);
   assert.equal(pause.next(minute + RAMPAGE.streakMs), false, 'too long after the second: the first again');
   assert.equal(pause.next(2 * minute + RAMPAGE.streakMs), false);
   assert.equal(pause.next(3 * minute + RAMPAGE.streakMs - 1), true, 'just within five minutes of the one before');
   // The simulator: as if two had just happened.
-  const primed = new Streak();
+  const primed = new Streak({ every });
   primed.prime(10 * minute);
   assert.equal(primed.next(10 * minute + 1000), true);
   assert.equal(primed.next(11 * minute), false, 'and then from one again');

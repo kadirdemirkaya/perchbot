@@ -3000,8 +3000,8 @@
       quip('focusOn', 1400);
       flag('holo', true);
     } else if (name === 'rampage') {
-      // Its head on fire for the second time (no taps needed): the show (main.js adds the
-      // cursor chase to the third in a row; the 'rampage-chase' demo asks for that one).
+      // Its head on fire for the second time (no taps needed): the show (beams, missiles,
+      // then after the cursor; main.js and app/rampage.js plan it).
       temper.reset();
       for (let i = 0; i < TEMPER_MAX; i += 1) temper.flare('annoyed');
       flag('annoyed', TEMPER_MAX, true);

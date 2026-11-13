@@ -4,8 +4,9 @@
  * The rampage's effect window (app/rampage.js plans it, main.js opens this
  * page in a click-through window over the buddy's screen):
  *
- *   beams     two red beams from the buddy's eyes sweep along a line; the
- *             line is left burnt (a dark char with a hot core that cools)
+ *   beams     two red beams from the buddy's eyes sweep along a line, then
+ *             along more lines elsewhere; each line is left burnt (a dark
+ *             char with a hot core that cools)
  *   missiles  fly out of the hatch in its chest on arcs, with smoke trails;
  *             each one bursts (flash, shock ring, debris, smoke) and leaves
  *             a blast mark with cracks and glowing embers
@@ -365,6 +366,9 @@
     stopped = false;
     if (reducedMotion.matches) return;
     at(plan.laser.at, () => fireBeams(plan.laser));
+    for (const b of Array.isArray(plan.beams) ? plan.beams : []) {
+      if (b && Array.isArray(b.eyes) && b.from && b.ctrl && b.to) at(b.at, () => fireBeams(b));
+    }
     for (const m of plan.missiles || []) at(m.at, () => launch(m));
     const c = plan.chase;
     if (c && Array.isArray(c.eyes) && c.hatch && c.from && c.area) {

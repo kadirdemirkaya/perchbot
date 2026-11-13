@@ -2,13 +2,13 @@
 
 /**
  * The rampage: its head caught fire twice within five minutes (lib/fun.js
- * Fury). Beams from its eyes burn a line into the screen, then missiles fly
- * out of a hatch in its chest and leave blast marks elsewhere on the screen.
- * The third rampage in a row (each within five minutes of the last, see
- * Streak) then goes after the cursor for five seconds: the beams chase it (a
- * little slower than a quick hand) and burn a trail behind it, and missiles
- * fly at where the cursor is. Five to ten seconds after the last blast (at
- * random) the marks fade and the screen is as it was.
+ * Fury). Beams from its eyes burn a line into the screen in front of it, then
+ * two more lines elsewhere on the screen, then missiles fly out of a hatch in
+ * its chest and leave blast marks. Then it goes after the cursor for five
+ * seconds: the beams chase it (a little slower than a quick hand) and burn a
+ * trail behind it, and missiles fly at where the cursor is (every rampage;
+ * Streak can make it every n-th). Five to ten seconds after the last blast
+ * (at random) the marks fade and the screen is as it was.
  *
  * All of it is drawn in one click-through window over the buddy's screen
  * (renderer/rampage.html); nothing on the real screen is touched, the mouse
@@ -26,6 +26,10 @@ const RAMPAGE = Object.freeze({
   chargeMs: 900,
   /** The beams sweep along the burn line. */
   laserMs: 1600,
+  /** Then more lines at random spots (each a shorter sweep, a short pause between). */
+  extraBeams: 2,
+  extraBeamMs: 1000,
+  beamGapMs: 250,
   /** From the end of the beams to the first launch. */
   gapMs: 450,
   missiles: 4,
@@ -57,8 +61,8 @@ const RAMPAGE = Object.freeze({
   slack: 400,
   /** Two rampages are at least this far apart (the page counts blazes too; this is a backstop). */
   cooldownMs: 30000,
-  /** Rampages in a row: the one with the chase (the count then starts over)... */
-  chaseEvery: 3,
+  /** Rampages in a row: the one with the chase (the count then starts over; 1: every one)... */
+  chaseEvery: 1,
   /** ...and each one within this long of the one before, or the count starts over. */
   streakMs: 5 * 60 * 1000,
 });
@@ -112,7 +116,8 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
  * @param {'left'|'right'} [o.face]
  * @param {boolean} [o.chase]  false: no chase, the show ends with the missiles (chase: null)
  * @param {() => number} [o.random]
- * @returns {{ laser: object, missiles: object[], chase: object|null, healAt: number, endAt: number, phases: {phase: string|null, at: number}[] }}
+ * @returns {{ laser: object, beams: object[], missiles: object[], chase: object|null, healAt: number, endAt: number, phases: {phase: string|null, at: number}[] }}
+ *   laser: the first line (in front of it); beams: the lines after it, elsewhere
  */
 function planRampage({ area, eyes, hatch, face = 'right', chase: withChase = true, random = Math.random, timings = RAMPAGE }) {
   const t = { ...RAMPAGE, ...timings };
@@ -140,10 +145,9 @@ function planRampage({ area, eyes, hatch, face = 'right', chase: withChase = tru
   const ctrl = inBox({ x: (from.x + to.x) / 2 - along.y * bend, y: (from.y + to.y) / 2 + along.x * bend });
   const laser = { eyes: eyes.map((e) => ({ ...e })), from, ctrl, to, at: 0, ms: t.laserMs };
 
-  // The missiles: spread over the screen, away from the buddy, the burn line and each other.
+  // A free spot: away from the buddy and from what was hit before (or the best of 40 tries).
   const taken = [centre];
-  const missiles = [];
-  for (let i = 0; i < t.missiles; i += 1) {
+  const freeSpot = () => {
     let best = null;
     let bestScore = -Infinity;
     for (let k = 0; k < 40; k += 1) {
@@ -158,28 +162,52 @@ function planRampage({ area, eyes, hatch, face = 'right', chase: withChase = tru
         best = p;
       }
     }
-    const target = inBox(best);
-    taken.push(target);
+    const spot = inBox(best);
+    taken.push(spot);
+    return spot;
+  };
+
+  // More lines, elsewhere: a shorter slash each, at any angle.
+  const beams = [];
+  let beamsEnd = t.laserMs;
+  for (let i = 0; i < t.extraBeams; i += 1) {
+    const c = freeSpot();
+    const a = random() * Math.PI;
+    const h = (160 + random() * 120) / 2;
+    const dir2 = { x: Math.cos(a), y: Math.sin(a) };
+    const b0 = inBox({ x: c.x - dir2.x * h, y: c.y - dir2.y * h });
+    const b1 = inBox({ x: c.x + dir2.x * h, y: c.y + dir2.y * h });
+    const curve = (random() - 0.5) * 70;
+    const bc = inBox({ x: (b0.x + b1.x) / 2 - dir2.y * curve, y: (b0.y + b1.y) / 2 + dir2.x * curve });
+    const at = beamsEnd + t.beamGapMs;
+    beams.push({ eyes: eyes.map((e) => ({ ...e })), from: b0, ctrl: bc, to: b1, at, ms: t.extraBeamMs });
+    beamsEnd = at + t.extraBeamMs;
+  }
+
+  // The missiles: spread over the screen, away from the buddy, the burn lines and each other.
+  const missiles = [];
+  for (let i = 0; i < t.missiles; i += 1) {
+    const target = freeSpot();
     const top = Math.min(hatch.y, target.y) - (150 + random() * 220);
     const control = { x: Math.round((hatch.x + target.x) / 2 + (random() - 0.5) * 220), y: Math.round(Math.max(area.y + 12, top)) };
-    const at = t.laserMs + t.gapMs + i * t.launchGapMs;
+    const at = beamsEnd + t.gapMs + i * t.launchGapMs;
     const ms = Math.round(t.flightMs[0] + random() * (t.flightMs[1] - t.flightMs[0]));
     missiles.push({ from: { ...hatch }, ctrl: control, to: target, at, ms });
   }
 
-  const lastLaunch = missiles.length ? missiles[missiles.length - 1].at : t.laserMs;
+  const lastLaunch = missiles.length ? missiles[missiles.length - 1].at : beamsEnd;
   if (!withChase) {
     // No chase: smug once the last missile is out, the marks fade 5-10 s after the last blast.
-    const lastBlast = missiles.reduce((max, x) => Math.max(max, x.at + x.ms), t.laserMs);
+    const lastBlast = missiles.reduce((max, x) => Math.max(max, x.at + x.ms), beamsEnd);
     const healAt = lastBlast + Math.round(t.holdMs[0] + random() * (t.holdMs[1] - t.holdMs[0]));
     const endAt = healAt + t.healMs;
     const phases = [{ phase: 'laser', at: 0 }];
     if (missiles.length) phases.push({ phase: 'missile', at: missiles[0].at - 150 });
     phases.push({ phase: 'smug', at: lastLaunch + 450 }, { phase: 'heal', at: healAt }, { phase: null, at: endAt });
-    return { laser, missiles, chase: null, healAt, endAt, phases };
+    return { laser, beams, missiles, chase: null, healAt, endAt, phases };
   }
 
-  // The chase: from the end of the burn line, the beams go after the cursor;
+  // The chase: from the end of the last burn line, the beams go after the cursor;
   // missiles fly at it (the page picks the target when each one launches).
   const chaseAt = lastLaunch + t.chaseGapMs;
   const chase = {
@@ -187,7 +215,7 @@ function planRampage({ area, eyes, hatch, face = 'right', chase: withChase = tru
     ms: t.chaseMs,
     eyes: eyes.map((e) => ({ ...e })),
     hatch: { ...hatch },
-    from: { ...to },
+    from: { ...(beams.length ? beams[beams.length - 1].to : to) },
     speed: t.chaseSpeed,
     area: { x: area.x, y: area.y, width: area.width, height: area.height },
     launches: t.chaseLaunches.map((after) => ({
@@ -198,7 +226,7 @@ function planRampage({ area, eyes, hatch, face = 'right', chase: withChase = tru
   const chaseEnd = chaseAt + t.chaseMs;
 
   const lastBlast = Math.max(
-    missiles.reduce((max, x) => Math.max(max, x.at + x.ms), t.laserMs),
+    missiles.reduce((max, x) => Math.max(max, x.at + x.ms), beamsEnd),
     chase.launches.reduce((max, x) => Math.max(max, x.at + x.ms), chaseEnd),
   );
   const healAt = lastBlast + Math.round(t.holdMs[0] + random() * (t.holdMs[1] - t.holdMs[0]));
@@ -206,7 +234,7 @@ function planRampage({ area, eyes, hatch, face = 'right', chase: withChase = tru
   const phases = [{ phase: 'laser', at: 0 }];
   if (missiles.length) phases.push({ phase: 'missile', at: missiles[0].at - 150 });
   phases.push({ phase: 'chase', at: chaseAt }, { phase: 'smug', at: chaseEnd + 300 }, { phase: 'heal', at: healAt }, { phase: null, at: endAt });
-  return { laser, missiles, chase, healAt, endAt, phases };
+  return { laser, beams, missiles, chase, healAt, endAt, phases };
 }
 
 /**
@@ -225,8 +253,9 @@ function aimPoint(p, bounds) {
 
 /**
  * Rampages in a row: each one within `windowMs` of the one before counts up;
- * the `every`-th (the third) goes after the cursor and the count starts over.
- * A longer pause starts it over too. Pure: the time is passed in.
+ * the `every`-th goes after the cursor and the count starts over (every: 1,
+ * the default: each one). A longer pause starts it over too. Pure: the time
+ * is passed in.
  */
 class Streak {
   constructor({ every = RAMPAGE.chaseEvery, windowMs = RAMPAGE.streakMs } = {}) {

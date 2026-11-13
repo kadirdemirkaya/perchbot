@@ -105,7 +105,7 @@ const DEMOS = new Set([
   // Never stops tapping: the ladder, then three more taps while its head burns: a rampage.
   'pester',
   // Its head on fire twice in five minutes: laser eyes, missiles, marks that fade 5-10 s after the last blast
-  // (the third rampage in a row also goes after the cursor for five seconds); 'rampage-chase': that third one.
+  // (three burn lines, missiles, then five seconds after the cursor); 'rampage-chase': with the chase for sure.
   'rampage',
   'rampage-chase',
   // Focus mode at once (intense work): a headband, and a screen of light instead of the laptop.

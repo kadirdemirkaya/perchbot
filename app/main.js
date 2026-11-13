@@ -1896,7 +1896,7 @@ function start() {
     const ew = effectWindow(display, 'Agent Buddy effects');
     const r = { ew, timers: [], started: false, aim: null };
     rampage = r;
-    log.info(chase ? 'rampage: laser eyes and missiles, then after the cursor (third in a row)' : 'rampage: laser eyes and missiles');
+    log.info(chase ? 'rampage: laser eyes and missiles, then after the cursor' : 'rampage: laser eyes and missiles');
     ew.on('closed', () => {
       r.ew = null;
       if (rampage === r) endRampage('window closed');
@@ -1915,7 +1915,7 @@ function start() {
           // The buddy stays in front of what it shoots.
           if (win && !win.isDestroyed()) win.moveTop();
           r.ew.webContents.send('effects:plan', plan);
-          // The chase (third in a row only): where the cursor is (its position only, to the effect window only).
+          // The chase: where the cursor is (its position only, to the effect window only).
           if (plan.chase) {
             r.timers.push(
               setTimeout(() => {
@@ -2103,7 +2103,7 @@ function start() {
     else if (chat.HAND_SET.has(name) && isDev) runHands(name, { confirmed: true });
     // The rocket fist for sure (the new tab button), on a test overlay only.
     else if (name === 'fist' && isDev) runHands('newtab', { confirmed: true, fist: true });
-    // The third rampage in a row (after the cursor) without the two before it.
+    // A rampage with the chase for sure (whatever Streak is set to).
     else if (name === 'rampage-chase') demoRampageChase();
     else if (canSend()) win.webContents.send('buddy:fun', { action: 'demo', name });
   }
