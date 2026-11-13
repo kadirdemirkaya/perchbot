@@ -2999,7 +2999,8 @@
       quip('focusOn', 1400);
       flag('holo', true);
     } else if (name === 'rampage') {
-      // Its head on fire for the second time (no taps needed): the whole show.
+      // Its head on fire for the second time (no taps needed): the show (main.js adds the
+      // cursor chase to the third in a row; the 'rampage-chase' demo asks for that one).
       temper.reset();
       for (let i = 0; i < TEMPER_MAX; i += 1) temper.flare('annoyed');
       flag('annoyed', TEMPER_MAX, true);

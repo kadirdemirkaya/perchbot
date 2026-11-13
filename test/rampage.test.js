@@ -12,7 +12,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { Fury, FURY, TEMPER_MAX } = require('../app/renderer/lib/fun');
-const { RAMPAGE, parseRampage, planRampage, toEffect, aimPoint } = require('../app/rampage');
+const { RAMPAGE, parseRampage, planRampage, toEffect, aimPoint, Streak } = require('../app/rampage');
 const { DEMOS } = require('../app/validate');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -191,6 +191,71 @@ test('rampage plan: then five seconds after the cursor, with a missile at it now
     assert.ok(plan.healAt - (chase.at + chase.ms) >= 5000, 'the trail stays at least five seconds too');
     assert.ok(RAMPAGE.chargeMs + plan.endAt < 30000, 'within the page guard');
   }
+});
+
+test('rampage plan without the chase (first and second in a row): beams and missiles only, smug after the last launch', () => {
+  const area = { x: 0, y: 0, width: 1920, height: 1040 };
+  for (let seed = 1; seed <= 40; seed += 1) {
+    const eyes = [{ x: 1700, y: 900 }, { x: 1726, y: 900 }];
+    const hatch = { x: 1713, y: 950 };
+    const face = seed % 2 ? 'left' : 'right';
+    const plan = planRampage({ area, eyes, hatch, face, chase: false, random: seeded(seed) });
+    const full = planRampage({ area, eyes, hatch, face, chase: true, random: seeded(seed) });
+    assert.equal(plan.chase, null, 'no chase');
+    assert.deepEqual(plan.laser, full.laser, 'the same beams');
+    assert.deepEqual(plan.missiles, full.missiles, 'the same missiles');
+    assert.deepEqual(
+      plan.phases.map((p) => p.phase),
+      ['laser', 'missile', 'smug', 'heal', null],
+    );
+    const phase = (name) => plan.phases.find((p) => p.phase === name).at;
+    assert.equal(phase('smug'), plan.missiles.at(-1).at + 450, 'smug once the last missile is out');
+    const lastBlast = Math.max(...plan.missiles.map((m) => m.at + m.ms));
+    const hold = plan.healAt - lastBlast;
+    assert.ok(hold >= 5000 && hold <= 10000, `the marks stay 5-10 s after the last blast (${hold} ms)`);
+    assert.equal(plan.endAt, plan.healAt + RAMPAGE.healMs);
+    assert.ok(plan.endAt < full.endAt, 'shorter than the show with the chase');
+    for (let i = 1; i < plan.phases.length; i += 1) assert.ok(plan.phases[i].at > plan.phases[i - 1].at, 'phases in order');
+  }
+});
+
+test('rampage streak: the third in a row goes after the cursor, then it counts from one; a five-minute pause starts over', () => {
+  assert.equal(RAMPAGE.chaseEvery, 3);
+  assert.equal(RAMPAGE.streakMs, 5 * 60 * 1000);
+  const minute = 60 * 1000;
+  const streak = new Streak();
+  // Three in a row (each a minute after the last): the third chases; then it counts from one again.
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map((m) => streak.next(m * minute)), [false, false, true, false, false, true]);
+  // A pause of five minutes or more: it starts over.
+  const pause = new Streak();
+  assert.equal(pause.next(0), false);
+  assert.equal(pause.next(minute), false);
+  assert.equal(pause.next(minute + RAMPAGE.streakMs), false, 'too long after the second: the first again');
+  assert.equal(pause.next(2 * minute + RAMPAGE.streakMs), false);
+  assert.equal(pause.next(3 * minute + RAMPAGE.streakMs - 1), true, 'just within five minutes of the one before');
+  // The simulator: as if two had just happened.
+  const primed = new Streak();
+  primed.prime(10 * minute);
+  assert.equal(primed.next(10 * minute + 1000), true);
+  assert.equal(primed.next(11 * minute), false, 'and then from one again');
+  primed.prime(20 * minute);
+  assert.equal(primed.next(20 * minute + RAMPAGE.streakMs), false, 'a primed streak still runs out');
+});
+
+test('rampage streak wiring: main counts the rampages that start, the cursor only for the third, a demo of it', () => {
+  const main = read('app', 'main.js');
+  const at = main.indexOf('function startRampage(req)');
+  const body = main.slice(at, main.indexOf('function endRampage(why)'));
+  assert.ok(main.includes('const rampageStreak = new rampageLib.Streak();'));
+  const count = body.indexOf('const chase = rampageStreak.next(Date.now());');
+  assert.ok(count > body.indexOf('if (!display) return refuse();'), 'only a rampage that starts counts');
+  assert.ok(body.includes('face: req.face, chase });'), 'the plan follows the count');
+  assert.ok(body.indexOf('if (plan.chase) {') < body.indexOf("r.ew.webContents.send('effects:aim',"), 'no cursor position without the chase');
+  assert.ok(main.includes("else if (name === 'rampage-chase') demoRampageChase();"));
+  assert.ok(main.includes('rampageStreak.prime(Date.now());'));
+  assert.ok(DEMOS.has('rampage-chase'));
+  const page = read('app', 'renderer', 'rampage.js');
+  assert.ok(page.includes('if (c && Array.isArray(c.eyes) && c.hatch && c.from && c.area) {'), 'the effect page goes without a chase');
 });
 
 test('rampage chase: the cursor, as page px of the effect window on its display; elsewhere: null', () => {

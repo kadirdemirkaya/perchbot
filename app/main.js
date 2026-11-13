@@ -1662,11 +1662,14 @@ function start() {
   /**
    * Its head caught fire twice within five minutes (the page counts): laser
    * eyes and missiles, drawn in one click-through window over its screen
-   * (renderer/rampage.html) that closes when the marks have faded. The page
-   * gets the phases ('buddy:rampage') for its own poses. One at a time.
+   * (renderer/rampage.html) that closes when the marks have faded. The third
+   * rampage in a row also goes after the cursor (rampageLib.Streak counts
+   * here: only a rampage that really starts counts). The page gets the phases
+   * ('buddy:rampage') for its own poses. One at a time.
    */
   let rampage = null;
   let lastRampage = -Infinity;
+  const rampageStreak = new rampageLib.Streak();
 
   function startRampage(req) {
     const refuse = () => canSend() && win.webContents.send('buddy:rampage', { phase: null });
@@ -1680,7 +1683,8 @@ function start() {
     const b = win.getBounds();
     const local = (p) => rampageLib.toEffect(p, b, scale(), origin);
     const area = { x: display.workArea.x - origin.x, y: display.workArea.y - origin.y, width: display.workArea.width, height: display.workArea.height };
-    const plan = rampageLib.planRampage({ area, eyes: req.eyes.map(local), hatch: local(req.hatch), face: req.face });
+    const chase = rampageStreak.next(Date.now());
+    const plan = rampageLib.planRampage({ area, eyes: req.eyes.map(local), hatch: local(req.hatch), face: req.face, chase });
     lastRampage = Date.now();
     const ew = new BrowserWindow({
       ...display.bounds,
@@ -1715,7 +1719,7 @@ function start() {
     ew.setAlwaysOnTop(true, TOP_LEVEL);
     const r = { ew, timers: [], started: false, aim: null };
     rampage = r;
-    log.info('rampage: laser eyes and missiles');
+    log.info(chase ? 'rampage: laser eyes and missiles, then after the cursor (third in a row)' : 'rampage: laser eyes and missiles');
     ew.on('closed', () => {
       r.ew = null;
       if (rampage === r) endRampage('window closed');
@@ -1734,17 +1738,19 @@ function start() {
           // The buddy stays in front of what it shoots.
           if (win && !win.isDestroyed()) win.moveTop();
           r.ew.webContents.send('effects:plan', plan);
-          // The chase: where the cursor is (its position only, to the effect window only).
-          r.timers.push(
-            setTimeout(() => {
-              if (rampage !== r || !r.ew) return;
-              r.aim = setInterval(() => {
-                if (rampage !== r || !r.ew || r.ew.isDestroyed() || r.ew.webContents.isDestroyed()) return;
-                r.ew.webContents.send('effects:aim', rampageLib.aimPoint(screen.getCursorScreenPoint(), display.bounds));
-              }, rampageLib.RAMPAGE.aimMs);
-              r.timers.push(setTimeout(() => stopAim(r), plan.chase.ms));
-            }, plan.chase.at),
-          );
+          // The chase (third in a row only): where the cursor is (its position only, to the effect window only).
+          if (plan.chase) {
+            r.timers.push(
+              setTimeout(() => {
+                if (rampage !== r || !r.ew) return;
+                r.aim = setInterval(() => {
+                  if (rampage !== r || !r.ew || r.ew.isDestroyed() || r.ew.webContents.isDestroyed()) return;
+                  r.ew.webContents.send('effects:aim', rampageLib.aimPoint(screen.getCursorScreenPoint(), display.bounds));
+                }, rampageLib.RAMPAGE.aimMs);
+                r.timers.push(setTimeout(() => stopAim(r), plan.chase.ms));
+              }, plan.chase.at),
+            );
+          }
           for (const step of plan.phases) {
             r.timers.push(
               setTimeout(() => {
@@ -1878,7 +1884,15 @@ function start() {
     // Hands, for a test overlay only (--dev): a real tab is opened or closed, so a plain
     // overlay never does this for an event, only for the user in its chat panel.
     else if ((name === 'newtab' || name === 'closetab') && isDev) runHands(name);
+    // The third rampage in a row (after the cursor) without the two before it.
+    else if (name === 'rampage-chase') demoRampageChase();
     else if (canSend()) win.webContents.send('buddy:fun', { action: 'demo', name });
+  }
+
+  /** The simulator: as if two rampages had just happened, then the page's own 'rampage' demo. */
+  function demoRampageChase() {
+    rampageStreak.prime(Date.now());
+    if (canSend()) win.webContents.send('buddy:fun', { action: 'demo', name: 'rampage' });
   }
 
   /** The simulator: a throw towards the middle of the screen and up, as if the user flung it. */

@@ -4,7 +4,8 @@
  * The rampage: its head caught fire twice within five minutes (lib/fun.js
  * Fury). Beams from its eyes burn a line into the screen, then missiles fly
  * out of a hatch in its chest and leave blast marks elsewhere on the screen.
- * Then, for five seconds, it goes after the cursor: the beams chase it (a
+ * The third rampage in a row (each within five minutes of the last, see
+ * Streak) then goes after the cursor for five seconds: the beams chase it (a
  * little slower than a quick hand) and burn a trail behind it, and missiles
  * fly at where the cursor is. Five to ten seconds after the last blast (at
  * random) the marks fade and the screen is as it was.
@@ -56,6 +57,10 @@ const RAMPAGE = Object.freeze({
   slack: 400,
   /** Two rampages are at least this far apart (the page counts blazes too; this is a backstop). */
   cooldownMs: 30000,
+  /** Rampages in a row: the one with the chase (the count then starts over)... */
+  chaseEvery: 3,
+  /** ...and each one within this long of the one before, or the count starts over. */
+  streakMs: 5 * 60 * 1000,
 });
 
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -105,10 +110,11 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
  * @param {{x:number,y:number}[]} o.eyes  effect page px
  * @param {{x:number,y:number}} o.hatch  effect page px
  * @param {'left'|'right'} [o.face]
+ * @param {boolean} [o.chase]  false: no chase, the show ends with the missiles (chase: null)
  * @param {() => number} [o.random]
- * @returns {{ laser: object, missiles: object[], chase: object, healAt: number, endAt: number, phases: {phase: string|null, at: number}[] }}
+ * @returns {{ laser: object, missiles: object[], chase: object|null, healAt: number, endAt: number, phases: {phase: string|null, at: number}[] }}
  */
-function planRampage({ area, eyes, hatch, face = 'right', random = Math.random, timings = RAMPAGE }) {
+function planRampage({ area, eyes, hatch, face = 'right', chase: withChase = true, random = Math.random, timings = RAMPAGE }) {
   const t = { ...RAMPAGE, ...timings };
   const m = t.margin;
   const box = {
@@ -161,9 +167,20 @@ function planRampage({ area, eyes, hatch, face = 'right', random = Math.random, 
     missiles.push({ from: { ...hatch }, ctrl: control, to: target, at, ms });
   }
 
+  const lastLaunch = missiles.length ? missiles[missiles.length - 1].at : t.laserMs;
+  if (!withChase) {
+    // No chase: smug once the last missile is out, the marks fade 5-10 s after the last blast.
+    const lastBlast = missiles.reduce((max, x) => Math.max(max, x.at + x.ms), t.laserMs);
+    const healAt = lastBlast + Math.round(t.holdMs[0] + random() * (t.holdMs[1] - t.holdMs[0]));
+    const endAt = healAt + t.healMs;
+    const phases = [{ phase: 'laser', at: 0 }];
+    if (missiles.length) phases.push({ phase: 'missile', at: missiles[0].at - 150 });
+    phases.push({ phase: 'smug', at: lastLaunch + 450 }, { phase: 'heal', at: healAt }, { phase: null, at: endAt });
+    return { laser, missiles, chase: null, healAt, endAt, phases };
+  }
+
   // The chase: from the end of the burn line, the beams go after the cursor;
   // missiles fly at it (the page picks the target when each one launches).
-  const lastLaunch = missiles.length ? missiles[missiles.length - 1].at : t.laserMs;
   const chaseAt = lastLaunch + t.chaseGapMs;
   const chase = {
     at: chaseAt,
@@ -206,4 +223,34 @@ function aimPoint(p, bounds) {
   return { x, y };
 }
 
-module.exports = { RAMPAGE, parseRampage, planRampage, toEffect, aimPoint };
+/**
+ * Rampages in a row: each one within `windowMs` of the one before counts up;
+ * the `every`-th (the third) goes after the cursor and the count starts over.
+ * A longer pause starts it over too. Pure: the time is passed in.
+ */
+class Streak {
+  constructor({ every = RAMPAGE.chaseEvery, windowMs = RAMPAGE.streakMs } = {}) {
+    this.every = every;
+    this.windowMs = windowMs;
+    this.count = 0;
+    this.last = -Infinity;
+  }
+
+  /** A rampage starts now. True: it is the one that goes after the cursor. */
+  next(now) {
+    if (now - this.last >= this.windowMs) this.count = 0;
+    this.last = now;
+    this.count += 1;
+    if (this.count < this.every) return false;
+    this.count = 0;
+    return true;
+  }
+
+  /** As if the rampages before it had just happened: the next one chases (the simulator). */
+  prime(now) {
+    this.count = this.every - 1;
+    this.last = now;
+  }
+}
+
+module.exports = { RAMPAGE, parseRampage, planRampage, toEffect, aimPoint, Streak };

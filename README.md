@@ -50,8 +50,8 @@ Open Claude Code sessions pick up the hooks after a restart (VS Code: *Developer
 - **Tap** it: idle it mostly likes that. Keep tapping and it gets cross, fumes, and its head catches fire.
   Set its head on fire twice within five minutes (or keep tapping while it burns) and it goes on a
   rampage: laser eyes and missiles leave burn marks on your screen (a click-through layer; nothing real
-  is touched), then for five seconds it goes after your cursor with both. The marks fade 5 to 10 seconds
-  after the last blast.
+  is touched). The third rampage in a row (each within five minutes of the last) then goes after your
+  cursor with both for five seconds. The marks fade 5 to 10 seconds after the last blast.
 - **Sound** (tray, off by default): little robot sounds made in code, no audio files. With **Work sounds**
   on too it also signals when a turn is done, a tool failed or Claude Code has a question.
 - **Hands** (Windows, tray > "Hands: Chrome tabs", off by default): in the chat panel ask it to open a
