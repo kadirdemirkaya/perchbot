@@ -92,6 +92,8 @@ const WARP_WAIT_MS = 400;
 const WARP_IN_MS = 260;
 /** The side column while the chat panel is open (CSS px; see overlay.css .chat). */
 const CHAT_WIDTH = 176;
+/** The window level: above other always-on-top windows and full-screen apps (Electron levels). */
+const TOP_LEVEL = 'screen-saver';
 
 const CSP = [
   "default-src 'none'",
@@ -649,6 +651,8 @@ function start() {
     // (e.g. 358 x 342 instead of 355 x 338 at 125 %); the first resize would then
     // shift the character by those pixels. Set the exact bounds once more.
     win.setBounds(initial.bounds);
+    // Above other always-on-top windows and full-screen apps too, not only normal ones.
+    win.setAlwaysOnTop(true, TOP_LEVEL);
     win.loadURL(`${ORIGIN}/renderer/index.html`);
   }
 
@@ -1071,6 +1075,7 @@ function start() {
       },
     });
     hw.setIgnoreMouseEvents(true);
+    hw.setAlwaysOnTop(true, TOP_LEVEL);
     const o = { id: req.id, off: req.off, hw, feet, face: 'right', legs: outingsLib.pickLegs(), timer: null, step: null, ending: false };
     o.limit = setTimeout(() => outingHome(o), outingsLib.OUTING.maxMs);
     outings.set(req.id, o);
@@ -1380,7 +1385,7 @@ function start() {
     const lift = process.platform === 'win32';
     if (lift) win.setAlwaysOnTop(false);
     win.setFocusable(false);
-    if (lift) win.setAlwaysOnTop(true);
+    if (lift) win.setAlwaysOnTop(true, TOP_LEVEL);
   }
 
   function setPaused(value) {
