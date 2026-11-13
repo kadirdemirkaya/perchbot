@@ -296,8 +296,13 @@ test('rampage wiring: a click-through effect window that only listens, ended by 
   const at = main.indexOf('function startRampage(req)');
   assert.ok(at > 0);
   const body = main.slice(at, main.indexOf('function endRampage(why)'));
-  for (const piece of ["preload: path.join(__dirname, 'rampage-preload.js')", 'focusable: false', 'ew.setIgnoreMouseEvents(true);', 'sandbox: true', 'contextIsolation: true', 'nodeIntegration: false', 'r.ew.showInactive();', 'win.moveTop();']) {
+  for (const piece of ["const ew = effectWindow(display, 'Agent Buddy effects');", 'r.ew.showInactive();', 'win.moveTop();']) {
     assert.ok(body.includes(piece), piece);
+  }
+  // The effect windows (the rampage, the rocket fist): click-through, never focused, a listen-only page.
+  const helper = main.slice(main.indexOf('function effectWindow(display, title)'), main.indexOf('function stopAim(r)'));
+  for (const piece of ["preload: path.join(__dirname, 'rampage-preload.js')", 'focusable: false', 'ew.setIgnoreMouseEvents(true);', 'sandbox: true', 'contextIsolation: true', 'nodeIntegration: false']) {
+    assert.ok(helper.includes(piece), piece);
   }
   assert.ok(main.includes("if (value) endRampage('paused');"), 'a locked screen ends it');
   assert.ok(main.includes("endRampage('quit');"));

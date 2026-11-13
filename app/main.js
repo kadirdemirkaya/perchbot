@@ -49,6 +49,7 @@ const placement = require('./placement');
 const roam = require('./roam');
 const outingsLib = require('./outings');
 const rampageLib = require('./rampage');
+const fistLib = require('./fist');
 const { DwellWatch, FOLLOW } = require('./follow');
 const fling = require('./fling');
 const { buildTrayTemplate, buildFunMenuTemplate } = require('./tray');
@@ -808,6 +809,7 @@ function start() {
       rendererReady = false;
       endAllOutings();
       endRampage('renderer gone');
+      endFist('renderer gone');
       setCapture(false);
       chatOpen = false;
       log.error(`renderer exited (${details.reason})`);
@@ -825,6 +827,7 @@ function start() {
     win.on('closed', () => {
       endAllOutings();
       endRampage('window closed');
+      endFist('window closed');
       win = null;
       rendererReady = false;
       stopWatchdog();
@@ -962,6 +965,7 @@ function start() {
     if (!win || win.isDestroyed()) return;
     if (phase === 'start') {
       if (trip) endTrip(true); // picked up mid-trip
+      endFist('drag');
       const cursor = screen.getCursorScreenPoint();
       drag = {
         cursor,
@@ -1168,7 +1172,7 @@ function start() {
    * One command from the chat panel. `confirmed`: the user already said yes
    * (to "Close Chrome?", or to turning hands on for it).
    */
-  async function runHands(intent, { confirmed = false } = {}) {
+  async function runHands(intent, { confirmed = false, fist: forceFist = false } = {}) {
     if (!chat.HAND_SET.has(intent)) return undefined;
     if (!settings.hands) {
       log.info(`hands: ${intent} asked, but hands are off`);
@@ -1201,7 +1205,7 @@ function start() {
       handsSay(HANDS_WHY[found.why] || 'handsNoButton');
       return handsDone();
     }
-    reachFor(found, target, () => pressNow(target, intent === 'youtube' ? typeAddress : null));
+    reachAndPress(found, target, intent === 'youtube' ? typeAddress : null, { fist: forceFist });
     return undefined;
   }
 
@@ -1219,12 +1223,117 @@ function start() {
     return screen.screenToDipRect(null, { x: found.x, y: found.y, width: found.w, height: found.h });
   }
 
-  /** Off to the button the helper found (its middle), then `then` there. */
-  function reachFor(found, target, then) {
+  /**
+   * To the button the helper found (its middle) and press it, then `next`
+   * (or home). Now and then (app/fist.js: same screen, far enough, the dice;
+   * `fist`: always, the dev demo) it stays where it is and fires its forearm
+   * at the button instead.
+   */
+  function reachAndPress(found, target, next, { fist = false } = {}) {
     const r = dipRect(found);
     if (!r || !win || win.isDestroyed()) return handsDone();
+    const at = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    if (fireFist(at, target, next, fist)) return undefined;
     log.devOnly(`hands: ${target} at ${Math.round(r.x)},${Math.round(r.y)}, flying over`);
-    return goReach(handPoint({ x: r.x + r.width / 2, y: r.y + r.height / 2 }), then);
+    return goReach(handPoint(at), () => pressNow(target, next));
+  }
+
+  // ---------------------------------------------------------------- the rocket fist (app/fist.js)
+
+  /** The forearm in flight: { ew, timers, started, press }. */
+  let fist = null;
+
+  /**
+   * The rocket fist at `at` (screen DIP), if this is a time for it: the arm
+   * turns to the button (the page's pose), the effect window flies the
+   * forearm there, the button is pressed when it hits, and it flies back.
+   * Returns false when it does not (another screen, too close, the dice, busy):
+   * then the buddy flies over as before.
+   */
+  function fireFist(at, target, next, force) {
+    if (!win || win.isDestroyed() || !anchor || drag || warping || paused || trip || rampage || fist || !pageLayout) return false;
+    const here = placement.nearestDisplay(anchor, displays());
+    const display = screen.getAllDisplays().find((d) => d.id === here.id);
+    if (!display) return false;
+    const sameScreen = pointInside(display.bounds, at);
+    const pose = fistLib.armPose(anchor, at, scale());
+    const go = force ? sameScreen : fistLib.useFist({ sameScreen, elbow: pose.elbow, target: at, scale: scale() });
+    if (!go) return false;
+    const origin = { x: display.bounds.x, y: display.bounds.y };
+    const local = (p) => ({ x: p.x - origin.x, y: p.y - origin.y });
+    const plan = fistLib.planFist({ from: local(pose.elbow), to: local(at), scale: scale() });
+    const ew = effectWindow(display, 'Agent Buddy fist');
+    const ff = { ew, timers: [], started: false, press: null };
+    fist = ff;
+    log.info(`hands: rocket fist at ${target} (${plan.outMs} ms out)`);
+    if (canSend()) win.webContents.send('buddy:hands', { fist: 'aim', face: pose.face, rot: pose.rot });
+    ew.on('closed', () => {
+      ff.ew = null;
+      if (fist === ff) endFist('window closed');
+    });
+    const t0 = Date.now();
+    // The window did not come up in time: fly over and press as usual.
+    ff.timers.push(
+      setTimeout(() => {
+        if (fist !== ff || ff.started) return;
+        endFist('slow');
+        goReach(handPoint(at), () => pressNow(target, next));
+      }, fistLib.FIST.loadMs),
+    );
+    ew.webContents.once('did-finish-load', () => {
+      if (fist !== ff || !ff.ew) return;
+      ff.ew.webContents.setZoomFactor(1);
+      ff.timers.push(
+        setTimeout(
+          () => {
+            if (fist !== ff || !ff.ew) return;
+            ff.started = true;
+            ff.ew.showInactive();
+            // The buddy stays in front of its own forearm.
+            if (win && !win.isDestroyed()) win.moveTop();
+            ff.ew.webContents.send('effects:plan', plan);
+            if (canSend()) win.webContents.send('buddy:hands', { fist: 'out' });
+            ff.timers.push(
+              setTimeout(() => {
+                if (fist !== ff) return;
+                ff.press = hands.press(target).then((done) => {
+                  log.info(`hands: pressed ${target} (fist): ${done.ok ? 'ok' : done.why}`);
+                  if (!done.ok) handsSay(HANDS_WHY[done.why] || 'handsNoButton');
+                  return done.ok;
+                });
+              }, plan.hitAt),
+              setTimeout(() => fist === ff && canSend() && win.webContents.send('buddy:hands', { fist: 'dock' }), plan.dockAt),
+              setTimeout(async () => {
+                if (fist !== ff) return;
+                const ok = ff.press ? await ff.press : false;
+                if (fist !== ff) return;
+                endFist('done', { keepBusy: Boolean(ok && next) });
+                if (ok && next) next();
+              }, plan.dockAt + fistLib.FIST.dockMs),
+            );
+          },
+          Math.max(0, fistLib.FIST.aimMs - (Date.now() - t0)),
+        ),
+      );
+    });
+    ew.loadURL(`${ORIGIN}/renderer/fist.html`);
+    return true;
+  }
+
+  /** The fist is back (or cut short: a drag, a lock, quitting): the window goes, the arm is whole again. */
+  function endFist(why, { keepBusy = false } = {}) {
+    const ff = fist;
+    if (!ff) return;
+    fist = null;
+    for (const t of ff.timers) clearTimeout(t);
+    if (ff.ew && !ff.ew.isDestroyed()) {
+      if (!ff.ew.webContents.isDestroyed()) ff.ew.webContents.send('effects:stop');
+      ff.ew.destroy();
+    }
+    ff.ew = null;
+    log.devOnly(`hands: fist over (${why})`);
+    if (canSend()) win.webContents.send('buddy:hands', { fist: null });
+    if (!keepBusy) handsDone();
   }
 
   /** Fly to `point` (on this screen or another one), then `then` (only if it got there). */
@@ -1784,37 +1893,7 @@ function start() {
     const chase = rampageStreak.next(Date.now());
     const plan = rampageLib.planRampage({ area, eyes: req.eyes.map(local), hatch: local(req.hatch), face: req.face, chase });
     lastRampage = Date.now();
-    const ew = new BrowserWindow({
-      ...display.bounds,
-      show: false,
-      transparent: true,
-      frame: false,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      focusable: false,
-      hasShadow: false,
-      resizable: false,
-      movable: false,
-      minimizable: false,
-      maximizable: false,
-      fullscreenable: false,
-      ...(process.platform === 'win32' ? { type: 'toolbar' } : {}),
-      backgroundColor: '#00000000',
-      title: 'Agent Buddy effects',
-      webPreferences: {
-        preload: path.join(__dirname, 'rampage-preload.js'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-        webSecurity: true,
-        spellcheck: false,
-        webgl: false,
-        devTools: false,
-        navigateOnDragDrop: false,
-      },
-    });
-    ew.setIgnoreMouseEvents(true);
-    ew.setAlwaysOnTop(true, TOP_LEVEL);
+    const ew = effectWindow(display, 'Agent Buddy effects');
     const r = { ew, timers: [], started: false, aim: null };
     rampage = r;
     log.info(chase ? 'rampage: laser eyes and missiles, then after the cursor (third in a row)' : 'rampage: laser eyes and missiles');
@@ -1863,6 +1942,46 @@ function start() {
     });
     ew.loadURL(`${ORIGIN}/renderer/rampage.html`);
     return undefined;
+  }
+
+  /**
+   * A click-through window over one display for effects (the rampage, the
+   * rocket fist): it never takes the mouse or the keyboard, and its page only
+   * listens (rampage-preload.js).
+   */
+  function effectWindow(display, title) {
+    const ew = new BrowserWindow({
+      ...display.bounds,
+      show: false,
+      transparent: true,
+      frame: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      focusable: false,
+      hasShadow: false,
+      resizable: false,
+      movable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      ...(process.platform === 'win32' ? { type: 'toolbar' } : {}),
+      backgroundColor: '#00000000',
+      title,
+      webPreferences: {
+        preload: path.join(__dirname, 'rampage-preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        webSecurity: true,
+        spellcheck: false,
+        webgl: false,
+        devTools: false,
+        navigateOnDragDrop: false,
+      },
+    });
+    ew.setIgnoreMouseEvents(true);
+    ew.setAlwaysOnTop(true, TOP_LEVEL);
+    return ew;
   }
 
   /** The chase is over: no more cursor positions. */
@@ -1982,6 +2101,8 @@ function start() {
     // Hands, for a test overlay only (--dev): a real tab is opened or closed, so a plain
     // overlay never does this for an event, only for the user in its chat panel.
     else if (chat.HAND_SET.has(name) && isDev) runHands(name, { confirmed: true });
+    // The rocket fist for sure (the new tab button), on a test overlay only.
+    else if (name === 'fist' && isDev) runHands('newtab', { confirmed: true, fist: true });
     // The third rampage in a row (after the cursor) without the two before it.
     else if (name === 'rampage-chase') demoRampageChase();
     else if (canSend()) win.webContents.send('buddy:fun', { action: 'demo', name });
@@ -2067,6 +2188,7 @@ function start() {
     if (value) setCapture(false);
     if (value) endAllOutings();
     if (value) endRampage('paused');
+    if (value) endFist('paused');
     if (canSend()) win.webContents.send('buddy:paused', value);
   }
 
@@ -2520,6 +2642,7 @@ function start() {
     hands.stop();
     endAllOutings();
     endRampage('quit');
+    endFist('quit');
     stopWatchdog();
     core.dispose();
     if (server) server.close();

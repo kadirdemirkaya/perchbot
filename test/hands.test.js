@@ -230,7 +230,7 @@ test('a hands demo acts only on a test overlay (--dev); a plain overlay never do
   assert.ok(main.includes("else if (chat.HAND_SET.has(name) && isDev) runHands(name, { confirmed: true });"));
   // Otherwise only the chat panel (the user) asks for it.
   const calls = main.match(/runHands\(/g) || [];
-  assert.equal(calls.length, 5, 'defined once, called from the chat, from the two "Yes" in the bubble and from the dev demo');
+  assert.equal(calls.length, 6, 'defined once, called from the chat, from the two "Yes" in the bubble and from the two dev demos');
 });
 
 test('a command with hands off asks to turn them on first', () => {

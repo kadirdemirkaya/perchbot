@@ -1,11 +1,12 @@
 'use strict';
 
 /**
- * The bridge for the rampage's effect window (main.js, renderer/rampage.html):
- * a click-through window over the buddy's screen that draws the beams, the
- * missiles and the marks they leave. It only listens: the plan (app/rampage.js),
- * where the cursor is during the chase (its position, or null when it is on
- * another screen) and "stop now". It cannot send anything back.
+ * The bridge for the effect windows (main.js): click-through windows over the
+ * buddy's screen. renderer/rampage.html draws the beams, the missiles and the
+ * marks they leave; renderer/fist.html the rocket fist (hands). They only
+ * listen: the plan (app/rampage.js, app/fist.js), where the cursor is during
+ * the rampage's chase (its position, or null when it is on another screen)
+ * and "stop now". They cannot send anything back.
  */
 
 const { contextBridge, ipcRenderer } = require('electron');

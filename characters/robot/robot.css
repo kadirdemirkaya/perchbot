@@ -3170,6 +3170,53 @@
   to { transform: translate(1.5px, -2.5px) rotate(-6deg); }
 }
 
+/* ------------------------------------------------------------ hands: the rocket fist (data-fist)
+
+   Now and then it presses a Chrome button from where it is (app/fist.js):
+   'aim' the near arm points at the button (--fist-rot, set by the app; the
+   figure is mirrored when the button is on the left) and trembles, 'out' the
+   forearm is off at the elbow (the effect window flies it to the button and
+   back), 'dock' it clicks back on. */
+
+.buddy-character[data-fist] .rb-arm-front {
+  transform: rotate(var(--fist-rot, -130deg));
+  transition: transform 0.22s ease-out;
+}
+
+.buddy-character[data-fist] .rb-forearm-front {
+  transform: none;
+}
+
+.buddy-character[data-fist] .rb-laptop {
+  opacity: 0;
+}
+
+.buddy-character[data-fist='aim']:not([data-rest]) .rb-forearm-front {
+  animation: rb-fist-tremble 0.06s linear 0.15s infinite alternate;
+}
+
+.buddy-character[data-fist='out'] .rb-forearm-front {
+  opacity: 0;
+}
+
+.buddy-character[data-fist='dock']:not([data-rest]) .rb-forearm-front {
+  animation: rb-fist-dock 0.34s cubic-bezier(0.3, 1.6, 0.5, 1) 1;
+}
+
+.buddy-character[data-fist='out'] .rb-face {
+  transform: translate(2px, -2px);
+}
+
+@keyframes rb-fist-tremble {
+  from { transform: translate(-0.5px, 0); }
+  to { transform: translate(0.5px, 0.4px); }
+}
+
+@keyframes rb-fist-dock {
+  from { transform: translateY(5px); }
+  to { transform: none; }
+}
+
 /* ------------------------------------------------------------ focus mode (data-holo)
 
    The app sets data-holo while the work is intense (many steps in the last two

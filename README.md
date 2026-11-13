@@ -57,8 +57,8 @@ Open Claude Code sessions pick up the hooks after a restart (VS Code: *Developer
 - **Hands** (Windows, tray > "Hands: Chrome", off by default): buttons at the top of the chat panel.
   It opens Chrome, closes the front Chrome window (after a Yes), opens a new tab, closes the last tab, or
   opens YouTube (a new tab, then it types "youtube.com" into the address bar and presses Enter). It flies
-  over and presses the buttons through Windows UI Automation; your mouse is not moved, tab titles and
-  addresses are not read.
+  over and presses the buttons through Windows UI Automation, or now and then fires its forearm at the
+  button from where it stands (a rocket fist); your mouse is not moved, tab titles and addresses are not read.
 
 Only the event, the tool name, a file name (not the path) and a shortened command (secrets
 masked) leave the hook, and only to `127.0.0.1`. Settings: `~/.agent-buddy/settings.json`.

@@ -1645,7 +1645,8 @@
       endGuest('interrupted');
     }
     ambient.update({
-      enabled: calm && AMBIENT_STATES.has(view.state),
+      // (Not while its forearm is off: the rocket fist, hands.)
+      enabled: calm && !fisting && AMBIENT_STATES.has(view.state),
       // "Stay here": plays on the spot only.
       trips: crewCount === 0 && !pet.here && !settings.stayPut,
       // Sitting needs the ground; hanging from the top edge, the next thing is a trip away.
@@ -2848,6 +2849,31 @@
   const PRESS_MS = 1200;
   const TYPE_MS = 2600;
 
+  /**
+   * The rocket fist (app/fist.js): 'aim' turns it and its near arm towards the
+   * button (--fist-rot), 'out' the forearm is off (the effect window flies
+   * it), 'dock' it is back with a clunk, null the pose ends.
+   */
+  let fisting = false;
+  function applyFist(msg) {
+    const phase = ['aim', 'out', 'dock'].includes(msg.fist) ? msg.fist : null;
+    if (phase === 'aim') {
+      const rot = Number.isFinite(msg.rot) ? Math.max(-180, Math.min(180, msg.rot)) : -130;
+      holder.style.setProperty('--fist-rot', `${rot}deg`);
+      flag('face', msg.face === 'left' ? 'left' : null);
+      sfx('charge', 1.3);
+    }
+    if (phase === 'out') sfx('launch', 1.2);
+    fisting = phase !== null;
+    flag('fist', phase, phase === 'dock');
+    if (!phase) {
+      holder.style.removeProperty('--fist-rot');
+      if (!moving) flag('face', null);
+    }
+    trace(`hands: fist ${phase || 'over'}`);
+    updateFun();
+  }
+
   /** A line about a command (hands): shown like a chat answer, also with the panel closed. */
   function sayAnswer(text) {
     dropQuip();
@@ -2986,6 +3012,11 @@
       later('press', PRESS_MS, () => flag('press', 'chest', true));
       later('press-type', PRESS_MS * 2 + 300, () => flag('press', 'type', true));
       later('press-end', PRESS_MS * 2 + 300 + TYPE_MS, () => flag('press', null));
+      // ...and the rocket fist's arm (no forearm flies here).
+      later('press-fist', PRESS_MS * 2 + 600 + TYPE_MS, () => applyFist({ fist: 'aim', rot: -125 }));
+      later('press-fist-out', PRESS_MS * 2 + 1100 + TYPE_MS, () => applyFist({ fist: 'out' }));
+      later('press-fist-dock', PRESS_MS * 2 + 2100 + TYPE_MS, () => applyFist({ fist: 'dock' }));
+      later('press-fist-end', PRESS_MS * 2 + 2500 + TYPE_MS, () => applyFist({ fist: null }));
     } else if (name === 'curious') {
       askWhatsThis();
     } else if (name === 'welcome') {
@@ -3112,6 +3143,7 @@
     if (typeof msg.say === 'string' && msg.say) sayAnswer(msg.say);
     if (msg.ask) askHands(msg.ask, 'on');
     if (msg.confirm) askHands(msg.confirm, 'go');
+    if ('fist' in msg) applyFist(msg);
   });
   window.buddy.onFlip((phase) => onFlip(phase));
   window.buddy.onChat((msg) => applyChat(msg));

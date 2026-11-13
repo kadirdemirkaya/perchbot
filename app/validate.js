@@ -77,6 +77,8 @@ const DEMOS = new Set([
   'newtab',
   'closetab',
   'youtube',
+  // The rocket fist for sure: it presses the new tab button from where it is.
+  'fist',
   // Moments of the work: a flag (commit), a rocket (push), sweat, phew, a squeezed head (compaction),
   // and the nudges while Claude Code waits for the user.
   'commit',
