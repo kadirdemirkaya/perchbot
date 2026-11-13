@@ -191,6 +191,21 @@ test('goto: the first leg flies straight to the given point (inside the screen);
   assert.equal(walk.mode, 'walk');
 });
 
+test('pace: the same trip at half speed takes twice as long (helpers roaming); the buddy keeps full speed', () => {
+  for (const [kind, hoverMode] of [['flee', 'auto'], ['flee', 'stand'], ['goto', 'auto']]) {
+    const from = { x: 300, y: 912 };
+    const to = { x: 1200, y: 912 };
+    const full = planTrip({ kind, from, home, workArea, to, hoverMode, random: randoms(7) });
+    const half = planTrip({ kind, from, home, workArea, to, hoverMode, random: randoms(7), pace: 0.5 });
+    assert.deepEqual(half.to, full.to, `${kind} ${hoverMode}: same way`);
+    assert.ok(Math.abs(half.ms - 2 * full.ms) <= 1, `${kind} ${hoverMode}: ${full.ms} ms -> ${half.ms} ms`);
+  }
+  const plain = planTrip({ kind: 'goto', from: home, home, workArea, to: { x: 400, y: 500 } });
+  for (const bad of [0, -1, 'fast', null]) {
+    assert.equal(planTrip({ kind: 'goto', from: home, home, workArea, to: { x: 400, y: 500 }, pace: bad }).ms, plain.ms, `pace ${bad}: full speed`);
+  }
+});
+
 test('walks and hops now reach much further across the screen', () => {
   let far = 0;
   for (let seed = 1; seed < 60; seed += 1) {

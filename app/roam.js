@@ -43,7 +43,8 @@ const SCREEN_CHANCE = 0.3;
 /**
  * A helper out roaming (main.js outings) is more scattered than the buddy:
  * each leg goes anywhere on the screen ('flee': well away from where it is),
- * a hop, a peek at the cursor, or (with two screens) over to the other one.
+ * a hop, a peek at the cursor (and a poke at it: outings.pauseAfter), or
+ * (with two screens) over to the other one.
  */
 const OUTING_LEGS = Object.freeze({ flee: 0.45, hop: 0.2, inspect: 0.2, screen: 0.15 });
 /** A flight lands at least this far (DIP at medium size) from where it was hit. */
@@ -96,9 +97,10 @@ function covers(anchor, cursor, b, margin) {
  * @param {number} [p.spanLeft]  window width left of the anchor (DIP); default half a slot
  * @param {number} [p.spanRight]  window width right of the anchor (DIP)
  * @param {() => number} [p.random]
+ * @param {number} [p.pace]  speed factor (1 = the buddy; helpers roaming: OUTING.pace)
  * @returns {null | { kind, from, to, mode: 'walk'|'fly', ms, face: 'left'|'right', limits }}
  */
-function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverMode = 'auto', spanLeft = 0, spanRight = 0, random = Math.random, to: goal = null }) {
+function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverMode = 'auto', spanLeft = 0, spanRight = 0, random = Math.random, to: goal = null, pace = 1 }) {
   if (!KINDS.has(kind) || !from || !workArea) return null;
   const b = bounds(workArea, scale, spanLeft, spanRight);
   const canFly = hoverMode !== 'stand';
@@ -174,7 +176,7 @@ function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverM
     from: { x: from.x, y: from.y },
     to,
     mode,
-    ms: Math.max(MIN_TRIP_MS, Math.round(distance / (speed * scale))),
+    ms: Math.max(MIN_TRIP_MS, Math.round(distance / (speed * (Number(pace) > 0 ? pace : 1) * scale))),
     face: to.x < from.x ? 'left' : 'right',
     limits: { minX: b.minX, maxX: b.maxX, minY: b.minY, maxY: b.ground },
   };

@@ -1133,10 +1133,16 @@
       flag('receive', towards, true);
       later('receive', RECEIVE_MS, () => flag('receive', null));
     } else if (name === 'poke') {
-      // A naughty kid poked it: a little jolt (a "Hey!" too when it is not working).
+      // A naughty kid poked it: a little jolt (a "Hey!" too when it is not working,
+      // and with ambient life it gets a little cross: the kids heat it up too).
       boop();
       sfx('bonk', 1.3);
       if (CALM.has(view.state) && !quipText) quip('hey', 900);
+      if (CALM.has(view.state) && ambientOn() && !duel.active) {
+        const { level } = temper.flare('annoyed');
+        flag('annoyed', level, !holder.dataset.annoyed);
+        coolDown();
+      }
     }
   }
 

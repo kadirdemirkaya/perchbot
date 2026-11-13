@@ -5,7 +5,8 @@
  * the way main.js says. main.js moves the window; this page only sets the
  * attributes the character's mini.css animates:
  *   init  { mini: { svgUrl, cssUrl }, tint }   what to draw (shows faded in)
- *   pose  { move: 'walk' | 'fly' | null, face: 'left' | 'right', pose: 'look' | 'play', play }
+ *   pose  { move: 'walk' | 'fly' | null, face: 'left' | 'right', pose: 'look' | 'play' | 'prank', play }
+ *         ('prank': a grinning poke at the cursor)
  *   fade  'out' | 'in'
  * The SVG is inlined after removing scripts, event handlers and external
  * references, as in the main page.
@@ -59,7 +60,7 @@
     set('fly', p.move === 'fly' ? '1' : null);
     set('travel', p.move === 'walk' ? 'walk' : null);
     set('play', p.pose === 'play' && typeof p.play === 'string' ? p.play : null);
-    set('phase', p.move ? 'walk' : p.pose === 'play' ? 'play' : 'look');
+    set('phase', p.move ? 'walk' : p.pose === 'play' ? 'play' : p.pose === 'prank' ? 'prank' : 'look');
   });
 
   window.helper.onFade((how) => {

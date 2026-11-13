@@ -22,7 +22,8 @@
  *              play   a little show where it stands: spin, jump, wave, dance
  *              zoom   off on its thrusters to the far end of the crew area,
  *                     a look round, and back
- *              prank  sneaks up to the main character, pokes it ("poke" cue)
+ *              prank  sneaks up to the main character, pokes it ("poke" cue:
+ *                     a jolt, and it gets a little cross)
  *                     and runs back, quickly
  *              roam   (when the page allows it: ambient life on) off out of
  *                     the window on its thrusters ("outing"), then "away":
@@ -59,8 +60,8 @@
   const DEFAULT_TIMINGS = Object.freeze({
     arriveMs: 700,
     briefMs: 1700,
-    /** Walking speed in px per ms (160 px/s) and the shortest walk. */
-    walkSpeed: 0.16,
+    /** Walking speed in px per ms (80 px/s: calm to watch) and the shortest walk. */
+    walkSpeed: 0.08,
     minWalkMs: 250,
     doneMs: 600,
     reportMs: 1600,
@@ -83,9 +84,9 @@
     playMs: 1900,
     /** A prank: it pokes the main character, then runs back, faster. */
     pokeMs: 1000,
-    runSpeed: 0.3,
+    runSpeed: 0.15,
     /** A zoom on the thrusters: across the crew area and back, a look round in between. */
-    flySpeed: 0.34,
+    flySpeed: 0.17,
     zoomLookMs: 700,
     /** Distance between two minis facing each other in a chat (laptops closed). */
     chatGap: 72,

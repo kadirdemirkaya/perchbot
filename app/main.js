@@ -1087,7 +1087,7 @@ function start() {
     });
     hw.setIgnoreMouseEvents(true);
     hw.setAlwaysOnTop(true, TOP_LEVEL);
-    const o = { id: req.id, off: req.off, hw, feet, face: 'right', legs: outingsLib.pickLegs(), timer: null, step: null, ending: false };
+    const o = { id: req.id, off: req.off, hw, feet, face: 'right', legs: outingsLib.pickLegs(), then: null, timer: null, step: null, ending: false };
     o.limit = setTimeout(() => outingHome(o), outingsLib.OUTING.maxMs);
     outings.set(req.id, o);
     log.devOnly(`outing: ${req.id.slice(0, 4)} out for ${o.legs} legs`);
@@ -1122,7 +1122,9 @@ function start() {
     const cursorHere = placement.nearestDisplay(cursor, all).id === here.id;
     const geo = placement.helperWindow(o.feet, scale());
     const spans = { spanLeft: geo.spanLeft, spanRight: geo.spanRight };
-    let kind = roam.pickOutingLeg({ displayCount: all.length, cursorHere });
+    // After a poke at the cursor it darts off (outings.pauseAfter).
+    let kind = o.then || roam.pickOutingLeg({ displayCount: all.length, cursorHere });
+    o.then = null;
     if (kind === 'screen') {
       const target = roam.tripDisplay({ kind, here, displays: all });
       const way =
@@ -1130,15 +1132,15 @@ function start() {
         roam.planCrossing({ from: o.feet, fromArea: outingArea(here, geo), toArea: outingArea(target, geo), scale: scale(), hoverMode: settings.hoverMode, ...spans });
       if (way) {
         const go = () => outingWarp(o, way.entry, () => outingLeg(o));
-        const leg = roam.planTrip({ kind: 'goto', to: way.exit, from: o.feet, workArea: outingArea(here, geo), cursor, scale: scale(), hoverMode: settings.hoverMode, ...spans });
+        const leg = roam.planTrip({ kind: 'goto', to: way.exit, from: o.feet, workArea: outingArea(here, geo), cursor, scale: scale(), hoverMode: settings.hoverMode, pace: outingsLib.OUTING.pace, ...spans });
         if (leg) outingMove(o, leg, go);
         else go();
         return;
       }
       kind = 'flee';
     }
-    const plan = roam.planTrip({ kind, from: o.feet, home: o.feet, workArea: outingArea(here, geo), cursor, scale: scale(), hoverMode: settings.hoverMode, ...spans });
-    if (plan) outingMove(o, plan, () => outingPause(o));
+    const plan = roam.planTrip({ kind, from: o.feet, home: o.feet, workArea: outingArea(here, geo), cursor, scale: scale(), hoverMode: settings.hoverMode, pace: outingsLib.OUTING.pace, ...spans });
+    if (plan) outingMove(o, plan, () => outingPause(o, kind));
     else outingPause(o);
   }
 
@@ -1164,10 +1166,16 @@ function start() {
     }, 16);
   }
 
-  /** A look round, or a little show, before the next leg. */
-  function outingPause(o) {
+  /** A look round, or a little show, before the next leg; next to the cursor a poke at it. */
+  function outingPause(o, kind = null) {
     if (!o.hw || o.ending) return;
-    const p = outingsLib.pickPause();
+    const p = outingsLib.pauseAfter(kind);
+    if (p.pose === 'prank') {
+      // Turn to the cursor for the poke.
+      o.face = screen.getCursorScreenPoint().x < o.feet.x ? 'left' : 'right';
+      log.devOnly(`outing: ${o.id.slice(0, 4)} pokes the cursor`);
+    }
+    o.then = p.then;
     o.hw.webContents.send('helper:pose', { move: null, face: o.face, pose: p.pose, play: p.play });
     o.timer = setTimeout(() => outingLeg(o), p.ms);
   }
@@ -1209,7 +1217,7 @@ function start() {
     }
     const geo = placement.helperWindow(o.feet, scale());
     const area = outingArea(placement.nearestDisplay(o.feet, all), geo);
-    const plan = roam.planTrip({ kind: 'goto', to: target, from: o.feet, workArea: area, scale: scale(), hoverMode: settings.hoverMode, spanLeft: geo.spanLeft, spanRight: geo.spanRight });
+    const plan = roam.planTrip({ kind: 'goto', to: target, from: o.feet, workArea: area, scale: scale(), hoverMode: settings.hoverMode, pace: outingsLib.OUTING.pace, spanLeft: geo.spanLeft, spanRight: geo.spanRight });
     if (plan) outingMove(o, plan, fadeAndEnd);
     else fadeAndEnd();
   }

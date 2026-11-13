@@ -19,6 +19,10 @@ const OUTING = Object.freeze({
   /** Legs per roam (random in between), then home. */
   minLegs: 2,
   maxLegs: 4,
+  /** Helpers fly and run at half the buddy's speed (roam.planTrip pace): calmer to watch. */
+  pace: 0.5,
+  /** Next to the cursor: a poke at it, grinning (mini CSS data-phase="prank"), then it darts off. */
+  pokeMs: 1100,
   /** A look round (or a little show) between two legs. */
   pauseMinMs: 700,
   pauseMaxMs: 2200,
@@ -74,4 +78,15 @@ function pickPause(random = Math.random) {
   return { ms, pose: show ? 'play' : 'look', play: show };
 }
 
-module.exports = { OUTING, parseOuting, toScreen, returnPoint, pickLegs, pickPause };
+/**
+ * What it does after a leg of `kind`. It flew up to the cursor ('inspect'):
+ * it pokes at it, grinning, and darts off on the next leg (then: 'flee').
+ * Otherwise a look round or a little show (pickPause), and the next leg is
+ * picked as usual (then: null).
+ */
+function pauseAfter(kind, random = Math.random) {
+  if (kind === 'inspect') return { ms: OUTING.pokeMs, pose: 'prank', play: null, then: 'flee' };
+  return { ...pickPause(random), then: null };
+}
+
+module.exports = { OUTING, parseOuting, toScreen, returnPoint, pickLegs, pickPause, pauseAfter };
