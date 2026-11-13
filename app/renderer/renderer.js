@@ -1093,6 +1093,8 @@
       flag('play', name);
       blendFrom(parts);
       if (name === 'ball') later('ball-sound', BALL_FLOOR_MS, ballBounce);
+      // "Achoo!" right when it sneezes (not if the play was cut short before).
+      if (name === 'sneeze') later('sneeze', SNEEZE_AT_MS, () => holder.dataset.play === 'sneeze' && quip('sneeze', 1000));
     },
     onTrip: (kind) => {
       trace(`ambient: trip ${kind}`);
@@ -1101,6 +1103,8 @@
   });
   const duel = new Duel({ onPhase: onDuelPhase });
 
+  /** robot.css rb-sneeze-head: the "choo" at ~50 % of 2.6 s. */
+  const SNEEZE_AT_MS = 1300;
   const BALL_FLOOR_MS = 288;
   const BALL_PERIOD_MS = 600;
   function ballBounce() {

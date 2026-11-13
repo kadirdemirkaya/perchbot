@@ -115,7 +115,9 @@ Three switches, in the tray menu and in the right-click menu:
 
 **Ambient life.** While the buddy is idle (or on standby) and awake, every 20 to 90 seconds
 it does one short thing, never the same twice in a row: stretch and yawn, look around, a
-little hop, bounce a ball, play with its antenna, hum a tune, peek at its laptop, walk along
+little hop, bounce a ball, play with its antenna, hum a tune, peek at its laptop, a backflip,
+reboot itself (the screen goes blank, a power sign blinks, a jolt and it is back), polish its
+face screen with a little cloth, sneeze ("Achoo!"), moonwalk on the spot, walk along
 the taskbar, take a short flight on its boot thrusters, fly over to your cursor for a look
 through its glasses (keeping its distance), or go back home. It stops at once when Claude
 Code needs it (a tool, a permission prompt, the end of a turn), when you hover or drag it,

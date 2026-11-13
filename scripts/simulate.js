@@ -404,6 +404,11 @@ async function life() {
   await act(s, 'jump', 'a little hop', 2200);
   await act(s, 'ball', 'play with a ball', 5000);
   await act(s, 'antenna', 'play with its antenna', 3500);
+  await act(s, 'flip', 'a backflip', 2500);
+  await act(s, 'reboot', 'reboot itself', 3800);
+  await act(s, 'polish', 'polish its face screen', 4400);
+  await act(s, 'sneeze', 'sneeze', 3500);
+  await act(s, 'moonwalk', 'moonwalk on the spot', 4200);
   await act(s, 'hum', 'hum a tune', 4000);
   await act(s, 'walk', 'walk along the taskbar', 7000);
   await act(s, 'fly', 'a short flight on its thrusters', 5000);

@@ -66,6 +66,12 @@ comes out while a skill is in use; a page turns now and then.
   No many-rayed starbursts (that shape is close to Anthropic's mark).
 - **Annoyed mark** (four little curved veins), **dizzy ring** with three dots going round,
   **music notes**. All small, all `data-nohit`.
+- **Ambient-play props:** a small yellow polishing cloth (in the far hand), a plain
+  four-point sparkle on the clean face screen (four points only, never a many-rayed
+  starburst), a little white sneeze puff of four circles, and a lilac power sign on the
+  blank screen during a reboot. All hidden until their play, all `data-nohit`.
+- **Hearts** (tapped and it liked it): two small pink hearts, the same outline as the duel
+  hearts, drawn by the page.
 
 ## Robo's kids (the sub-agent helpers)
 

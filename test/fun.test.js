@@ -100,6 +100,31 @@ function ambient(random = Math.random) {
   return { clock, a, log };
 }
 
+test('every ambient play is drawn by the robot, can be demoed, and its CSS ends before the play does', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const { validateEvent } = require('../app/validate');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'characters', 'robot', 'robot.css'), 'utf8');
+  for (const [name, ms] of Object.entries(PLAYS)) {
+    const rules = css.match(new RegExp(`\\[data-play='${name}'\\][^{]*\\{[^}]*\\}`, 'g')) || [];
+    assert.ok(rules.length > 0, `robot.css animates the play "${name}"`);
+    // The longest single run of an animation of this play (duration + delay, times its count).
+    let longest = 0;
+    for (const rule of rules) {
+      const m = rule.match(/animation:\s*[\w-]+\s+([\d.]+)s(?:\s+[\w-]+(?:\([^)]*\))?)?(?:\s+([\d.]+)s)?(?:\s+(\d+))?/);
+      if (m) longest = Math.max(longest, (Number(m[1]) * Number(m[3] || 1) + Number(m[2] || 0)) * 1000);
+    }
+    assert.ok(longest > 0 && longest <= ms, `${name}: animations ${longest} ms within the play's ${ms} ms`);
+    assert.ok(validateEvent({ v: 1, event: 'Demo', session: 's', ts: 1, demo: name }), `${name} is a valid demo`);
+  }
+  // The props of the new plays are in the artwork and hidden by default.
+  const svg = fs.readFileSync(path.join(__dirname, '..', 'characters', 'robot', 'robot.svg'), 'utf8');
+  for (const prop of ['rb-cloth', 'rb-shine', 'rb-puff', 'rb-power']) {
+    assert.match(svg, new RegExp(`class="${prop}" data-nohit=""`), prop);
+    assert.match(css, new RegExp(`\\.${prop},?\\s`), `${prop} hidden by default`);
+  }
+});
+
 test('ambient life: one behaviour every 20-90 s, never the same twice in a row', () => {
   let r = 0;
   const { clock, a, log } = ambient(() => ((r = (r + 0.377) % 1), r));

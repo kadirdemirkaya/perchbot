@@ -92,7 +92,12 @@
     hum: 3200,
     jump: 1400,
     ball: 4200,
-    antenna: 2600,
+    antenna: 3200,
+    flip: 1700,
+    reboot: 3000,
+    polish: 3600,
+    sneeze: 2700,
+    moonwalk: 3400,
   });
 
   /** Trips around the screen (main.js plans them, see app/roam.js). */
