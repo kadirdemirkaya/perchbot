@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Agent Buddy effects</title>
+    <link rel="stylesheet" href="rampage.css" />
+    <script src="rampage.js" defer></script>
+  </head>
+  <body>
+    <!-- What the beams and the missiles leave behind (still pictures until they fade). -->
+    <svg id="burns" class="layer" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="char" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#0f0907" stop-opacity="0.92" />
+          <stop offset="42%" stop-color="#24160f" stop-opacity="0.8" />
+          <stop offset="72%" stop-color="#3a2417" stop-opacity="0.38" />
+          <stop offset="100%" stop-color="#3a2417" stop-opacity="0" />
+        </radialGradient>
+        <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ffd25a" stop-opacity="0.9" />
+          <stop offset="55%" stop-color="#ff7a2e" stop-opacity="0.45" />
+          <stop offset="100%" stop-color="#ff7a2e" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+    </svg>
+    <!-- Flashes, debris, smoke and the missiles in flight. -->
+    <div id="fx" class="layer" aria-hidden="true"></div>
+    <!-- The two beams, only while they fire. -->
+    <svg id="beams" class="layer" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"></svg>
+  </body>
+</html>

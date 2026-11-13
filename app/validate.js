@@ -96,6 +96,8 @@ const DEMOS = new Set([
   'anger',
   // The anger ladder: cross, it leaves fuming, then three more taps set its head on fire.
   'rage',
+  // Its head on fire twice in five minutes: laser eyes, missiles, marks that fade after ten seconds.
+  'rampage',
   // Five quick taps it loves (happy hops, hearts).
   'glee',
   'duel',

@@ -1,0 +1,384 @@
+/*
+ * The rampage's effect window (rampage.js). Transparent, click-through, one
+ * screen large. Only short animations of a few small elements; the marks
+ * left behind are still pictures until they fade.
+ */
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  pointer-events: none;
+  user-select: none;
+}
+
+.layer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- beams */
+
+/* Only while the beams fire: an idle animation would repaint the whole window. */
+.firing #beams {
+  animation: beam-flicker 0.12s steps(2) infinite;
+}
+
+.beam-glow,
+.beam-ray,
+.beam-core {
+  stroke-linecap: round;
+}
+
+.beam-glow {
+  stroke: rgba(255, 64, 72, 0.26);
+  stroke-width: 15;
+}
+
+.beam-ray {
+  stroke: #ff3b4e;
+  stroke-width: 5;
+}
+
+.beam-core {
+  stroke: #fff3f3;
+  stroke-width: 1.8;
+}
+
+@keyframes beam-flicker {
+  50% { opacity: 0.82; }
+}
+
+/* Where the beams meet the screen, and the glow at the eyes. */
+.hit-spot,
+.eye-flare {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 38px;
+  height: 38px;
+  margin: -19px 0 0 -19px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 0 16%, #ffd25a 30%, rgba(255, 90, 50, 0.6) 52%, rgba(255, 60, 40, 0) 72%);
+  animation: spot-pulse 0.16s steps(2) infinite;
+}
+
+.eye-flare {
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+}
+
+@keyframes spot-pulse {
+  50% { scale: 1.18; }
+}
+
+/* The burnt line: a soot halo, the char, a hot core that cools. */
+.scorch-ash,
+.scorch-halo,
+.scorch-line,
+.scorch-hot {
+  fill: none;
+  stroke-linecap: round;
+}
+
+/* Grey-brown ash: a lighter smudge on dark windows, a darker one on light ones. */
+.scorch-ash {
+  stroke: #8a7d72;
+  stroke-opacity: 0.32;
+  stroke-width: 34;
+}
+
+.scorch-halo {
+  stroke: #3a2417;
+  stroke-opacity: 0.22;
+  stroke-width: 26;
+}
+
+.scorch-line {
+  stroke: #1d120d;
+  stroke-opacity: 0.88;
+  stroke-width: 11;
+}
+
+.scorch-hot {
+  stroke: #ffb347;
+  stroke-width: 3.2;
+  transition:
+    stroke 2.6s ease,
+    stroke-opacity 2.6s ease;
+}
+
+.scorch-hot.cool {
+  stroke: #6b2e17;
+  stroke-opacity: 0.7;
+}
+
+/* ---------------------------------------------------------------- missiles */
+
+.missile {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 58px;
+  height: 23px;
+  margin: -11.5px 0 0 -29px;
+  overflow: visible;
+  will-change: transform;
+}
+
+.missile-flame {
+  fill: #ffb347;
+  transform-origin: 9px 8px;
+  animation: flame 0.1s steps(2) infinite;
+}
+
+@keyframes flame {
+  50% { fill: #ffe27a; transform: scaleX(1.5); }
+}
+
+/* ---------------------------------------------------------------- short effects */
+
+#fx i {
+  position: fixed;
+  display: block;
+  pointer-events: none;
+}
+
+.smoke {
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, rgba(150, 144, 160, 0.75), rgba(90, 84, 100, 0.45) 60%, rgba(90, 84, 100, 0) 72%);
+  animation: smoke 1.1s ease-out forwards;
+}
+
+.smoke-small {
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  animation-duration: 1.3s;
+}
+
+.smoke-trail {
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  background: radial-gradient(circle at 40% 40%, rgba(240, 236, 246, 0.9), rgba(170, 164, 182, 0.6) 58%, rgba(170, 164, 182, 0) 72%);
+  animation-name: smoke-trail;
+  animation-duration: 0.9s;
+}
+
+@keyframes smoke-trail {
+  0% { opacity: 0.85; transform: scale(0.55); }
+  100% { opacity: 0; transform: translate(var(--dx, 0), -14px) scale(1.9); }
+}
+
+.smoke-big {
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  animation: smoke-big 2.2s ease-out var(--d, 0s) both;
+}
+
+@keyframes smoke {
+  0% { opacity: 0.9; transform: translate(0, 0) scale(0.6); }
+  100% { opacity: 0; transform: translate(var(--dx, 0), -26px) scale(2.2); }
+}
+
+@keyframes smoke-big {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  20% { opacity: 0.85; }
+  100% { opacity: 0; transform: translate(var(--dx, 0), -90px) scale(2.4); }
+}
+
+.cinder {
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: #ffd25a;
+  box-shadow: 0 0 4px #ff7a2e;
+  animation: cinder 0.7s ease-out forwards;
+}
+
+@keyframes cinder {
+  0% { opacity: 1; transform: translate(0, 0); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.4); }
+}
+
+.launch-puff {
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 0 20%, rgba(255, 210, 90, 0.8) 40%, rgba(200, 196, 214, 0.5) 62%, rgba(200, 196, 214, 0) 74%);
+  animation: puff 0.9s ease-out forwards;
+}
+
+@keyframes puff {
+  0% { opacity: 1; transform: scale(0.4); }
+  100% { opacity: 0; transform: scale(2.2); }
+}
+
+.blast-flash {
+  width: 210px;
+  height: 210px;
+  margin: -105px 0 0 -105px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 0 14%, #fff1a8 26%, #ffb347 44%, rgba(255, 90, 50, 0.55) 60%, rgba(255, 60, 40, 0) 72%);
+  animation: flash 0.6s ease-out forwards;
+}
+
+@keyframes flash {
+  0% { opacity: 1; transform: scale(0.15); }
+  35% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+
+.blast-ring {
+  width: 120px;
+  height: 120px;
+  margin: -60px 0 0 -60px;
+  border: 5px solid rgba(255, 246, 232, 0.9);
+  border-radius: 50%;
+  box-sizing: border-box;
+  animation: ring 0.75s ease-out forwards;
+}
+
+.blast-ring-late {
+  border-color: rgba(255, 179, 71, 0.7);
+  border-width: 3px;
+  animation-duration: 0.9s;
+  animation-delay: 0.08s;
+  opacity: 0;
+}
+
+@keyframes ring {
+  0% { opacity: 1; transform: scale(0.2); }
+  100% { opacity: 0; transform: scale(2.1); }
+}
+
+.debris {
+  width: 7px;
+  height: 5px;
+  margin: -3px 0 0 -3px;
+  border-radius: 1.5px;
+  background: #2a2650;
+  animation: debris 0.9s cubic-bezier(0.2, 0.7, 0.5, 1) forwards;
+}
+
+.debris-hot {
+  background: #ff9a3c;
+  box-shadow: 0 0 5px #ff7a2e;
+}
+
+@keyframes debris {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), calc(var(--dy) + 40px)) rotate(var(--rot)); }
+}
+
+/* ---------------------------------------------------------------- blast marks */
+
+.crack {
+  fill: none;
+  stroke: #160e0a;
+  stroke-opacity: 0.75;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mark-ash {
+  fill: #8a7d72;
+  fill-opacity: 0.34;
+}
+
+.mark-chip {
+  fill: #24160f;
+  fill-opacity: 0.8;
+}
+
+/* The rim and the cracks glow orange at first and cool to soot. */
+.mark-rim {
+  fill: none;
+  stroke-width: 3;
+  animation: rim-cool 3s ease-out forwards;
+}
+
+.crack {
+  animation: crack-cool 2.6s ease-out forwards;
+}
+
+@keyframes rim-cool {
+  0% { stroke: #ffd25a; stroke-opacity: 1; }
+  40% { stroke: #ff7a2e; stroke-opacity: 0.9; }
+  100% { stroke: #2a1a12; stroke-opacity: 0.6; }
+}
+
+@keyframes crack-cool {
+  0% { stroke: #ffb347; stroke-opacity: 1; }
+  100% { stroke: #160e0a; stroke-opacity: 0.75; }
+}
+
+.mark-glow {
+  animation: mark-glow 2.8s ease-out forwards;
+}
+
+@keyframes mark-glow {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.ember {
+  fill: #ff7a2e;
+  animation: ember 0.5s steps(2) 5 alternate forwards;
+}
+
+@keyframes ember {
+  from { fill: #ffd25a; }
+  to { fill: #5a2a18; }
+}
+
+/* ---------------------------------------------------------------- healing */
+
+#burns > :not(defs) {
+  transition:
+    opacity var(--heal-ms, 1.4s) ease-in,
+    transform var(--heal-ms, 1.4s) ease-in;
+}
+
+.healing #burns > :not(defs) {
+  opacity: 0;
+}
+
+.sparkle {
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  background: #ffffff;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  animation: sparkle 0.9s ease-out var(--d, 0s) both;
+}
+
+@keyframes sparkle {
+  0% { opacity: 0; transform: scale(0.2) rotate(0); }
+  40% { opacity: 1; transform: scale(1.2) rotate(45deg); }
+  100% { opacity: 0; transform: scale(0.4) rotate(90deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

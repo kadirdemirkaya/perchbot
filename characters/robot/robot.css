@@ -2679,6 +2679,204 @@
   45% { transform: translate(2px, -3px) rotate(-8deg); }
 }
 
+/* ------------------------------------------------------------ the rampage (data-rampage)
+
+   Its head caught fire twice within five minutes. The app keeps data-annoyed
+   at 3 (flames, red face) and steps data-rampage through:
+     charge   the eyes glow red, flickering; it hunches, seething
+     laser    the eyes blaze; the head jerks back a little with the recoil
+              (the beams themselves are drawn over the screen by the app)
+     missile  the gauge window drops open as a hatch; four missiles pop out
+              (the app flies them across the screen), a kick for each one
+     smug     a nasty grin, hands on the hips
+     heal     the marks fade: sheepish, a hand behind the head, a drop of sweat
+   Only transforms and opacity; every loop stops with the phase. */
+
+.rb-laser,
+.rb-hatch {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.rb-laser-halo {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.rb-hatch-door {
+  transform-origin: 88px 138px;
+  transition: transform 0.25s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+
+.rb-hatch-missile {
+  transform: translateY(6px);
+}
+
+.buddy-character:is([data-rampage='charge'], [data-rampage='laser'], [data-rampage='missile']) .rb-laser {
+  opacity: 1;
+}
+
+.buddy-character:is([data-rampage='charge'], [data-rampage='laser'], [data-rampage='missile']) :is(.rb-eyes, .rb-eyes-happy) {
+  opacity: 0;
+}
+
+.buddy-character[data-rampage='charge'] .rb-laser {
+  animation: rb-laser-charge 0.18s steps(2) infinite;
+}
+
+.buddy-character[data-rampage='charge'] .rb-head {
+  transform: translateY(2px) rotate(-3deg);
+}
+
+.buddy-character[data-rampage='charge'] .rb-torso {
+  transform: translateY(1.5px) scale(1.02, 0.98);
+}
+
+.buddy-character[data-rampage='charge'] .rb-arm-back {
+  transform: rotate(-12deg);
+}
+
+.buddy-character[data-rampage='charge'] .rb-arm-front {
+  transform: rotate(12deg);
+}
+
+.buddy-character[data-rampage='laser'] .rb-laser-halo {
+  animation: rb-laser-blaze 0.14s steps(2) infinite;
+}
+
+.buddy-character[data-rampage='laser'] .rb-head {
+  animation: rb-laser-recoil 0.12s linear infinite;
+}
+
+.buddy-character[data-rampage='laser'] :is(.rb-mouth, .rb-mouth-worry) {
+  opacity: 0;
+}
+
+.buddy-character[data-rampage='laser'] .rb-mouth-grin {
+  opacity: 1;
+}
+
+.buddy-character[data-rampage='missile'] .rb-laser {
+  opacity: 0.75;
+}
+
+.buddy-character:is([data-rampage='missile'], [data-rampage='smug']) .rb-hatch {
+  opacity: 1;
+}
+
+.buddy-character[data-rampage='missile'] .rb-hatch-door {
+  transform: translateY(1px) scaleY(-0.18);
+}
+
+.buddy-character[data-rampage='missile'] .rb-hatch-missile {
+  animation: rb-hatch-pop 0.32s ease-out 4;
+}
+
+.buddy-character[data-rampage='missile'] .rb-figure {
+  animation: rb-missile-kick 0.32s ease-out 4;
+}
+
+.buddy-character[data-rampage='missile'] .rb-arm-back {
+  transform: rotate(28deg);
+}
+
+.buddy-character[data-rampage='missile'] .rb-arm-front {
+  transform: rotate(-28deg);
+}
+
+/* The hatch closes again while it gloats. */
+.buddy-character[data-rampage='smug'] .rb-hatch {
+  opacity: 0;
+  transition-delay: 0.3s;
+}
+
+.buddy-character[data-rampage='smug'] :is(.rb-mouth, .rb-mouth-o, .rb-mouth-worry, .rb-eyes) {
+  opacity: 0;
+}
+
+.buddy-character[data-rampage='smug'] :is(.rb-mouth-grin, .rb-eyes-happy) {
+  opacity: 1;
+}
+
+.buddy-character[data-rampage='smug'] .rb-arm-back {
+  transform: rotate(32deg);
+}
+
+.buddy-character[data-rampage='smug'] .rb-forearm-back {
+  transform: rotate(-115deg);
+}
+
+.buddy-character[data-rampage='smug'] .rb-arm-front {
+  transform: rotate(-32deg);
+}
+
+.buddy-character[data-rampage='smug'] .rb-forearm-front {
+  transform: rotate(115deg);
+}
+
+.buddy-character[data-rampage='smug'] .rb-head {
+  transform: rotate(-5deg) translateY(-1px);
+}
+
+.buddy-character[data-rampage='heal'] .rb-sweat {
+  opacity: 1;
+}
+
+.buddy-character[data-rampage='heal'] :is(.rb-mouth, .rb-mouth-o, .rb-mouth-grin) {
+  opacity: 0;
+}
+
+.buddy-character[data-rampage='heal'] .rb-mouth-worry {
+  opacity: 1;
+}
+
+.buddy-character[data-rampage='heal'] .rb-head {
+  transform: rotate(6deg);
+}
+
+.buddy-character[data-rampage='heal'] .rb-arm-back {
+  transform: rotate(150deg);
+}
+
+.buddy-character[data-rampage='heal'] .rb-forearm-back {
+  transform: rotate(70deg);
+}
+
+.buddy-character[data-rampage='heal'] .rb-brow-l {
+  transform: translateY(-2px) rotate(-12deg);
+}
+
+.buddy-character[data-rampage='heal'] .rb-brow-r {
+  transform: translateY(-2px) rotate(12deg);
+}
+
+@keyframes rb-laser-charge {
+  50% { opacity: 0.45; }
+}
+
+@keyframes rb-laser-blaze {
+  50% { transform: scale(1.35); }
+}
+
+@keyframes rb-laser-recoil {
+  25% { transform: translate(-1.2px, -0.6px) rotate(-1deg); }
+  75% { transform: translate(-0.6px, 0.6px) rotate(-0.5deg); }
+}
+
+@keyframes rb-hatch-pop {
+  0% { transform: translateY(6px); }
+  35% { transform: translateY(-9px); opacity: 1; }
+  60% { transform: translateY(-16px); opacity: 0; }
+  61% { transform: translateY(6px); opacity: 0; }
+  100% { transform: translateY(6px); opacity: 1; }
+}
+
+@keyframes rb-missile-kick {
+  0% { transform: none; }
+  25% { transform: translateY(2.5px) scale(1.03, 0.96); }
+  100% { transform: none; }
+}
+
 /* ------------------------------------------------------------ reduced motion */
 
 @media (prefers-reduced-motion: reduce) {

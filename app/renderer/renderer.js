@@ -33,6 +33,7 @@
  *   fun mode: data-play  data-cheer  data-annoyed  data-glee (tapped and liked it)
  *   data-move ("walk" | "fly")  data-face ("left")
  *   data-inspect ("left" | "right")  data-duel (phase, see lib/fun.js)
+ *   data-rampage ("charge" | "laser" | "missile" | "smug" | "heal"; see "the rampage")
  *   data-hunt (fights a bug at its feet, with data-duel phases; see "bug hunt")
  *   --look-x / --look-y (-1..1)  --type-line (0..7)  --fly-tilt (-1..1)
  *
@@ -42,7 +43,7 @@
 
 (() => {
   const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay } = window.BuddyInteraction;
-  const { TapMeter, Temper, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight } = window.BuddyFun;
+  const { TapMeter, Temper, TEMPER_MAX, Fury, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight } = window.BuddyFun;
 
   const root = document.documentElement;
   const stage = document.getElementById('stage');
@@ -338,6 +339,7 @@
         temper.reset();
         glee.stop();
         dropQuip();
+        if (raging) leaveRampage();
       }
     }
     // A chat answer gives way to work news at once (never the other way round).
@@ -1507,6 +1509,10 @@
   const meter = new TapMeter();
   /** Anger that builds up over unwelcome taps and outlasts a flight (lib/fun.js). */
   const temper = new Temper();
+  /** Its head on fire twice in five minutes: a rampage (see "the rampage"). */
+  const fury = new Fury();
+  /** The rampage's phase while it lasts ('charge', 'laser', 'missile', 'smug', 'heal'; 'away': work came in). */
+  let raging = null;
   const ambient = new AmbientScheduler({
     onPlay: (name) => {
       if (name) trace(`ambient: ${name}`);
@@ -1539,7 +1545,7 @@
     // Helpers may roam the screen: ambient life on (with motion), awake, not paused.
     crew.setRoam(ambientOn() && !rest.resting);
     const calm =
-      ambientOn() && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen;
+      ambientOn() && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen && !raging;
     ambient.update({
       enabled: calm && AMBIENT_STATES.has(view.state),
       trips: crewCount === 0 && !pet.here,
@@ -1558,6 +1564,8 @@
    */
   function onClick(e, demo = null) {
     rest.activity();
+    // On a rampage it has no time for taps.
+    if (raging) return;
     const whip = playOn() && weapon === 'whip';
     if (whip && e) {
       effect('crack', e.clientX, e.clientY);
@@ -1594,9 +1602,12 @@
     // Every unwelcome tap heats it up (Temper): cross, fuming, blazing. data-annoyed
     // carries the level; already cross, a hotter level only changes the look (no
     // restart, a restart looks like a stutter). It cools down by itself.
+    const before = temper.level;
     const { level, erupt } = temper.flare(verdict);
     flag('annoyed', level, !holder.dataset.annoyed);
     coolDown();
+    // Its head catches fire for the second time in five minutes: no flight this time.
+    if (level >= TEMPER_MAX && before < TEMPER_MAX && fury.blaze() && goRampage()) return;
     if (verdict === 'flee') {
       trace(erupt ? 'hit too often while blazing: erupting' : 'hit too often: leaving');
       if (erupt) {
@@ -1648,6 +1659,91 @@
       setTimeout(() => ember.remove(), EMBER_MS + 300);
     }
     while (fx.querySelectorAll('.fx-ember').length > 16) fx.querySelector('.fx-ember').remove();
+  }
+
+  // ---------------------------------------------------------------- the rampage (app/rampage.js)
+
+  /**
+   * Its head caught fire twice within five minutes (Fury): instead of flying
+   * off it stays, its eyes glow, beams from its eyes burn a line into the
+   * screen and missiles fly out of a hatch in its chest. The main process
+   * draws that in a click-through window over the screen and sends the
+   * phases; the marks fade after ten seconds and it calms down, a little
+   * sheepish. Taps wait until it is over.
+   */
+  const RAMPAGE_GUARD_MS = 20000;
+
+  function centerOf(el) {
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+
+  /** Starts it, if it can be shown now. True when it started. */
+  function goRampage() {
+    if (raging || !motionAllowed() || !character || moving || drag || duel.active || hunt.active || chatOpen) return false;
+    // The character marks its eyes (data-eye) and where the missiles come out (data-launch).
+    const eyes = [...holder.querySelectorAll('[data-eye]')].slice(0, 2).map(centerOf);
+    const hatch = holder.querySelector('[data-launch]');
+    if (!eyes.length || !hatch) return false;
+    trace('rampage: its head caught fire twice in five minutes');
+    cancel('rampage-sheepish');
+    raging = 'charge';
+    // The flames stay on for the whole show.
+    cancel('annoyed');
+    cancel('flee');
+    flag('annoyed', TEMPER_MAX);
+    flag('rampage', 'charge', true);
+    dropCurious(true);
+    quip('rampage', 2600);
+    window.buddy.rampage({ eyes, hatch: centerOf(hatch), face: holder.dataset.face === 'left' ? 'left' : 'right' });
+    // The main process never answered (refused, or gone): back to normal.
+    later('rampage-guard', RAMPAGE_GUARD_MS, () => endRampage());
+    updateFun();
+    return true;
+  }
+
+  function onRampage(msg) {
+    const phase = msg && typeof msg.phase === 'string' ? msg.phase : null;
+    if (!raging) return;
+    if (phase === null) {
+      endRampage();
+      return;
+    }
+    if (raging === 'away') return;
+    trace(`rampage: ${phase}`);
+    raging = phase;
+    flag('rampage', phase);
+    // All fired: it has blown off steam, the flames go out (and stop costing frames).
+    if (phase === 'smug') flag('annoyed', null);
+    if (phase === 'heal') {
+      // The marks fade: it calms down, a little sheepish.
+      flag('annoyed', null);
+      temper.reset();
+      quip('rampageFix', 2400);
+    }
+  }
+
+  /** Work came in: the poses give way at once; the marks fade on their own. */
+  function leaveRampage() {
+    raging = 'away';
+    flag('rampage', null);
+  }
+
+  /** It stays sheepish a moment longer than the marks take to fade. */
+  const SHEEPISH_MS = 1800;
+
+  function endRampage() {
+    if (!raging) return;
+    trace('rampage: over');
+    const sheepish = raging === 'heal';
+    raging = null;
+    cancel('rampage-guard');
+    if (sheepish && motionAllowed()) later('rampage-sheepish', SHEEPISH_MS, () => !raging && flag('rampage', null));
+    else flag('rampage', null);
+    temper.reset();
+    fury.reset();
+    coolDown();
+    updateFun();
   }
 
   /** The same for a helper: a hop or a happy hop, cross, then it stomps off to another spot. */
@@ -2357,6 +2453,8 @@
       const taps = likes ? [0, 250, 500, 750, 1000] : [0, 300, 600];
       // It starts calm, so the demo always looks the same.
       temper.reset();
+      // ...and it never counts as a second blaze (no rampage in the middle of a demo).
+      fury.reset();
       // The unwelcome demo counts as busy, so the third tap always sends it off.
       taps.forEach((ms, i) => later(`${name}-${i}`, ms, () => onClick(null, { meter: fixed, busy: !likes })));
     } else if (name === 'rage') {
@@ -2365,7 +2463,14 @@
       // and it erupts and leaves again.
       const fixed = new TapMeter({ random: () => 0.99, likes: { calm: 0, busy: 0 } });
       temper.reset();
+      fury.reset();
       [0, 300, 600, 3600, 3900, 4200].forEach((ms, i) => later(`rage-${i}`, ms, () => onClick(null, { meter: fixed, busy: true })));
+    } else if (name === 'rampage') {
+      // Its head on fire for the second time (no taps needed): the whole show.
+      temper.reset();
+      for (let i = 0; i < TEMPER_MAX; i += 1) temper.flare('annoyed');
+      flag('annoyed', TEMPER_MAX, true);
+      if (!goRampage()) trace('rampage: not now');
     } else if (name === 'press') {
       // The press pose only (nothing is pressed).
       flag('press', true, true);
@@ -2497,6 +2602,7 @@
   window.buddy.onFlip((phase) => onFlip(phase));
   window.buddy.onChat((msg) => applyChat(msg));
   window.buddy.onBug((bug) => applyBug(bug));
+  window.buddy.onRampage((msg) => onRampage(msg));
   window.buddy.onOutingBack((id) => {
     if (typeof id !== 'string') return;
     trace(`crew: ${id.slice(0, 4)} back from roaming`);

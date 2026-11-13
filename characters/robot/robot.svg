@@ -31,6 +31,8 @@
                  steam from the ears, a head on fire (and its burst, data-erupt)
       rb-cloth, rb-shine, rb-puff, rb-power  ambient plays: polish cloth and sparkle,
                  sneeze puff, the power sign of a reboot
+      rb-laser, rb-hatch  the rampage (data-rampage): red eyes that fire (data-eye marks where
+                 the beams start), a chest hatch the missiles fly out of (data-launch)
     Elements marked data-nohit never count as "the character" for the mouse.
   -->
   <defs>
@@ -101,6 +103,19 @@
             <rect x="95.7" y="120.5" width="2.6" height="7" rx="1"/>
           </g>
           <path d="M78 133.5 H98" stroke="#E2D5BE" stroke-width="2" stroke-linecap="round"/>
+          <!-- rampage: the gauge window is a hatch; it drops open and missiles fly out (data-launch) -->
+          <g class="rb-hatch" data-nohit="">
+            <rect x="73.5" y="113.5" width="29" height="23" rx="7" fill="#141228"/>
+            <g class="rb-hatch-missile">
+              <rect x="83" y="119" width="10" height="17" rx="4" fill="#EDEAF7" stroke="#2A2650" stroke-width="1.6"/>
+              <path d="M83 123 Q83 114.5 88 112.5 Q93 114.5 93 123 Z" fill="#FF5A6E" stroke="#2A2650" stroke-width="1.6" stroke-linejoin="round"/>
+            </g>
+            <circle data-launch="" cx="88" cy="116" r="2" fill="#FFD25A" opacity="0"/>
+            <g class="rb-hatch-door">
+              <rect x="72" y="112" width="32" height="26" rx="8" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.2"/>
+              <path d="M80 125 H96" stroke="#E2D5BE" stroke-width="2" stroke-linecap="round"/>
+            </g>
+          </g>
           <path class="rb-pocket" d="M66 139 H80 V145 A3.5 3.5 0 0 1 76.5 148.5 H69.5 A3.5 3.5 0 0 1 66 145 Z" fill="#7462D6" stroke="#2A2650" stroke-width="2" stroke-linejoin="round"/>
           <path d="M68 141.5 H78" stroke="#B3A8F7" stroke-width="1.2" stroke-dasharray="2 1.6" stroke-linecap="round"/>
         </g>
@@ -158,6 +173,15 @@
               <g class="rb-eyes-happy" fill="none" stroke="#2A2650" stroke-width="3.2" stroke-linecap="round">
                 <path d="M69.5 69 Q75 61.5 80.5 69"/>
                 <path d="M95.5 69 Q101 61.5 106.5 69"/>
+              </g>
+              <!-- rampage: the eyes glow red and fire (data-eye: where the beams start) -->
+              <g class="rb-laser" data-nohit="">
+                <circle class="rb-laser-halo" cx="75" cy="67" r="10.5" fill="#FF3B4E" opacity=".35"/>
+                <circle class="rb-laser-halo" cx="101" cy="67" r="10.5" fill="#FF3B4E" opacity=".35"/>
+                <ellipse data-eye="" cx="75" cy="67" rx="5.4" ry="6.8" fill="#FF3B4E" stroke="#2A2650" stroke-width="1.4"/>
+                <ellipse data-eye="" cx="101" cy="67" rx="5.4" ry="6.8" fill="#FF3B4E" stroke="#2A2650" stroke-width="1.4"/>
+                <circle cx="75" cy="67" r="2.4" fill="#FFF6E8"/>
+                <circle cx="101" cy="67" r="2.4" fill="#FFF6E8"/>
               </g>
             </g>
             <path class="rb-mouth" d="M83 79 Q88 83.5 93 79" fill="none" stroke="#2A2650" stroke-width="2.6" stroke-linecap="round"/>

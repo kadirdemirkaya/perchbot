@@ -48,6 +48,7 @@ const { translate } = require('./i18n');
 const placement = require('./placement');
 const roam = require('./roam');
 const outingsLib = require('./outings');
+const rampageLib = require('./rampage');
 const fling = require('./fling');
 const { buildTrayTemplate, buildFunMenuTemplate } = require('./tray');
 const { buildMenuItems, MENU_IDS, switchFor } = require('./menu-items');
@@ -145,7 +146,7 @@ const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers', 'menu', 'chat']);
 const demo = isDev && DEMOS.has(process.env.AGENT_BUDDY_DEMO) ? process.env.AGENT_BUDDY_DEMO : null;
 const DEMO_TRIPS = ['stroll', 'hop', 'screen', 'inspect', 'home'];
 /** Short lines in the speech bubble when it is hit or fights (locales: "quip"). */
-const QUIPS = ['whoa', 'welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
+const QUIPS = ['whoa', 'welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'rampage', 'rampageFix', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
 
 // Keep Chromium's own data (caches, the single-instance lock) under
 // ~/.agent-buddy too, so there is exactly one folder to delete on uninstall
@@ -446,6 +447,15 @@ function start() {
     else outingBack(id);
   });
 
+  // Its head caught fire twice within five minutes: laser eyes and missiles (app/rampage.js).
+  ipcMain.on('buddy:rampage', (event, msg) => {
+    if (!fromPage(event) || !win || win.isDestroyed()) return;
+    const b = win.getBounds();
+    const s = scale();
+    const req = rampageLib.parseRampage(msg, { width: b.width / s, height: b.height / s });
+    if (req) startRampage(req);
+  });
+
   ipcMain.on('buddy:crew-left', (event, id) => {
     if (fromPage(event) && typeof id === 'string' && AGENT_ID_RE.test(id)) core.crew.release(id);
   });
@@ -727,6 +737,7 @@ function start() {
     win.webContents.on('render-process-gone', (_event, details) => {
       rendererReady = false;
       endAllOutings();
+      endRampage('renderer gone');
       setCapture(false);
       stopTyping();
       chatOpen = false;
@@ -750,6 +761,7 @@ function start() {
     });
     win.on('closed', () => {
       endAllOutings();
+      endRampage('window closed');
       win = null;
       rendererReady = false;
       stopWatchdog();
@@ -1572,6 +1584,114 @@ function start() {
     for (const o of [...outings.values()]) endOuting(o);
   }
 
+  // ------------------------------------------------------------------ the rampage (app/rampage.js)
+
+  /**
+   * Its head caught fire twice within five minutes (the page counts): laser
+   * eyes and missiles, drawn in one click-through window over its screen
+   * (renderer/rampage.html) that closes when the marks have faded. The page
+   * gets the phases ('buddy:rampage') for its own poses. One at a time.
+   */
+  let rampage = null;
+  let lastRampage = -Infinity;
+
+  function startRampage(req) {
+    const refuse = () => canSend() && win.webContents.send('buddy:rampage', { phase: null });
+    if (!win || win.isDestroyed() || quitting || paused || rampage || !anchor || Date.now() - lastRampage < rampageLib.RAMPAGE.cooldownMs) {
+      return refuse();
+    }
+    const here = placement.nearestDisplay(anchor, displays());
+    const display = screen.getAllDisplays().find((d) => d.id === here.id);
+    if (!display) return refuse();
+    const origin = { x: display.bounds.x, y: display.bounds.y };
+    const b = win.getBounds();
+    const local = (p) => rampageLib.toEffect(p, b, scale(), origin);
+    const area = { x: display.workArea.x - origin.x, y: display.workArea.y - origin.y, width: display.workArea.width, height: display.workArea.height };
+    const plan = rampageLib.planRampage({ area, eyes: req.eyes.map(local), hatch: local(req.hatch), face: req.face });
+    lastRampage = Date.now();
+    const ew = new BrowserWindow({
+      ...display.bounds,
+      show: false,
+      transparent: true,
+      frame: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      focusable: false,
+      hasShadow: false,
+      resizable: false,
+      movable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      ...(process.platform === 'win32' ? { type: 'toolbar' } : {}),
+      backgroundColor: '#00000000',
+      title: 'Agent Buddy effects',
+      webPreferences: {
+        preload: path.join(__dirname, 'rampage-preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        webSecurity: true,
+        spellcheck: false,
+        webgl: false,
+        devTools: false,
+        navigateOnDragDrop: false,
+      },
+    });
+    ew.setIgnoreMouseEvents(true);
+    ew.setAlwaysOnTop(true, TOP_LEVEL);
+    const r = { ew, timers: [], started: false };
+    rampage = r;
+    log.info('rampage: laser eyes and missiles');
+    ew.on('closed', () => {
+      r.ew = null;
+      if (rampage === r) endRampage('window closed');
+    });
+    // Never longer than the plan (and a little more), whatever happens.
+    r.timers.push(setTimeout(() => endRampage('time'), rampageLib.RAMPAGE.chargeMs + plan.endAt + 3000));
+    ew.webContents.once('did-finish-load', () => {
+      if (rampage !== r || !r.ew) return;
+      r.ew.webContents.setZoomFactor(1);
+      // The eyes glow a moment longer than the window took to load, then it fires.
+      r.timers.push(
+        setTimeout(() => {
+          if (rampage !== r || !r.ew) return;
+          r.started = true;
+          r.ew.showInactive();
+          // The buddy stays in front of what it shoots.
+          if (win && !win.isDestroyed()) win.moveTop();
+          r.ew.webContents.send('effects:plan', plan);
+          for (const step of plan.phases) {
+            r.timers.push(
+              setTimeout(() => {
+                if (rampage !== r) return;
+                if (step.phase === null) endRampage('done');
+                else if (canSend()) win.webContents.send('buddy:rampage', { phase: step.phase });
+              }, step.at),
+            );
+          }
+        }, rampageLib.RAMPAGE.chargeMs),
+      );
+    });
+    ew.loadURL(`${ORIGIN}/renderer/rampage.html`);
+    return undefined;
+  }
+
+  /** The show is over, or cut short (screen locked, quitting, the page gone). */
+  function endRampage(why) {
+    const r = rampage;
+    if (!r) return;
+    rampage = null;
+    for (const t of r.timers) clearTimeout(t);
+    if (r.ew && !r.ew.isDestroyed()) {
+      if (!r.ew.webContents.isDestroyed()) r.ew.webContents.send('effects:stop');
+      r.ew.destroy();
+    }
+    r.ew = null;
+    log.devOnly(`rampage: over (${why})`);
+    if (canSend()) win.webContents.send('buddy:rampage', { phase: null });
+  }
+
   /** The right-click menu: play (duel, whip), walk, fly, home, the cat, the three switches. */
   function popUpFunMenu() {
     const template = buildFunMenuTemplate({
@@ -1753,6 +1873,7 @@ function start() {
     paused = value;
     if (value) setCapture(false);
     if (value) endAllOutings();
+    if (value) endRampage('paused');
     if (canSend()) win.webContents.send('buddy:paused', value);
   }
 
@@ -2191,6 +2312,7 @@ function start() {
     scanner.stop();
     hands.stop();
     endAllOutings();
+    endRampage('quit');
     stopWatchdog();
     core.dispose();
     if (server) server.close();

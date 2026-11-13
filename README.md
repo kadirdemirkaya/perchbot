@@ -38,6 +38,8 @@ Open Claude Code sessions pick up the hooks after a restart (VS Code: *Developer
   gives each account a buddy of its own, side by side, each with a small name tag.
 - **Ambient life** (tray) lets it and its helpers roam your screens when idle; switch it off to keep it still.
 - **Tap** it: idle it mostly likes that. Keep tapping and it gets cross, fumes, and its head catches fire.
+  Set its head on fire twice within five minutes and it goes on a rampage: laser eyes and missiles
+  leave burn marks on your screen (a click-through layer; nothing real is touched) that fade after ten seconds.
 - **Hands** (Windows, tray > "Hands: Chrome tabs", off by default): in the chat panel ask it to open a
   new tab or close the last tab in Chrome (or type "open" / "close"). It flies over and presses the
   button through Windows UI Automation; your mouse is not moved, tab titles are not read.

@@ -5,7 +5,7 @@
  * The page receives display data and can send back exactly these things:
  * "ready", "capture the mouse: yes/no", a drag phase, a menu item id, the id
  * of a mini that finished its exit scene, a fun-mode request (a trip around
- * the screen, or the right-click menu), "a frame was drawn" during a trip
+ * the screen, or the right-click menu), a rampage (where its eyes are), "a frame was drawn" during a trip
  * (the window then moves in step with the display), "hidden" while switching
  * sides, and a chat request: open / close the panel, typing on / off, or a
  * question as one of the chat's intents. Typed text never crosses this
@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld('buddy', {
   onChat: on('buddy:chat'),
   onBug: on('buddy:bug'),
   onOutingBack: on('buddy:outing-back'),
+  onRampage: on('buddy:rampage'),
   ready: () => ipcRenderer.send('buddy:ready'),
   capture: (wanted) => ipcRenderer.send('buddy:capture', wanted === true),
   drag: (phase) => {
@@ -66,6 +67,16 @@ contextBridge.exposeInMainWorld('buddy', {
     const out = { id: msg.id, tint: num(msg.tint), off: num(msg.off), x: num(msg.x), y: num(msg.y) };
     if (Object.values(out).some((v) => v === null)) return;
     ipcRenderer.send('buddy:outing', out);
+  },
+  /** Its head caught fire twice in five minutes: where its eyes and chest hatch are (page px), which way it faces. */
+  rampage: (msg) => {
+    if (!msg || typeof msg !== 'object' || !Array.isArray(msg.eyes)) return;
+    const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+    const point = (p) => (p && typeof p === 'object' && num(p.x) !== null && num(p.y) !== null ? { x: p.x, y: p.y } : null);
+    const eyes = msg.eyes.slice(0, 2).map(point);
+    const hatch = point(msg.hatch);
+    if (!eyes.length || eyes.includes(null) || !hatch) return;
+    ipcRenderer.send('buddy:rampage', { eyes, hatch, face: msg.face === 'left' ? 'left' : 'right' });
   },
   /** Call a roaming helper back. */
   outingEnd: (id) => {

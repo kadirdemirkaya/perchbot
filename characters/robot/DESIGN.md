@@ -71,6 +71,11 @@ comes out while a skill is in use; a page turns now and then.
   layers, orange / amber / pale yellow, outlined in ink, behind the antenna). Hidden until
   `data-annoyed` is 2 or 3, all `data-nohit`. The eruption's sparks are plain round
   embers drawn by the page.
+- **Rampage:** red eyes with a soft red halo and a cream glint (`rb-laser`, the eyes marked
+  `data-eye`), and the gauge window as a hatch that drops open (`rb-hatch`): dark inside, a
+  small cream missile with a red nose and teal fins. The beams (red with a white core), the
+  missiles, the smoke and the blast marks (soot, grey ash, cracks that glow and cool, embers)
+  are drawn by the effect page (`app/renderer/rampage.js`), in the same ink and palette.
 - **Ambient-play props:** a small yellow polishing cloth (in the far hand), a plain
   four-point sparkle on the clean face screen (four points only, never a many-rayed
   starburst), a little white sneeze puff of four circles, and a lilac power sign on the

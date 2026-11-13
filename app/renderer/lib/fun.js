@@ -4,6 +4,7 @@
  *
  *   TapMeter          quick taps in a row: happy or cross, by mood and by work (tapMood)
  *   Temper            anger that builds up over unwelcome taps: cross, fuming, blazing
+ *   Fury              its head on fire twice in five minutes: a rampage
  *   AmbientScheduler  ambient life: short plays and trips, every 15-60 s
  *   pickCheer      a different celebration for "done" now and then
  *   Duel           the sword fight started from the right-click menu
@@ -175,6 +176,38 @@
 
     reset() {
       this.heat = 0;
+    }
+  }
+
+  /** Its head catches fire this many times within windowMs: it goes on a rampage. */
+  const FURY = Object.freeze({ blazes: 2, windowMs: 5 * 60 * 1000 });
+
+  /**
+   * Counts how often its head catches fire (the temper reaches its top level
+   * from below). The second time within five minutes is too much: blaze()
+   * returns true (a rampage: laser eyes and missiles, see app/rampage.js) and
+   * the count starts over. Pure: the clock is injectable.
+   */
+  class Fury {
+    constructor({ clock = realClock, blazes = FURY.blazes, windowMs = FURY.windowMs } = {}) {
+      this.clock = clock;
+      this.blazes = blazes;
+      this.windowMs = windowMs;
+      this.times = [];
+    }
+
+    /** Its head just caught fire. True: that was once too often. */
+    blaze() {
+      const now = this.clock.now();
+      this.times = this.times.filter((t) => now - t < this.windowMs);
+      this.times.push(now);
+      if (this.times.length < this.blazes) return false;
+      this.times = [];
+      return true;
+    }
+
+    reset() {
+      this.times = [];
     }
   }
 
@@ -592,6 +625,8 @@
     Temper,
     TEMPER_HOLD,
     TEMPER_MAX,
+    Fury,
+    FURY,
     AmbientScheduler,
     AMBIENT_GAP,
     WEIGHTS,
