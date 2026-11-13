@@ -34,6 +34,8 @@ Usage: agent-buddy <command> [options]
               (~/.claude, ~/.claude-<name>, $CLAUDE_CONFIG_DIR); asks once, backs up each file
   uninstall   remove Agent Buddy's hooks again (nothing else)
   status      which accounts have the hooks; is the overlay running
+  doctor      check and fix: hooks everywhere, a live test per account, sessions
+              opened before the hooks (--account <name> tests one, --yes)
   start       start the overlay now (normally the first Claude Code event starts it)
   demo        a short tour of every state, without Claude Code
 
@@ -114,6 +116,17 @@ async function run(argv) {
     case 'uninstall':
     case 'remove':
       return require('../uninstall').main(rest);
+    case 'doctor': {
+      const at = rest.indexOf('--account');
+      return require('../lib/doctor').doctor({
+        sendJs: SEND_JS,
+        version: version(),
+        setup: (args) => require('../setup').main(args),
+        yes: rest.includes('--yes'),
+        only: at >= 0 ? rest[at + 1] || null : null,
+        readConfig,
+      });
+    }
     case 'status':
       return status();
     case 'start':
