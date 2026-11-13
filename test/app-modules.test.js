@@ -167,16 +167,18 @@ test('hover menu items come from settings and are localised', () => {
   }
 });
 
-test('features: sounds are switched off, and the page agrees', () => {
+test('features: sounds are available (the setting switches them on), and the page agrees', () => {
   const FEATURES = require('../app/features');
-  assert.equal(FEATURES.sound, false, 'sounds stay off until they get another pass');
+  assert.equal(FEATURES.sound, true, 'the user switches sounds on and off in the settings');
   // The page loads lib/sound.js exactly when the feature is on (comments do not count).
   const html = fs.readFileSync(path.join(ROOT, 'app', 'renderer', 'index.html'), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
   assert.equal(/<script[^>]+src="lib\/sound\.js"/.test(html), FEATURES.sound);
-  // No menu entry for it while it is off, even with the setting on.
-  assert.equal(buildMenuItems({ ...DEFAULTS, sound: true }, { soundAvailable: FEATURES.sound }).find((i) => i.id === 'sound'), undefined);
+  // With the feature on: a speaker button in the hover menu and Sound / Volume in the tray.
+  assert.ok(buildMenuItems({ ...DEFAULTS, sound: true }, { soundAvailable: FEATURES.sound }).find((i) => i.id === 'sound'));
   const tray = buildTrayTemplate({ settings: { ...DEFAULTS, sound: true }, characters: new Map(), sessionCount: 0, soundAvailable: FEATURES.sound, on: {} });
-  assert.ok(!tray.some((item) => item.label === 'Sound' || item.label === 'Volume'));
+  assert.ok(tray.some((item) => item.label === 'Sound' || item.label === 'Volume'), 'tray entries');
+  // Switched off, they would all be gone again.
+  assert.equal(buildMenuItems({ ...DEFAULTS, sound: true }, { soundAvailable: false }).find((i) => i.id === 'sound'), undefined);
 });
 
 test('settings: normalisation, missing and broken files, atomic save', () => {
