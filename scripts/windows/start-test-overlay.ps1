@@ -6,7 +6,7 @@ param(
   # Ambient life, play mode and the cat are OFF here by default: a trip in the
   # middle of a test would move the window. -Fun turns all three on.
   [switch]$Fun,
-  # Hands (open / close Chrome tabs when asked): off unless -Hands.
+  # Hands (open / close Chrome, tabs, YouTube when asked): off unless -Hands.
   [switch]$Hands,
   # Stay here (no trips of its own, no fleeing, no following the cursor): off unless -StayPut.
   [switch]$StayPut

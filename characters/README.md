@@ -126,7 +126,7 @@ Use whatever you like; ignore the rest.
 | `--fly-tilt` | while flying: -1 to 1, the drag direction (positive = moving right); 0 at rest |
 | `data-skill` | `open` while a skill is in use (show a book, a scroll, ...), `stow` for ~0.8 s when it is put away. The app draws the tag with the skill name itself |
 | `data-brief`, `data-receive` | present for ~1.7 s when a helper is briefed / reports back. The value (`left` / `right`) is the side the helper stands on |
-| `data-press` | ~1.2 s: it presses a button with the near hand (hands: Chrome's new tab or close button). The app puts that hand ~46 px right of and ~115 px above the anchor (main.js `HAND_OFFSET`, medium size); raise the hand there |
+| `data-press` | ~1.2 s: it presses a button with the near hand (hands: a Chrome button). The app puts that hand ~46 px right of and ~115 px above the anchor (main.js `HAND_OFFSET`, medium size); raise the hand there. `"chest"`: a press on its own body ("Open Chrome", no button on the screen); `"type"`: ~2.6 s, typing at the same spot (the address bar) |
 | `data-task` | at work, what it works on (from the tool, app/tools.js `taskFor`): `book` (reading a file, `data-state="reading"`), `search` (Grep / Glob, `reading`), `web` (WebSearch / WebFetch, `working`). Absent: the plain look of the state |
 | `data-think` | while thinking the app changes the pose every ~7 s: absent (the plain thinking look), `bulb` (an idea) or `pace` (pacing up and down; the app flips `data-face` every ~2.4 s) |
 | `data-talk` | up to ~1.8 s while it answers a question from the chat panel (talk, nod); also while it chats with a visitor |

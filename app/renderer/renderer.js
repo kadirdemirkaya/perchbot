@@ -1280,17 +1280,18 @@
   }
 
   /**
-   * Hands are off and the user asked for a tab: "Turn them on and do it?" with
-   * Yes / No. Yes turns hands on (main) and does it; nothing happens otherwise.
+   * A Yes / No about a hands command in the bubble: hands are off ("Turn them
+   * on and do it?": Yes turns them on in main and does it), or "Close Chrome?"
+   * (a whole window: Yes does it). Nothing happens otherwise.
    */
   const HANDS_ASK_MS = 12000;
-  function askHandsOn(ask) {
+  function askHands(ask, kind) {
     // Main sends only its own commands (app/chat.js HAND_INTENTS); the bridge checks them again.
     if (!ask || typeof ask.text !== 'string' || typeof ask.intent !== 'string' || !/^[a-z]{2,12}$/.test(ask.intent)) return;
     dropAnswer();
     dropQuip();
     if (curious) dropCurious();
-    trace(`hands: ask to turn on (${ask.intent})`);
+    trace(`hands: ask ${kind === 'go' ? 'to be sure' : 'to turn on'} (${ask.intent})`);
     curious = {
       text: ask.text,
       always: true,
@@ -1299,6 +1300,11 @@
         { id: 'no', label: String(ask.no || 'No') },
       ],
       pick: (id) => {
+        if (kind === 'go') {
+          trace(`hands: ${id === 'yes' ? 'go ahead' : 'never mind'} (${ask.intent})`);
+          if (id === 'yes') window.buddy.handsGo(ask.intent);
+          return;
+        }
         trace(`hands: ${id === 'yes' ? 'turned on' : 'left off'}`);
         if (id === 'yes') window.buddy.handsOn(ask.intent);
       },
@@ -2838,8 +2844,9 @@
     trace(`chat: answer (${intent})`);
   }
 
-  /** Hands: how long the press pose lasts (robot.css data-press). */
+  /** Hands: how long the press pose lasts (robot.css data-press), and the typing at the address bar. */
   const PRESS_MS = 1200;
+  const TYPE_MS = 2600;
 
   /** A line about a command (hands): shown like a chat answer, also with the panel closed. */
   function sayAnswer(text) {
@@ -2974,9 +2981,11 @@
       flag('annoyed', TEMPER_MAX, true);
       if (!goRampage()) trace('rampage: not now');
     } else if (name === 'press') {
-      // The press pose only (nothing is pressed).
+      // The press poses only (nothing is pressed): at a button, on its own chest, typing.
       flag('press', true, true);
-      later('press', PRESS_MS, () => flag('press', null));
+      later('press', PRESS_MS, () => flag('press', 'chest', true));
+      later('press-type', PRESS_MS * 2 + 300, () => flag('press', 'type', true));
+      later('press-end', PRESS_MS * 2 + 300 + TYPE_MS, () => flag('press', null));
     } else if (name === 'curious') {
       askWhatsThis();
     } else if (name === 'welcome') {
@@ -3091,15 +3100,18 @@
   window.buddy.onMove((m) => applyMove(m));
   window.buddy.onMoment((kind) => onMoment(kind));
   window.buddy.onPresence((change) => onPresence(change));
-  // Hands (app/hands.js): the press pose at the button, and what it says about it.
+  // Hands (app/hands.js): the press pose at the button (or on its own chest: "Open Chrome";
+  // typing at the address bar: YouTube), what it says about it, and the Yes / No questions.
   window.buddy.onHands((msg) => {
     if (!msg || typeof msg !== 'object') return;
-    if (msg.press === true && motionAllowed()) {
-      flag('press', true, true);
-      later('press', PRESS_MS, () => flag('press', null));
+    if (msg.press && motionAllowed()) {
+      const how = msg.press === 'chest' || msg.press === 'type' ? msg.press : true;
+      flag('press', how, true);
+      later('press', how === 'type' ? TYPE_MS : PRESS_MS, () => flag('press', null));
     }
     if (typeof msg.say === 'string' && msg.say) sayAnswer(msg.say);
-    if (msg.ask) askHandsOn(msg.ask);
+    if (msg.ask) askHands(msg.ask, 'on');
+    if (msg.confirm) askHands(msg.confirm, 'go');
   });
   window.buddy.onFlip((phase) => onFlip(phase));
   window.buddy.onChat((msg) => applyChat(msg));

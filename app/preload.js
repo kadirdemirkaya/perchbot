@@ -21,7 +21,7 @@ const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
 const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch', 'peek', 'cat', 'cat-away', 'guest', 'guest-away']);
 const CHAT_OPS = new Set(['open', 'close', 'ask']);
 /** The hands commands (app/chat.js HAND_INTENTS; a test keeps the two lists equal). */
-const HAND_INTENTS = new Set(['newtab', 'closetab']);
+const HAND_INTENTS = new Set(['openchrome', 'closechrome', 'newtab', 'closetab', 'youtube']);
 const INTENT_RE = /^[a-z]{2,12}$/;
 
 contextBridge.exposeInMainWorld('buddy', {
@@ -40,6 +40,10 @@ contextBridge.exposeInMainWorld('buddy', {
   /** Hands were off; the user clicked "Yes" in the bubble: turn them on and do `intent`. */
   handsOn: (intent) => {
     if (HAND_INTENTS.has(intent)) ipcRenderer.send('buddy:hands-on', intent);
+  },
+  /** "Close Chrome?" in the bubble: the user clicked "Yes". */
+  handsGo: (intent) => {
+    if (HAND_INTENTS.has(intent)) ipcRenderer.send('buddy:hands-go', intent);
   },
   onPet: on('buddy:pet'),
   onFun: on('buddy:fun'),

@@ -3128,6 +3128,48 @@
   45% { transform: translate(2px, -3px) rotate(-8deg); }
 }
 
+/* "Open Chrome": no button on the screen, it presses the gauge on its own chest
+   (the arm bends in across the body, the hand on the meter, a push, the LED blinks). */
+.buddy-character[data-press="chest"] .rb-arm-front {
+  transform: rotate(30deg);
+}
+
+.buddy-character[data-press="chest"] .rb-forearm-front {
+  transform: rotate(55deg);
+}
+
+.buddy-character[data-press="chest"]:not([data-rest]) .rb-forearm-front {
+  animation: rb-press-chest 0.5s ease-in-out 0.25s 1;
+}
+
+.buddy-character[data-press="chest"] .rb-face {
+  transform: translate(-2px, 3px);
+}
+
+.buddy-character[data-press="chest"]:not([data-rest]) .rb-led {
+  animation: rb-led-blink 0.16s steps(1) 0.45s 4;
+}
+
+@keyframes rb-press-chest {
+  0%, 100% { transform: rotate(55deg); }
+  45% { transform: rotate(61deg) translate(-1px, 0); }
+}
+
+@keyframes rb-led-blink {
+  0% { fill: #4FD6B4; }
+  50% { fill: #FFF6E8; }
+}
+
+/* YouTube: the hand stays up at the address bar and types, quick little taps. */
+.buddy-character[data-press="type"]:not([data-rest]) .rb-forearm-front {
+  animation: rb-press-type 0.16s ease-in-out 0.2s infinite alternate;
+}
+
+@keyframes rb-press-type {
+  from { transform: none; }
+  to { transform: translate(1.5px, -2.5px) rotate(-6deg); }
+}
+
 /* ------------------------------------------------------------ focus mode (data-holo)
 
    The app sets data-holo while the work is intense (many steps in the last two

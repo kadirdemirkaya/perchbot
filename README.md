@@ -54,9 +54,11 @@ Open Claude Code sessions pick up the hooks after a restart (VS Code: *Developer
   cursor with both for five seconds. The marks fade 5 to 10 seconds after the last blast.
 - **Sound** (tray, off by default): little robot sounds made in code, no audio files. With **Work sounds**
   on too it also signals when a turn is done, a tool failed or Claude Code has a question.
-- **Hands** (Windows, tray > "Hands: Chrome tabs", off by default): in the chat panel ask it to open a
-  new tab or close the last tab in Chrome (or type "open" / "close"). It flies over and presses the
-  button through Windows UI Automation; your mouse is not moved, tab titles are not read.
+- **Hands** (Windows, tray > "Hands: Chrome", off by default): buttons at the top of the chat panel.
+  It opens Chrome, closes the front Chrome window (after a Yes), opens a new tab, closes the last tab, or
+  opens YouTube (a new tab, then it types "youtube.com" into the address bar and presses Enter). It flies
+  over and presses the buttons through Windows UI Automation; your mouse is not moved, tab titles and
+  addresses are not read.
 
 Only the event, the tool name, a file name (not the path) and a shortened command (secrets
 masked) leave the hook, and only to `127.0.0.1`. Settings: `~/.agent-buddy/settings.json`.

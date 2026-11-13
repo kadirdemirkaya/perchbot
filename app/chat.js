@@ -26,9 +26,17 @@ const INTENT_SET = new Set(INTENTS);
  * top of the panel, Windows only). With the Hands setting off, a command asks
  * to turn it on first.
  */
-const HAND_GROUPS = Object.freeze([Object.freeze({ id: 'tab', items: Object.freeze(['newtab', 'closetab']) })]);
+const HAND_GROUPS = Object.freeze(
+  [
+    { id: 'chrome', items: ['openchrome', 'closechrome'] },
+    { id: 'tab', items: ['newtab', 'closetab'] },
+    { id: 'youtube', items: ['youtube'] },
+  ].map((g) => Object.freeze({ id: g.id, items: Object.freeze(g.items) })),
+);
 const HAND_INTENTS = Object.freeze(HAND_GROUPS.flatMap((g) => g.items));
 const HAND_SET = new Set(HAND_INTENTS);
+/** Commands that ask "Are you sure?" first (a whole window with its tabs). */
+const HAND_CONFIRM = new Set(['closechrome']);
 
 const FILE_WRITE = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const FILE_READ = new Set(['Read', 'NotebookRead']);
@@ -185,4 +193,4 @@ function panelStrings(lang, { commands = false } = {}) {
   };
 }
 
-module.exports = { INTENTS, INTENT_SET, HAND_GROUPS, HAND_INTENTS, HAND_SET, CHAT_OPS, answer, answerKey, formatDuration, typeList, panelStrings, parseChatRequest };
+module.exports = { INTENTS, INTENT_SET, HAND_GROUPS, HAND_INTENTS, HAND_SET, HAND_CONFIRM, CHAT_OPS, answer, answerKey, formatDuration, typeList, panelStrings, parseChatRequest };

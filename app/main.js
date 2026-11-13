@@ -418,7 +418,15 @@ function start() {
     if (!fromPage(event) || !chat.HAND_SET.has(intent)) return;
     log.info('hands: turned on from the bubble');
     actions.setHands(true);
-    runHands(intent);
+    runHands(intent, { confirmed: true });
+  });
+
+  // "Close Chrome?" - "Yes": only for the command that just asked.
+  ipcMain.on('buddy:hands-go', (event, intent) => {
+    if (!fromPage(event) || !handsConfirm || handsConfirm.intent !== intent) return;
+    const fresh = Date.now() - handsConfirm.at < HANDS_CONFIRM_MS;
+    handsConfirm = null;
+    if (fresh) runHands(intent, { confirmed: true });
   });
 
   // A mini finished its exit scene: forget the agent (the window may shrink).
@@ -1104,13 +1112,17 @@ function start() {
     if (plan) beginTrip(plan, kind, null, { lens: lens && at ? at : null });
   }
 
-  // ------------------------------------------------------------------ hands: Chrome tabs (opt-in)
+  // ------------------------------------------------------------------ hands: Chrome (opt-in)
 
   /**
-   * "Open a tab" / "close the last tab" in the chat panel (app/hands.js): it finds
-   * the button, flies over and reaches for it, presses it on arrival (UI
-   * Automation, never the real mouse), then flies home. Interrupted on the way
-   * (a drag, a lock): no press. Only one at a time.
+   * The hands commands in the chat panel (app/hands.js): it finds the button,
+   * flies over and reaches for it, presses it on arrival (UI Automation, never
+   * the real mouse), then flies home. "Open Chrome" is a press on the spot (a
+   * button on its chest, Chrome starts); "Close Chrome" asks first (a window
+   * with all its tabs); "Open YouTube" presses "new tab", flies on to the
+   * address bar and types the address there (no Chrome window yet: Chrome
+   * starts with it). Interrupted on the way (a drag, a lock): no press. Only
+   * one at a time.
    */
   const hands = createHands({ log });
   /** Where the robot's near hand is when it presses (robot.css data-press), from the anchor, DIP at medium size. */
@@ -1119,14 +1131,32 @@ function start() {
     nochrome: 'handsNoChrome',
     last: 'handsLastTab',
     nobutton: 'handsNoButton',
+    noapp: 'handsNoApp',
+    enter: 'handsNoButton',
     error: 'handsNoButton',
     unsupported: 'handsOnlyWindows',
   });
+  /** What it says when it sets off. */
+  const HANDS_SAY = Object.freeze({
+    openchrome: 'handsOpenChrome',
+    closechrome: 'handsCloseChrome',
+    newtab: 'handsNewTab',
+    closetab: 'handsCloseTab',
+    youtube: 'handsYoutube',
+  });
+  /** The button each command goes for (app/hands.js targets); "Open Chrome" has none. */
+  const HANDS_TARGET = Object.freeze({ closechrome: 'window', newtab: 'newtab', closetab: 'close', youtube: 'newtab' });
+  /** A Yes for "Close Chrome?" counts this long. */
+  const HANDS_CONFIRM_MS = 15000;
   let handsBusy = false;
   let handsTimer = null;
+  /** The command that asked "Are you sure?" in the bubble: { intent, at }. */
+  let handsConfirm = null;
+
+  const handsText = (key) => translate(settings.language, 'chat', key);
 
   function handsSay(key) {
-    if (canSend()) win.webContents.send('buddy:hands', { say: translate(settings.language, 'chat', key) });
+    if (canSend()) win.webContents.send('buddy:hands', { say: handsText(key) });
   }
 
   function handsDone() {
@@ -1134,36 +1164,67 @@ function start() {
     clearTimeout(handsTimer);
   }
 
-  async function runHands(intent) {
-    const target = intent === 'newtab' ? 'newtab' : 'close';
+  /**
+   * One command from the chat panel. `confirmed`: the user already said yes
+   * (to "Close Chrome?", or to turning hands on for it).
+   */
+  async function runHands(intent, { confirmed = false } = {}) {
+    if (!chat.HAND_SET.has(intent)) return undefined;
     if (!settings.hands) {
       log.info(`hands: ${intent} asked, but hands are off`);
       // Ask in the bubble: "Turn them on and do it?" (Yes: 'buddy:hands-on').
-      const t = (key) => translate(settings.language, 'chat', key);
-      if (canSend()) win.webContents.send('buddy:hands', { ask: { intent, text: t('handsAskOn'), yes: t('handsYes'), no: t('handsNo') } });
+      if (canSend()) win.webContents.send('buddy:hands', { ask: { intent, text: handsText('handsAskOn'), yes: handsText('handsYes'), no: handsText('handsNo') } });
       return undefined;
     }
     if (!hands.supported()) return handsSay('handsOnlyWindows');
     if (handsBusy) return undefined;
+    // A whole window with its tabs: "Are you sure?" first (Yes: 'buddy:hands-go').
+    if (chat.HAND_CONFIRM.has(intent) && !confirmed) {
+      handsConfirm = { intent, at: Date.now() };
+      log.devOnly(`hands: ${intent}: asking first`);
+      if (canSend()) {
+        win.webContents.send('buddy:hands', { confirm: { intent, text: handsText('handsSureCloseChrome'), yes: handsText('handsYes'), no: handsText('handsNo') } });
+      }
+      return undefined;
+    }
     handsBusy = true;
     // Whatever happens on the way, it is free again after a while.
-    handsTimer = setTimeout(handsDone, 20000);
-    handsSay(target === 'newtab' ? 'handsNewTab' : 'handsCloseTab');
+    handsTimer = setTimeout(handsDone, 30000);
+    handsSay(HANDS_SAY[intent]);
+    if (intent === 'openchrome') return launchNow(null);
+    const target = HANDS_TARGET[intent];
     const found = await hands.find(target);
     log.info(`hands: ${intent}: ${found.ok ? 'button found' : found.why}`);
     if (!found.ok) {
+      // No Chrome window yet: YouTube comes with a new one.
+      if (intent === 'youtube' && found.why === 'nochrome') return launchNow('youtube');
       handsSay(HANDS_WHY[found.why] || 'handsNoButton');
       return handsDone();
     }
-    if (typeof screen.screenToDipRect !== 'function' || !win || win.isDestroyed()) return handsDone();
-    const r = screen.screenToDipRect(null, { x: found.x, y: found.y, width: found.w, height: found.h });
-    const point = {
-      x: Math.round(r.x + r.width / 2 - HAND_OFFSET.x * scale()),
-      y: Math.round(r.y + r.height / 2 + HAND_OFFSET.y * scale()),
-    };
-    log.devOnly(`hands: ${target} at ${Math.round(r.x)},${Math.round(r.y)}, flying over`);
-    goReach(point, () => pressNow(target));
+    reachFor(found, target, () => pressNow(target, intent === 'youtube' ? typeAddress : null));
     return undefined;
+  }
+
+  /** The screen point (DIP) the window's anchor goes to so that the near hand lands on `at` (DIP). */
+  function handPoint(at) {
+    return {
+      x: Math.round(at.x - HAND_OFFSET.x * scale()),
+      y: Math.round(at.y + HAND_OFFSET.y * scale()),
+    };
+  }
+
+  /** A rectangle from the helper (physical px) in DIP, or null. */
+  function dipRect(found) {
+    if (typeof screen.screenToDipRect !== 'function') return null;
+    return screen.screenToDipRect(null, { x: found.x, y: found.y, width: found.w, height: found.h });
+  }
+
+  /** Off to the button the helper found (its middle), then `then` there. */
+  function reachFor(found, target, then) {
+    const r = dipRect(found);
+    if (!r || !win || win.isDestroyed()) return handsDone();
+    log.devOnly(`hands: ${target} at ${Math.round(r.x)},${Math.round(r.y)}, flying over`);
+    return goReach(handPoint({ x: r.x + r.width / 2, y: r.y + r.height / 2 }), then);
   }
 
   /** Fly to `point` (on this screen or another one), then `then` (only if it got there). */
@@ -1189,8 +1250,20 @@ function start() {
     return beginTrip(plan, 'reach', then);
   }
 
-  /** At the button: reach out (the page's press pose), press it, then home. */
-  function pressNow(target) {
+  /** Done with Chrome: free again, and home after a moment. */
+  function handsHome() {
+    setTimeout(() => {
+      handsDone();
+      hangAt = null;
+      startTrip('home');
+    }, 900);
+  }
+
+  /**
+   * At the button: reach out (the page's press pose), press it, then home, or
+   * `next` (YouTube: on to the address bar) when the press worked.
+   */
+  function pressNow(target, next = null) {
     // Up near the top edge the window may reach above the work area: it stays there for the press.
     if (roamAnchor) hangAt = { ...roamAnchor };
     if (canSend()) win.webContents.send('buddy:hands', { press: true });
@@ -1198,12 +1271,50 @@ function start() {
       const done = await hands.press(target);
       log.info(`hands: pressed ${target}: ${done.ok ? 'ok' : done.why}`);
       if (!done.ok) handsSay(HANDS_WHY[done.why] || 'handsNoButton');
-      setTimeout(() => {
-        handsDone();
-        hangAt = null;
-        startTrip('home');
-      }, 900);
+      if (done.ok && next) setTimeout(next, 450);
+      else handsHome();
     }, 380);
+  }
+
+  /** "Open Chrome" (or YouTube with no Chrome window): a press on its chest, and Chrome starts. */
+  function launchNow(site) {
+    if (canSend()) win.webContents.send('buddy:hands', { press: 'chest' });
+    setTimeout(() => {
+      const done = hands.launch(site);
+      log.info(`hands: started Chrome${site ? ` with ${site}` : ''}: ${done.ok ? 'ok' : done.why}`);
+      if (!done.ok) handsSay(HANDS_WHY[done.why] || 'handsNoButton');
+      handsDone();
+    }, 600);
+  }
+
+  /**
+   * YouTube, after the new tab: over to the address bar (where the text
+   * starts), type the address there, Enter. Enter did not take (rare): that tab
+   * goes again and Chrome opens the address itself, in a new tab.
+   */
+  async function typeAddress() {
+    const bar = await hands.find('bar');
+    log.info(`hands: address bar: ${bar.ok ? 'found' : bar.why}`);
+    const r = bar.ok ? dipRect(bar) : null;
+    if (!r) {
+      handsSay(HANDS_WHY[bar.why] || 'handsNoButton');
+      return handsHome();
+    }
+    const at = { x: r.x + Math.min(70 * scale(), r.width / 4), y: r.y + r.height / 2 };
+    return goReach(handPoint(at), async () => {
+      if (roamAnchor) hangAt = { ...roamAnchor };
+      if (canSend()) win.webContents.send('buddy:hands', { press: 'type', say: handsText('handsTyping') });
+      const done = await hands.type();
+      log.info(`hands: typed the address: ${done.ok ? 'ok' : done.why}`);
+      if (!done.ok && done.why === 'enter') {
+        await hands.press('close');
+        const opened = hands.launch('youtube');
+        if (!opened.ok) handsSay(HANDS_WHY[opened.why] || 'handsNoButton');
+      } else if (!done.ok) {
+        handsSay(HANDS_WHY[done.why] || 'handsNoButton');
+      }
+      handsHome();
+    });
   }
 
   // ------------------------------------------------------------------ perching on a window (Windows)
@@ -1870,7 +1981,7 @@ function start() {
     else if (name === 'follow') demoFollow();
     // Hands, for a test overlay only (--dev): a real tab is opened or closed, so a plain
     // overlay never does this for an event, only for the user in its chat panel.
-    else if ((name === 'newtab' || name === 'closetab') && isDev) runHands(name);
+    else if (chat.HAND_SET.has(name) && isDev) runHands(name, { confirmed: true });
     // The third rampage in a row (after the cursor) without the two before it.
     else if (name === 'rampage-chase') demoRampageChase();
     else if (canSend()) win.webContents.send('buddy:fun', { action: 'demo', name });
