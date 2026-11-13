@@ -42,7 +42,7 @@
 
 (() => {
   const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay } = window.BuddyInteraction;
-  const { TapMeter, Temper, AmbientScheduler, pickCheer, Duel, BugFight } = window.BuddyFun;
+  const { TapMeter, Temper, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight } = window.BuddyFun;
 
   const root = document.documentElement;
   const stage = document.getElementById('stage');
@@ -310,6 +310,8 @@
     const parts = holder.dataset.state !== (next.cssState || next.state) ? snapshotAnimated() : null;
     holder.dataset.state = next.cssState || next.state;
     flag('mood', next.mood === 'worried' ? 'worried' : null);
+    // What it works on: a book, a search, the web (robot.css data-task).
+    flag('task', next.task === 'book' || next.task === 'search' || next.task === 'web' ? next.task : null);
     stage.classList.toggle('leaving', next.state === 'goodbye');
     applySkill(next.skill || null);
     // Claude Code needs the character: anything but idle / standby ends a duel at
@@ -344,6 +346,7 @@
 
     // Every event wakes the character; idle starts the rest countdown again.
     rest.setIdle(next.state === 'idle');
+    updateThinking();
 
     if (next.state !== previous.state) {
       perfMark(`${previous.state}→${next.state}`);
@@ -1044,6 +1047,52 @@
     const show = Boolean(name) && !settings.quiet;
     accountTag.textContent = show ? name.replace(/^claude-(?=.)/, '') : '';
     accountTag.classList.toggle('show', show);
+  }
+
+  // ---------------------------------------------------------------- thinking poses
+
+  /**
+   * While it thinks, the pose changes every few seconds (lib/fun.js
+   * pickThinkPose): hand on chin, an idea (a light bulb), or pacing up and down
+   * with its hands behind its back (it turns round every PACE_TURN_MS).
+   */
+  const PACE_TURN_MS = 2400;
+  let thinkPose = null;
+
+  function updateThinking() {
+    if (view.state !== 'thinking' || !motionAllowed()) {
+      stopThinking();
+      return;
+    }
+    if (!thinkPose) nextThinkPose();
+  }
+
+  function nextThinkPose() {
+    thinkPose = pickThinkPose(thinkPose, { airborne: flight.airborne, hunting: hunt.active || Boolean(moving) });
+    trace(`thinking: ${thinkPose}`);
+    flag('think', thinkPose === 'chin' ? null : thinkPose);
+    turnWhilePacing();
+    later('think', THINK_MS, nextThinkPose);
+  }
+
+  function turnWhilePacing() {
+    cancel('pace');
+    if (thinkPose !== 'pace' || moving || hunt.active) {
+      if (!moving && !hunt.active && holder.dataset.face) flag('face', null);
+      return;
+    }
+    flag('face', holder.dataset.face === 'left' ? null : 'left');
+    later('pace', PACE_TURN_MS, turnWhilePacing);
+  }
+
+  function stopThinking() {
+    if (thinkPose === null) return;
+    const paced = thinkPose === 'pace';
+    thinkPose = null;
+    cancel('think');
+    cancel('pace');
+    flag('think', null);
+    if (paced && !moving && !hunt.active) flag('face', null);
   }
 
   /** Tapped and it liked it: two little hearts float up from its head. */

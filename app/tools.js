@@ -77,6 +77,26 @@ function bubbleForTool(tool, detail) {
   return { key: 'working' };
 }
 
+/**
+ * What the character shows it works on (robot.css data-task), from the bubble's
+ * message key: a book for reading a file, a magnifier for a search, a globe for
+ * the web. null: the plain look of the state.
+ */
+const TASK_BY_MESSAGE = Object.freeze({
+  reading: 'book',
+  readingNoFile: 'book',
+  searching: 'search',
+  findingFiles: 'search',
+  searchingNoPattern: 'search',
+  webSearch: 'web',
+  webFetch: 'web',
+  webFetchNoHost: 'web',
+});
+
+function taskFor(messageKey) {
+  return typeof messageKey === 'string' && Object.hasOwn(TASK_BY_MESSAGE, messageKey) ? TASK_BY_MESSAGE[messageKey] : null;
+}
+
 /** Tools whose detail is the command they run (shortened by the hook). */
 const COMMAND_TOOLS = new Set(['Bash', 'PowerShell']);
 
@@ -92,4 +112,4 @@ function stepForTool(tool, detail) {
   return null;
 }
 
-module.exports = { stateForTool, bubbleForTool, stepForTool, isFileTool, TOOL_STATES, STATE_BY_TOOL, FILE_TOOLS, COMMAND_TOOLS };
+module.exports = { stateForTool, bubbleForTool, stepForTool, isFileTool, taskFor, TASK_BY_MESSAGE, TOOL_STATES, STATE_BY_TOOL, FILE_TOOLS, COMMAND_TOOLS };

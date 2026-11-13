@@ -323,6 +323,23 @@
     return entries[entries.length - 1][0];
   }
 
+  // ------------------------------------------------------------------ thinking poses
+
+  /** Ways to think (robot.css data-think; 'chin' is the plain look), and how often it changes. */
+  const THINK_POSES = Object.freeze(['chin', 'bulb', 'pace']);
+  const THINK_MS = 7000;
+
+  /**
+   * The next pose while it thinks: never the same one twice in a row; no
+   * pacing in the air or while it fights a bug (it faces the bug then).
+   * @param {string|null} previous
+   * @param {{ airborne?: boolean, hunting?: boolean }} where
+   */
+  function pickThinkPose(previous, { airborne = false, hunting = false } = {}, random = Math.random) {
+    const options = THINK_POSES.filter((p) => p !== previous && (p !== 'pace' || (!airborne && !hunting)));
+    return options[Math.floor(random() * options.length) % options.length];
+  }
+
   // ------------------------------------------------------------------ cheers
 
   const CHEERS = ['jump', 'spin', 'dance', 'fist'];
@@ -582,6 +599,9 @@
     TRIPS,
     pickCheer,
     CHEERS,
+    THINK_POSES,
+    THINK_MS,
+    pickThinkPose,
     Duel,
     DUEL_TIMINGS,
     BugFight,

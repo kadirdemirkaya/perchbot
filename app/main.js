@@ -52,6 +52,7 @@ const fling = require('./fling');
 const { buildTrayTemplate, buildFunMenuTemplate } = require('./tray');
 const { buildMenuItems, MENU_IDS, switchFor } = require('./menu-items');
 const chat = require('./chat');
+const { taskFor } = require('./tools');
 const FEATURES = require('./features');
 const { createLogger } = require('./log');
 
@@ -1501,6 +1502,8 @@ function start() {
       mono: Boolean(snap.message && snap.message.mono),
       mood: snap.mood || null,
       skill: snap.skill || null,
+      // What it works on (a book, a search, the web): robot.css data-task.
+      task: taskFor(snap.message && snap.message.key),
       // Recent files read / written and commands run (the row above the bubble).
       steps: snap.steps || [],
     };

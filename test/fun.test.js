@@ -561,3 +561,53 @@ test('the page may ask for every trip it plans: preload and main allow the same 
   for (const kind of Object.values(TRIPS)) assert.ok(preload.includes(kind), `${kind} can be asked for`);
   assert.ok(preload.includes('loop'));
 });
+
+
+test('at work it shows what it works on: a book for a file, a magnifier for a search, a globe for the web', () => {
+  const { taskFor, bubbleForTool } = require('../app/tools');
+  const task = (tool, detail) => taskFor(bubbleForTool(tool, detail).key);
+  assert.equal(task('Read', 'a.js'), 'book');
+  assert.equal(task('Read'), 'book');
+  assert.equal(task('Grep', 'TODO'), 'search');
+  assert.equal(task('Glob', '*.js'), 'search');
+  assert.equal(task('WebSearch'), 'web');
+  assert.equal(task('WebFetch', 'example.com'), 'web');
+  assert.equal(task('WebFetch'), 'web');
+  for (const tool of ['Edit', 'Write', 'Bash', 'PowerShell', 'Task', 'Skill', 'mcp__x__y', 'Other']) {
+    assert.equal(task(tool, 'x'), null, `${tool}: the plain look`);
+  }
+  assert.equal(taskFor(undefined), null);
+  assert.equal(taskFor('constructor'), null);
+  // The robot draws them, hidden until then, and never catches the mouse with them.
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const svg = fs.readFileSync(path.join(__dirname, '..', 'characters', 'robot', 'robot.svg'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'characters', 'robot', 'robot.css'), 'utf8');
+  for (const prop of ['rb-signal', 'rb-bulb']) assert.match(svg, new RegExp(`class="${prop}" data-nohit=""`), prop);
+  for (const prop of ['rb-find', 'rb-globe']) assert.ok(svg.includes(`class="${prop}"`), prop);
+  assert.match(css, /\.rb-find,\s*\.rb-globe,\s*\.rb-signal,\s*\.rb-bulb\s*\{\s*opacity: 0;/);
+  for (const rule of ["[data-state='reading'][data-task='book'] .rb-book", "[data-state='reading'][data-task='search'] .rb-find", "[data-state='working'][data-task='web']", "[data-think='bulb'] .rb-bulb", "[data-think='pace']"]) {
+    assert.ok(css.includes(rule), rule);
+  }
+});
+
+test('thinking: the pose changes, never twice the same in a row; no pacing in the air or at a bug', () => {
+  const { pickThinkPose, THINK_POSES, THINK_MS } = require('../app/renderer/lib/fun');
+  assert.deepEqual([...THINK_POSES], ['chin', 'bulb', 'pace']);
+  assert.ok(THINK_MS >= 4000 && THINK_MS <= 12000);
+  const random = seeded(5);
+  const seen = new Set();
+  let pose = null;
+  for (let i = 0; i < 200; i += 1) {
+    const next = pickThinkPose(pose, {}, random);
+    assert.notEqual(next, pose);
+    seen.add(next);
+    pose = next;
+  }
+  assert.deepEqual([...seen].sort(), ['bulb', 'chin', 'pace']);
+  for (let i = 0; i < 50; i += 1) {
+    assert.notEqual(pickThinkPose('chin', { airborne: true }, random), 'pace');
+    assert.notEqual(pickThinkPose('bulb', { hunting: true }, random), 'pace');
+  }
+  assert.equal(pickThinkPose('chin', { airborne: true }, () => 0.99), 'bulb');
+});

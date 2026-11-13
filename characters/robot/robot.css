@@ -486,6 +486,219 @@
   33% { opacity: 0.25; }
 }
 
+/* ------------------------------------------------------------ what it works on (data-task)
+
+   The app sets data-task from the tool at work (app/tools.js taskFor):
+     book    reading a file: the laptop goes under the arm, a book comes out
+     search  Grep / Glob: a magnifier goes over a list on the screen
+     web     WebSearch / WebFetch: a turning globe, glasses, radio waves
+   Anything else keeps the plain look of its state. */
+
+.rb-find,
+.rb-globe,
+.rb-signal,
+.rb-bulb {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.rb-meridian {
+  transform-origin: 156px 122px;
+}
+
+.buddy-character[data-state='reading'][data-task='book'] .rb-laptop {
+  transform: translate(-27px, -8px) rotate(90deg) scale(0.8);
+}
+
+.buddy-character[data-state='reading'][data-task='book'] .rb-lid {
+  transform: scaleY(0.06);
+}
+
+.buddy-character[data-state='reading'][data-task='book'] .rb-book {
+  opacity: 1;
+  transform: rotate(-4deg);
+  transition-delay: 0s, 0s;
+}
+
+.buddy-character[data-state='reading'][data-task='book'] .rb-arm-back {
+  transform: rotate(-35deg);
+}
+
+.buddy-character[data-state='reading'][data-task='book'] .rb-forearm-back {
+  transform: rotate(-70deg);
+}
+
+.buddy-character[data-state='reading'][data-task='book'] :is(.rb-arm-front, .rb-forearm-front, .rb-torso) {
+  transform: none;
+}
+
+.buddy-character[data-state='reading'][data-task='book'] .rb-head {
+  transform: rotate(-3deg) translateY(1px);
+}
+
+.buddy-character[data-state='reading'][data-task='book'] :is(.rb-face, .rb-glasses) {
+  transform: translate(-3px, 3px);
+}
+
+.buddy-character[data-state='reading'][data-task='book']:not([data-rest]) .rb-book-page {
+  animation: rb-page 2.6s steps(1) 0.6s infinite;
+}
+
+.buddy-character[data-state='reading'][data-task='search'] .rb-page {
+  opacity: 0;
+}
+
+.buddy-character[data-state='reading'][data-task='search'] .rb-find {
+  opacity: 1;
+}
+
+.rb-find-hit {
+  opacity: 0;
+}
+
+.buddy-character[data-state='reading'][data-task='search']:not([data-rest]) .rb-lens {
+  animation: rb-lens 2.4s ease-in-out infinite;
+}
+
+.buddy-character[data-state='reading'][data-task='search']:not([data-rest]) .rb-find-hit {
+  animation: rb-find-hit 2.4s steps(1) infinite;
+}
+
+@keyframes rb-lens {
+  0%, 100% { transform: translate(-8px, -3px); }
+  35% { transform: translate(10px, 5px); }
+  65% { transform: translate(-1px, 9px); }
+}
+
+@keyframes rb-find-hit {
+  0%, 60% { opacity: 0; }
+  61%, 88% { opacity: 0.4; }
+  89%, 100% { opacity: 0; }
+}
+
+.buddy-character[data-state='working'][data-task='web'] .rb-spinner {
+  opacity: 0;
+}
+
+.buddy-character[data-state='working'][data-task='web'] :is(.rb-globe, .rb-signal) {
+  opacity: 1;
+}
+
+.buddy-character[data-state='working'][data-task='web'] .rb-glasses {
+  opacity: 1;
+  transform: translate(5px, 2px);
+}
+
+.buddy-character[data-state='working'][data-task='web'] .rb-led {
+  fill: #8ab6ff;
+}
+
+.buddy-character[data-state='working'][data-task='web']:not([data-rest]) .rb-meridian {
+  animation: rb-meridian 1.6s linear infinite;
+}
+
+.buddy-character[data-state='working'][data-task='web']:not([data-rest]) :is(.rb-wave-1, .rb-wave-2) {
+  animation: rb-signal 1.2s steps(1) infinite;
+}
+
+.buddy-character[data-state='working'][data-task='web']:not([data-rest]) .rb-wave-2 {
+  animation-delay: 0.3s;
+}
+
+@keyframes rb-meridian {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(0.08); }
+}
+
+@keyframes rb-signal {
+  0% { opacity: 1; }
+  50% { opacity: 0.15; }
+}
+
+/* ------------------------------------------------------------ thinking, in more than one way (data-think)
+
+   The app changes the pose every few seconds while it thinks:
+     (none)  hand on chin (below)
+     bulb    an idea: a light bulb flickers on, a finger goes up
+     pace    hands behind its back, it paces up and down (the app turns it round)
+   A skill book in the hand keeps that hand where it is. */
+
+.buddy-character[data-state='thinking'][data-think='bulb'] .rb-thought {
+  opacity: 0;
+}
+
+.buddy-character[data-state='thinking'][data-think='bulb'] .rb-bulb {
+  opacity: 1;
+}
+
+.buddy-character[data-state='thinking'][data-think='bulb']:not([data-skill='open']) .rb-arm-back {
+  transform: rotate(150deg);
+}
+
+.buddy-character[data-state='thinking'][data-think='bulb']:not([data-skill='open']) .rb-forearm-back {
+  transform: rotate(20deg);
+}
+
+.buddy-character[data-state='thinking'][data-think='bulb'] .rb-head {
+  transform: rotate(3deg);
+}
+
+.buddy-character[data-state='thinking'][data-think='bulb'] .rb-face {
+  transform: translate(2px, -3px);
+}
+
+.buddy-character[data-state='thinking'][data-think='bulb']:not([data-rest]) .rb-bulb-glass {
+  animation: rb-bulb 2.8s steps(1) infinite;
+}
+
+.buddy-character[data-state='thinking'][data-think='bulb']:not([data-rest]) .rb-bulb-rays {
+  animation: rb-bulb-rays 2.8s steps(1) infinite;
+}
+
+@keyframes rb-bulb {
+  0%, 30% { fill: #fff6e8; }
+  31%, 36% { fill: #ffd25a; }
+  37%, 44% { fill: #fff6e8; }
+  45%, 100% { fill: #ffd25a; }
+}
+
+@keyframes rb-bulb-rays {
+  0%, 44% { opacity: 0; }
+  45%, 100% { opacity: 1; }
+}
+
+.buddy-character[data-state='thinking'][data-think='pace']:not([data-rest]) .rb-leg-l {
+  animation: rb-stride 0.9s ease-in-out infinite;
+}
+
+.buddy-character[data-state='thinking'][data-think='pace']:not([data-rest]) .rb-leg-r {
+  animation: rb-stride 0.9s ease-in-out -0.45s infinite;
+}
+
+.buddy-character[data-state='thinking'][data-think='pace']:not([data-rest]) .rb-figure {
+  animation: rb-step-bob 0.45s ease-in-out infinite;
+}
+
+.buddy-character[data-state='thinking'][data-think='pace']:not([data-skill='open']) .rb-arm-back {
+  transform: rotate(26deg);
+}
+
+.buddy-character[data-state='thinking'][data-think='pace']:not([data-skill='open']) .rb-forearm-back {
+  transform: rotate(38deg);
+}
+
+.buddy-character[data-state='thinking'][data-think='pace'] .rb-arm-front {
+  transform: rotate(12deg);
+}
+
+.buddy-character[data-state='thinking'][data-think='pace'] .rb-head {
+  transform: rotate(4deg) translateY(1px);
+}
+
+.buddy-character[data-state='thinking'][data-think='pace'] .rb-face {
+  transform: translate(3px, 3px);
+}
+
 /* ------------------------------------------------------------ closed laptop states */
 
 /* thinking: elbow bent, hand on chin, head tilted, eyes up, ear dials tick, "..." */

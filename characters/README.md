@@ -124,6 +124,8 @@ Use whatever you like; ignore the rest.
 | `--fly-tilt` | while flying: -1 to 1, the drag direction (positive = moving right); 0 at rest |
 | `data-skill` | `open` while a skill is in use (show a book, a scroll, ...), `stow` for ~0.8 s when it is put away. The app draws the tag with the skill name itself |
 | `data-brief`, `data-receive` | present for ~1.7 s when a helper is briefed / reports back. The value (`left` / `right`) is the side the helper stands on |
+| `data-task` | at work, what it works on (from the tool, app/tools.js `taskFor`): `book` (reading a file, `data-state="reading"`), `search` (Grep / Glob, `reading`), `web` (WebSearch / WebFetch, `working`). Absent: the plain look of the state |
+| `data-think` | while thinking the app changes the pose every ~7 s: absent (the plain thinking look), `bulb` (an idea) or `pace` (pacing up and down; the app flips `data-face` every ~2.4 s) |
 | `data-talk` | up to ~1.8 s while it answers a question from the chat panel (talk, nod) |
 | `data-play` | ambient life, while idle: `stretch`, `look`, `peek`, `hum`, `jump`, `ball`, `antenna`, `flip`, `reboot`, `polish`, `sneeze`, `moonwalk` or `sit` (only on the ground) for 1.5-4.2 s (each name's time is in `PLAYS` in `app/renderer/lib/fun.js`; end your animation within it; the optional sounds that go with them are timed to the robot's keyframes, see `CUES` in `app/renderer/lib/sound.js`) |
 | `data-pet` | `play` while the pet plays next to the character (it joins in) |
