@@ -16,6 +16,18 @@
  *            the screen, well away from where it was hit
  *   goto     fly (or walk) to a given point: the first leg of a trip to
  *            another screen, to the edge that faces it
+ *   cruise   a slow, long, wavy flight far across the screen, just for fun
+ *   hang     up to the top edge of the screen, to hang from it upside down:
+ *            the only trip that ends with part of the window above the work
+ *            area (HANG_REACH: its boots hook over the edge)
+ *
+ * Flight paths (path.style, only for the buddy's own flights: fancy = true):
+ *   arc    the usual gentle arc upwards (every other flight: helpers, inspect,
+ *          home, flee, goto)
+ *   wave   up and down a few times on the way (cruise mostly)
+ *   soar   a high arc
+ *   loop   a loop-the-loop halfway (the page turns the character round with
+ *          it: path.at / path.len are the share of the trip it takes)
  *
  * All positions are ANCHORS (bottom-centre of the slot, screen DIP), as in
  * placement.js. A single trip never leaves the work area of the display it
@@ -37,7 +49,26 @@ const MIN_TRIP_MS = 700;
 const EDGE = 8;
 /** Distance kept between the character's slot and the cursor (DIP at medium size). */
 const CURSOR_GAP = 60;
-const KINDS = new Set(['stroll', 'hop', 'inspect', 'home', 'flee', 'goto']);
+const KINDS = new Set(['stroll', 'hop', 'inspect', 'home', 'flee', 'goto', 'cruise', 'hang']);
+/** A cruise takes its time: this share of the flying speed. */
+const CRUISE_PACE = 0.5;
+/**
+ * Hanging from the top edge (like a bat, upside down): how far its boots are
+ * above the anchor then (DIP at medium size; robot.css data-hang turns it over).
+ */
+const HANG_REACH = 190;
+/** Flight paths for the buddy's own flights (relative chances). */
+const STYLES = Object.freeze({
+  hop: Object.freeze({ arc: 0.45, wave: 0.2, soar: 0.15, loop: 0.2 }),
+  cruise: Object.freeze({ wave: 0.75, loop: 0.25 }),
+});
+/** A wave: one up-and-down per this much distance, this high (DIP at medium size). */
+const WAVE = Object.freeze({ length: 380, amp: 34 });
+/**
+ * The loop-the-loop: its radius (DIP at medium size); it starts this far along
+ * the way, and takes this share of the flight's time (never less than minMs).
+ */
+const LOOP = Object.freeze({ r: 46, at: 0.38, len: 0.24, minMs: 650 });
 /** With more than one screen: the share of walks and hops that become a visit to another screen. */
 const SCREEN_CHANCE = 0.3;
 /**
@@ -98,11 +129,15 @@ function covers(anchor, cursor, b, margin) {
  * @param {number} [p.spanRight]  window width right of the anchor (DIP)
  * @param {() => number} [p.random]
  * @param {number} [p.pace]  speed factor (1 = the buddy; helpers roaming: OUTING.pace)
- * @returns {null | { kind, from, to, mode: 'walk'|'fly', ms, face: 'left'|'right', limits }}
+ * @param {boolean} [p.fancy]  the buddy's own flight: hops and cruises may wave, soar or loop
+ * @param {string} [p.style]  a given flight path (demos): arc | wave | soar | loop
+ * @returns {null | { kind, from, to, mode: 'walk'|'fly', ms, face: 'left'|'right', limits, path }}
  */
-function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverMode = 'auto', spanLeft = 0, spanRight = 0, random = Math.random, to: goal = null, pace = 1 }) {
+function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverMode = 'auto', spanLeft = 0, spanRight = 0, random = Math.random, to: goal = null, pace = 1, fancy = false, style = null }) {
   if (!KINDS.has(kind) || !from || !workArea) return null;
   const b = bounds(workArea, scale, spanLeft, spanRight);
+  // Hanging: its hands at the top edge, so the window reaches above the work area.
+  if (kind === 'hang') b.minY = Math.min(b.minY, workArea.y + Math.round(HANG_REACH * scale));
   const canFly = hoverMode !== 'stand';
   const onGround = from.y >= b.ground - 2;
   const gap = CURSOR_GAP * scale;
@@ -145,6 +180,21 @@ function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverM
       mode = canFly ? 'fly' : 'walk';
       break;
     }
+    case 'cruise': {
+      if (!canFly) return planTrip({ kind: 'stroll', from, home, workArea, cursor, scale, hoverMode, spanLeft, spanRight, random });
+      // Far across this screen (40-90 % of its width), somewhere up in the air.
+      const far = (b.maxX - b.minX) * (0.4 + random() * 0.5);
+      let dir = random() < 0.5 ? -1 : 1;
+      if (from.x + dir * far > b.maxX || from.x + dir * far < b.minX) dir = -dir;
+      to = { x: from.x + dir * far, y: b.ground - (80 * scale + random() * Math.max(0, b.ground - b.minY - 80 * scale)) };
+      break;
+    }
+    case 'hang': {
+      if (!canFly) return null;
+      // Somewhere along the top edge, at least a little way from where it is.
+      to = { x: b.minX + random() * (b.maxX - b.minX), y: b.minY };
+      break;
+    }
     case 'flee': {
       // Anywhere on this screen, as long as it is well away from where it was hit.
       const minGap = Math.min(FLEE_GAP * scale, (b.maxX - b.minX) / 2);
@@ -171,20 +221,66 @@ function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverM
   const distance = Math.hypot(to.x - from.x, to.y - from.y);
   if (distance < 4) return null;
   const speed = mode === 'fly' ? FLY_SPEED : kind === 'flee' ? RUN_SPEED : WALK_SPEED;
+  const kindPace = kind === 'cruise' && mode === 'fly' ? CRUISE_PACE : 1;
+  const face = to.x < from.x ? 'left' : 'right';
+  const path = mode === 'fly' ? flightPath({ kind, from, to, b, scale, face, fancy, style, random }) : { style: 'arc' };
+  const ms = Math.max(MIN_TRIP_MS, Math.round(distance / (speed * kindPace * (Number(pace) > 0 ? pace : 1) * scale)));
   return {
     kind,
     from: { x: from.x, y: from.y },
     to,
     mode,
-    ms: Math.max(MIN_TRIP_MS, Math.round(distance / (speed * (Number(pace) > 0 ? pace : 1) * scale))),
-    face: to.x < from.x ? 'left' : 'right',
+    // A loop-the-loop is time on top of the way (it stops going forward meanwhile).
+    ms: path.style === 'loop' ? loopTime(path, ms) : ms,
+    face,
     limits: { minX: b.minX, maxX: b.maxX, minY: b.minY, maxY: b.ground },
+    path,
   };
+}
+
+/** Add the loop's own time to a flight of `ms` and set where in it the loop is. */
+function loopTime(path, ms) {
+  const loopMs = Math.max(LOOP.minMs, Math.round((ms * LOOP.len) / (1 - LOOP.len)));
+  const total = ms + loopMs;
+  path.at = (LOOP.at * ms) / total;
+  path.len = loopMs / total;
+  return total;
+}
+
+/**
+ * The shape of a flight. Only the buddy's own hops and cruises (fancy) get
+ * anything but the usual arc, and a loop only where there is room above it.
+ */
+function flightPath({ kind, from, to, b, scale, face, fancy, style, random }) {
+  let pick = style;
+  if (!pick && fancy && STYLES[kind]) {
+    const entries = Object.entries(STYLES[kind]);
+    let r = random() * entries.reduce((sum, [, w]) => sum + w, 0);
+    pick = entries.find(([, w]) => (r -= w) < 0)?.[0] || entries[entries.length - 1][0];
+  }
+  const distance = Math.hypot(to.x - from.x, to.y - from.y);
+  const r = LOOP.r * scale;
+  if (pick === 'loop' && Math.min(from.y, to.y) - b.minY < 2 * r + 20 * scale) pick = fancy || style ? 'wave' : 'arc';
+  switch (pick) {
+    case 'wave':
+      return {
+        style: 'wave',
+        count: Math.max(1, Math.round(distance / (WAVE.length * scale))),
+        amp: Math.round(Math.min(WAVE.amp * scale, distance * 0.12)),
+      };
+    case 'soar':
+      return { style: 'soar' };
+    case 'loop':
+      // at / len (shares of the whole trip) are set once the time is known (loopTime).
+      return { style: 'loop', r: Math.round(r), at: LOOP.at, len: LOOP.len, dir: face === 'left' ? -1 : 1 };
+    default:
+      return { style: 'arc' };
+  }
 }
 
 /**
  * Where the character is `t` ms into the trip. Walking is steady; flying
- * eases in and out along an arc.
+ * eases in and out along its path (an arc unless path says otherwise).
  */
 function positionAt(trip, t) {
   const p = clamp(trip.ms > 0 ? t / trip.ms : 1, 0, 1);
@@ -192,9 +288,27 @@ function positionAt(trip, t) {
   if (trip.mode === 'walk') {
     return { x: Math.round(from.x + (to.x - from.x) * p), y: Math.round(from.y + (to.y - from.y) * p) };
   }
-  const e = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
-  const arc = Math.min(90, Math.hypot(to.x - from.x, to.y - from.y) * 0.25) * Math.sin(Math.PI * p);
-  const point = { x: Math.round(from.x + (to.x - from.x) * e), y: Math.round(from.y + (to.y - from.y) * e - arc) };
+  const path = trip.path || { style: 'arc' };
+  // A loop-the-loop stops the way forward for its share of the time (q: how far along the way).
+  let q = p;
+  let dx = 0;
+  let loopLift = 0;
+  if (path.style === 'loop') {
+    const end = path.at + path.len;
+    q = (p < path.at ? p : p < end ? path.at : p - path.len) / (1 - path.len);
+    if (p > path.at && p < end) {
+      // Once round a circle where it is: pulls up, back over the top, down.
+      const angle = (2 * Math.PI * (p - path.at)) / path.len;
+      dx = path.dir * path.r * Math.sin(angle);
+      loopLift = path.r * (1 - Math.cos(angle));
+    }
+  }
+  const e = q < 0.5 ? 2 * q * q : 1 - (-2 * q + 2) ** 2 / 2;
+  const distance = Math.hypot(to.x - from.x, to.y - from.y);
+  let lift = Math.min(path.style === 'soar' ? 240 : 90, distance * (path.style === 'soar' ? 0.5 : 0.25)) * Math.sin(Math.PI * q);
+  if (path.style === 'wave') lift = lift * 0.4 + path.amp * Math.sin(2 * Math.PI * path.count * q);
+  lift += loopLift;
+  const point = { x: Math.round(from.x + (to.x - from.x) * e + dx), y: Math.round(from.y + (to.y - from.y) * e - lift) };
   // The arc must not lift the window above the top of the work area.
   const l = trip.limits;
   if (l) {
@@ -221,9 +335,9 @@ function tripDisplay({ kind, here, displays, cursor = null, home = null, random 
   return here;
 }
 
-/** With more than one screen, now and then a walk or a hop becomes a visit to another screen. */
+/** With more than one screen, now and then a walk, a hop or a cruise becomes a visit to another screen. */
 function pickTrip(kind, displayCount, random = Math.random) {
-  if ((kind === 'stroll' || kind === 'hop') && displayCount > 1 && random() < SCREEN_CHANCE) return 'screen';
+  if ((kind === 'stroll' || kind === 'hop' || kind === 'cruise') && displayCount > 1 && random() < SCREEN_CHANCE) return 'screen';
   return kind;
 }
 
@@ -282,4 +396,8 @@ module.exports = {
   FLEE_GAP,
   WALK_SPEED,
   FLY_SPEED,
+  CRUISE_PACE,
+  HANG_REACH,
+  STYLES,
+  LOOP,
 };

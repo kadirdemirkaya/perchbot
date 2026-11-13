@@ -713,6 +713,8 @@
       hover.closeNow();
       hideTooltip();
       flag('greet', null);
+      // Picked off the top edge: it lets go.
+      flag('hang', null);
       window.buddy.drag('start');
     }
     if (drag.moved && !drag.frame) {
@@ -1226,7 +1228,13 @@
     crew.setRoam(ambientOn() && !rest.resting);
     const calm =
       ambientOn() && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen;
-    ambient.update({ enabled: calm && AMBIENT_STATES.has(view.state), trips: crewCount === 0 && !pet.here });
+    ambient.update({
+      enabled: calm && AMBIENT_STATES.has(view.state),
+      trips: crewCount === 0 && !pet.here,
+      // Sitting needs the ground; hanging from the top edge, the next thing is a trip away.
+      grounded: !flight.airborne,
+      hanging: Boolean(holder.dataset.hang),
+    });
   }
 
   /**
@@ -1724,6 +1732,22 @@
   }
 
   /** A trip around the screen starts (mode) or ends (mode null). */
+  /**
+   * A loop-the-loop on this flight (app/roam.js): the figure turns once while
+   * the window flies the circle, from loop.at ms into the trip for loop.ms.
+   */
+  function startLoop(loop) {
+    cancel('loop');
+    flag('loop', null);
+    if (!loop || !motionAllowed()) return;
+    const at = Math.max(0, Math.round(Number(loop.at) || 0));
+    const ms = Math.max(200, Math.round(Number(loop.ms) || 0));
+    holder.style.setProperty('--loop-delay', `${at}ms`);
+    holder.style.setProperty('--loop-ms', `${ms}ms`);
+    flag('loop', true, true);
+    later('loop', at + ms + 100, () => flag('loop', null));
+  }
+
   function applyMove(m) {
     if (!m) return;
     perfMark(`trip ${m.kind} ${m.mode ? 'start' : 'end'}`);
@@ -1740,6 +1764,8 @@
       hover.closeNow();
       flag('play', null);
       flag('inspect', null);
+      flag('hang', null);
+      startLoop(m.loop);
       // walk / fly: trips; toss (thrown, "Always stand"), settle (easing into place after a drop).
       flag('move', MOVE_MODES.has(m.mode) ? m.mode : 'fly');
       flag('face', m.face === 'left' ? 'left' : null);
@@ -1750,6 +1776,10 @@
       moving = null;
       flag('move', null);
       flag('face', null);
+      cancel('loop');
+      flag('loop', null);
+      // Up at the top edge: it hangs there until its next trip (or work, or a drag).
+      flag('hang', m.kind === 'hang' && m.arrived && motionAllowed() ? true : null);
       crew.setTravel(null);
       pet.setTravel(null);
       if (m.kind === 'inspect' && m.arrived && motionAllowed()) {
@@ -2003,6 +2033,9 @@
       const fixed = new TapMeter({ random: () => 0.99, likes: { calm: 0, busy: 0 } });
       temper.reset();
       [0, 300, 600, 3600, 3900, 4200].forEach((ms, i) => later(`rage-${i}`, ms, () => onClick(null, { meter: fixed, busy: true })));
+    } else if (name === 'loop') {
+      // A hop with a loop-the-loop (main plans it; ambient life must be on).
+      window.buddy.fun('loop');
     } else if (name === 'duel') {
       runDemo('duel');
     } else if (name === 'menu') {

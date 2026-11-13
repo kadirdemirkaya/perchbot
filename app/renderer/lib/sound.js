@@ -404,6 +404,8 @@
       sneeze: sheet([cue(420, 'whoosh', 0.6), cue(1300, 'achoo')]),
       // Two little phrases while the notes float up.
       hum: sheet([cue(300, 'hum'), cue(1800, 'hum', 1.12)]),
+      // rb-sit 4 s: down on the ground at 16 %, up again from 84 %.
+      sit: sheet([cue(640, 'bounce', 0.8), cue(3360, 'boing', 1.1)]),
     }),
     cat: Object.freeze({
       // Hello while it walks in (the shortest walk is 400 ms).

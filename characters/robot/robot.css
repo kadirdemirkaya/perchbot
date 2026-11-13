@@ -2157,6 +2157,165 @@
   transform: translateX(14px);
 }
 
+/* ------------------------------------------------------------ sit (ambient play, on the ground only)
+
+   It plops down where it stands, legs out to both sides in a V (the body is
+   wide: legs folded forward would vanish behind it), swings them a little and
+   gets up again (4 s; the play lasts 4.2 s). The app never picks it in the air. */
+
+.buddy-character[data-play='sit'] .rb-figure {
+  animation: rb-sit 4s ease-in-out;
+}
+
+.buddy-character[data-play='sit'] .rb-leg-l {
+  animation: rb-sit-leg-l 4s ease-in-out;
+}
+
+.buddy-character[data-play='sit'] .rb-leg-r {
+  animation: rb-sit-leg-r 4s ease-in-out;
+}
+
+.buddy-character[data-play='sit'] .rb-arm-back {
+  animation: rb-sit-arm 4s ease-in-out;
+}
+
+.buddy-character[data-play='sit'] :is(.rb-eyes, .rb-mouth) {
+  animation: rb-sit-face 4s steps(1);
+}
+
+.buddy-character[data-play='sit'] :is(.rb-eyes-happy, .rb-mouth-grin) {
+  animation: rb-sit-face-happy 4s steps(1);
+}
+
+@keyframes rb-sit {
+  0%, 100% { transform: none; }
+  8% { transform: translateY(5px) scale(1.03, 0.96); }
+  16%, 84% { transform: translateY(15px); }
+  92% { transform: translateY(3px) scale(0.98, 1.03); }
+}
+
+@keyframes rb-sit-leg-l {
+  0%, 8%, 92%, 100% { transform: none; }
+  16% { transform: rotate(58deg); }
+  30% { transform: rotate(50deg); }
+  44% { transform: rotate(62deg); }
+  58% { transform: rotate(51deg); }
+  72% { transform: rotate(61deg); }
+  84% { transform: rotate(58deg); }
+}
+
+@keyframes rb-sit-leg-r {
+  0%, 8%, 92%, 100% { transform: none; }
+  16% { transform: rotate(-58deg); }
+  30% { transform: rotate(-63deg); }
+  44% { transform: rotate(-51deg); }
+  58% { transform: rotate(-62deg); }
+  72% { transform: rotate(-52deg); }
+  84% { transform: rotate(-58deg); }
+}
+
+/* The far hand rests on the ground beside it. */
+@keyframes rb-sit-arm {
+  0%, 8%, 92%, 100% { transform: none; }
+  16%, 84% { transform: rotate(22deg); }
+}
+
+@keyframes rb-sit-face {
+  0%, 30%, 70%, 100% { opacity: 1; }
+  31%, 69% { opacity: 0; }
+}
+
+@keyframes rb-sit-face-happy {
+  0%, 30%, 70%, 100% { opacity: 0; }
+  31%, 69% { opacity: 1; }
+}
+
+/* ------------------------------------------------------------ hang (from the top edge of the screen)
+
+   A trip took it up there (data-hang while it hangs). Its head is too big to
+   hang by its hands, so it hangs like a bat: upside down, boots hooked over
+   the edge (the app puts the boots ~190 px above the anchor: app/roam.js
+   HANG_REACH), arms dangling, a slow swing about its boots. No thrusters, no
+   shadow, no bob; the figure turns over with its usual transition. */
+
+.buddy-character[data-hang] .rb-figure {
+  transform-origin: 98px 100px;
+  transform: rotate(180deg);
+}
+
+.buddy-character[data-hang] .rb-arm-back {
+  transform: rotate(168deg);
+}
+
+.buddy-character[data-hang] .rb-arm-front {
+  transform: rotate(-168deg);
+}
+
+.buddy-character[data-hang] :is(.rb-forearm-back, .rb-forearm-front) {
+  transform: none;
+}
+
+.buddy-character[data-hang] .rb-laptop {
+  opacity: 0;
+}
+
+.buddy-character[data-hang] :is(.rb-flame, .rb-shadow) {
+  opacity: 0;
+}
+
+.buddy-character[data-hang],
+.buddy-character[data-fly][data-hang]:not([data-rest]) {
+  animation: none;
+  transform: none;
+}
+
+.buddy-character[data-hang] .rb-react {
+  transform-origin: 98px 16px;
+}
+
+.buddy-character[data-hang]:not([data-rest]) .rb-react {
+  animation: rb-hang-swing 2.6s ease-in-out infinite;
+}
+
+.buddy-character[data-hang]:not([data-rest]) .rb-arm-back {
+  animation: rb-hang-arm-back 1.3s ease-in-out infinite;
+}
+
+.buddy-character[data-hang]:not([data-rest]) .rb-arm-front {
+  animation: rb-hang-arm-front 1.3s ease-in-out -0.65s infinite;
+}
+
+@keyframes rb-hang-swing {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
+@keyframes rb-hang-arm-back {
+  0%, 100% { transform: rotate(160deg); }
+  50% { transform: rotate(176deg); }
+}
+
+@keyframes rb-hang-arm-front {
+  0%, 100% { transform: rotate(-160deg); }
+  50% { transform: rotate(-176deg); }
+}
+
+/* ------------------------------------------------------------ a loop-the-loop on a flight
+
+   The app sets data-loop and --loop-delay / --loop-ms (when, and how long, the
+   loop takes of the trip; app/roam.js LOOP): the whole figure turns once with
+   the circle the window flies. */
+
+.buddy-character[data-loop] .rb-figure {
+  transform-origin: 90px 125px;
+  animation: rb-loop var(--loop-ms, 500ms) ease-in-out var(--loop-delay, 0ms) 1 both;
+}
+
+@keyframes rb-loop {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
+
 /* ------------------------------------------------------------ reduced motion */
 
 @media (prefers-reduced-motion: reduce) {

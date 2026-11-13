@@ -74,7 +74,7 @@ const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
 /** Events that start the overlay (as in hooks/send.js). */
 const LAUNCH_EVENTS = new Set(['SessionStart', 'UserPromptSubmit']);
 /** What the page may ask for (fun mode): a trip, or the right-click menu. */
-const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off']);
+const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop']);
 /**
  * While the window travels, the page reports every frame it draws (vsync) and
  * the window moves then. This timer only fills in if those reports stop: Node
@@ -205,6 +205,8 @@ function start() {
   let warping = null;
   /** Where a trip left the character (this run only); null = at home. */
   let roamAnchor = null;
+  /** Where it hangs from the top edge (a 'hang' trip); it hangs while roamAnchor is still there. */
+  let hangAt = null;
   let demoIndex = -1;
   /** The whip from the right-click menu is in the user's hand (the page shows it). */
   let whipOn = false;
@@ -254,8 +256,28 @@ function start() {
       endTrip(true);
       placeWindow();
     }
+    // Hanging from the top edge when work comes in: it lets go and drops into view (the bubble shows the work).
+    if (isHanging() && !CALM_STATES.has(snap.state)) dropFromEdge();
     sendView();
   });
+
+  function isHanging() {
+    return Boolean(roamAnchor && hangAt && roamAnchor.x === hangAt.x && roamAnchor.y === hangAt.y);
+  }
+
+  function pointInside(area, p) {
+    return p.x >= area.x && p.x <= area.x + area.width && p.y >= area.y && p.y <= area.y + area.height;
+  }
+
+  /** It lets go of the top edge: down to where the whole window is on the screen again. */
+  function dropFromEdge() {
+    const area = placement.nearestDisplay(roamAnchor, displays()).workArea;
+    roamAnchor = placement.clampAnchor(roamAnchor, area, scale());
+    hangAt = null;
+    log.devOnly('hang: work came in, it lets go');
+    if (canSend()) win.webContents.send('buddy:move', { mode: null, kind: 'drop', arrived: true, look: 'right' });
+    placeWindow();
+  }
 
   /**
    * What the page gets of the bug: no session, no command; which one, how it goes, and the
@@ -362,6 +384,8 @@ function start() {
     if (action === 'context') popUpFunMenu();
     else if (action === 'whip-off') whipOn = false;
     // With two screens, now and then a walk or a hop goes over to the other one.
+    // 'loop' (a demo): a hop with a loop-the-loop.
+    else if (action === 'loop') settings.ambientLife && startTrip('hop', { style: 'loop' });
     else if (action === 'home' || settings.ambientLife) startTrip(roam.pickTrip(action, displays().length));
   });
 
@@ -581,7 +605,10 @@ function start() {
     const resolved = placement.resolveAnchor(placeSettings(), displays(), primaryDisplay(), scale(), cornerSlot());
     // Away on a trip: stay there while that place is still on a screen.
     if (roamAnchor) {
-      const display = displays().find((d) => placement.contains(d.workArea, placement.slotRect(roamAnchor, scale())));
+      // (Hanging from the top edge, part of the window is above the work area on purpose.)
+      const display = displays().find(
+        (d) => placement.contains(d.workArea, placement.slotRect(roamAnchor, scale())) || (isHanging() && pointInside(d.workArea, roamAnchor)),
+      );
       if (display) Object.assign(resolved, { anchor: { ...roamAnchor }, workArea: display.workArea });
       else roamAnchor = null;
     }
@@ -924,7 +951,7 @@ function start() {
    * over there, home from over there, 'screen') goes in two legs: to the edge
    * that faces it, a fade, and on from the facing edge of the other screen.
    */
-  function startTrip(kind, { stayHere = false } = {}) {
+  function startTrip(kind, { stayHere = false, style = null } = {}) {
     if (!win || win.isDestroyed() || drag || trip || warping || paused || !anchor || !pageLayout) return;
     const all = displays();
     const here = placement.nearestDisplay(anchor, all);
@@ -956,6 +983,9 @@ function start() {
       cursor,
       scale: scale(),
       hoverMode: settings.hoverMode,
+      // Its own flights may wave, soar or loop (not a flight home, away from a tap, or to the cursor).
+      fancy: true,
+      style,
       ...spans,
     });
     if (plan) beginTrip(plan, kind);
@@ -976,7 +1006,10 @@ function start() {
       stats: moveStats(),
       then,
     };
-    if (canSend()) win.webContents.send('buddy:move', { mode: plan.mode, face: plan.face, kind });
+    // A loop-the-loop: the page turns the figure once while the window flies the circle.
+    const path = plan.path || {};
+    const loop = path.style === 'loop' ? { at: Math.round(path.at * plan.ms), ms: Math.round(path.len * plan.ms) } : null;
+    if (canSend()) win.webContents.send('buddy:move', { mode: plan.mode, face: plan.face, kind, loop });
     if (plan.mode === 'fly') {
       flight = { airborne: true, boost: true, tilt: plan.face === 'left' ? -0.6 : 0.6 };
       if (canSend()) win.webContents.send('buddy:flight', flight);
@@ -1014,6 +1047,7 @@ function start() {
     trip = null;
     const home = homeAnchor();
     roamAnchor = Math.hypot(anchor.x - home.x, anchor.y - home.y) < 3 ? null : { ...anchor };
+    hangAt = plan.kind === 'hang' && !cancelled && roamAnchor ? { ...roamAnchor } : null;
     const cursor = screen.getCursorScreenPoint();
     // Fled after being hit, or thrown: that place is its new home (saved, like a drag).
     const moved = (plan.kind === 'flee' || plan.kind === 'fling') && !cancelled;

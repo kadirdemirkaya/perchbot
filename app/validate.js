@@ -60,9 +60,15 @@ const DEMOS = new Set([
   'polish',
   'sneeze',
   'moonwalk',
+  // Sits down on the ground, swings its legs.
+  'sit',
   'walk',
   'fly',
   'inspect',
+  // A slow, long, wavy flight; up to the top edge to hang from it; a hop with a loop-the-loop.
+  'cruise',
+  'hang',
+  'loop',
   'home',
   // A trip to another screen (with only one screen: nothing).
   'screen',

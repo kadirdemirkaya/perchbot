@@ -125,13 +125,15 @@ Use whatever you like; ignore the rest.
 | `data-skill` | `open` while a skill is in use (show a book, a scroll, ...), `stow` for ~0.8 s when it is put away. The app draws the tag with the skill name itself |
 | `data-brief`, `data-receive` | present for ~1.7 s when a helper is briefed / reports back. The value (`left` / `right`) is the side the helper stands on |
 | `data-talk` | up to ~1.8 s while it answers a question from the chat panel (talk, nod) |
-| `data-play` | ambient life, while idle: `stretch`, `look`, `peek`, `hum`, `jump`, `ball`, `antenna`, `flip`, `reboot`, `polish`, `sneeze` or `moonwalk` for 1.5-4 s (each name's time is in `PLAYS` in `app/renderer/lib/fun.js`; end your animation within it; the optional sounds that go with them are timed to the robot's keyframes, see `CUES` in `app/renderer/lib/sound.js`) |
+| `data-play` | ambient life, while idle: `stretch`, `look`, `peek`, `hum`, `jump`, `ball`, `antenna`, `flip`, `reboot`, `polish`, `sneeze`, `moonwalk` or `sit` (only on the ground) for 1.5-4.2 s (each name's time is in `PLAYS` in `app/renderer/lib/fun.js`; end your animation within it; the optional sounds that go with them are timed to the robot's keyframes, see `CUES` in `app/renderer/lib/sound.js`) |
 | `data-pet` | `play` while the pet plays next to the character (it joins in) |
 | `data-cheer` | with `data-state="done"`: `jump` (the classic), `spin`, `dance` or `fist` |
 | `data-glee` | ~0.65 s: tapped and it liked it (a happy hop; quick taps: back to back). The app adds the hearts |
 | `data-annoyed`, `data-ouch` | tapped and it did not want it / hit with the whip (~0.5 s). The value of `data-annoyed` is how angry it is: `1` cross (~1.5 s), `2` fuming, `3` blazing; more unwelcome taps heat it up, and it cools one level at a time (`TEMPER_HOLD` in `app/renderer/lib/fun.js`). A plain `[data-annoyed]` rule covers every level |
 | `data-erupt` | ~0.7 s: tapped while blazing, it erupts and flies off (the app adds the sparks) |
 | `data-move` | on a trip around the screen: `walk` or `fly` (the app also sets `data-fly` while flying). Also `fly` while it glides after being thrown, `toss` for the same with hover mode "Always stand", and `settle` for the short ease into place after a drop |
+| `data-hang` | it hangs from the top edge of the screen (a trip took it there) until its next trip, a drag or work. The app puts the anchor `HANG_REACH` (app/roam.js, 190 px at medium size) below the edge: Robo turns upside down and hooks its boots over it. Hide thrusters and shadow |
+| `data-loop` | a loop-the-loop on a flight: turn the figure once, `animation-delay: var(--loop-delay)` and `animation-duration: var(--loop-ms)` (the app sets both), while the window flies the circle |
 | `data-face` | `left` while walking or fighting towards the left (also towards a bug): the app mirrors your SVG, you do nothing |
 | `data-inspect` | `left` / `right` for ~4 s after it flew next to the cursor: have a look that way |
 | `data-duel` | the duel: `draw`, `guard`, `windup` (the telegraph, make it obvious), `strike`, `hit` (it got the user), `recover`, `stun` (parried), `block`, `hurt` (the user got it), `win`, `lose` |

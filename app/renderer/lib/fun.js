@@ -194,22 +194,28 @@
     polish: 3600,
     sneeze: 2700,
     moonwalk: 3400,
+    sit: 4200,
   });
+
+  /** Plays that need the ground under its feet (not while it hovers or hangs). */
+  const GROUND_PLAYS = Object.freeze(['sit']);
 
   /**
    * Trips around the screen (main.js plans them, see app/roam.js). It does not
    * go home by itself: it just keeps wandering (home is in the menu, and it
    * goes home when ambient life is switched off).
+   *   cruise  a slow, long, wavy flight far across the screen (or to another one)
+   *   hang    up to the top edge, to hang from it for a while
    */
-  const TRIPS = Object.freeze({ walk: 'stroll', fly: 'hop', inspect: 'inspect' });
+  const TRIPS = Object.freeze({ walk: 'stroll', fly: 'hop', inspect: 'inspect', cruise: 'cruise', hang: 'hang' });
 
   /**
-   * Relative chances. Every play counts 1, so with the twelve plays about half
-   * of what it does by itself is a trip (it likes to get around: a walk, a
-   * flight, a look at what the user does; main.js turns some of them into a
-   * trip to another screen).
+   * Relative chances. Every play counts 1, so about half of what it does by
+   * itself is a trip (it likes to get around: a walk, a flight, a look at what
+   * the user does, a cruise, a hang from the top; main.js turns some of them
+   * into a trip to another screen).
    */
-  const WEIGHTS = Object.freeze({ walk: 4, fly: 4.5, inspect: 2.5 });
+  const WEIGHTS = Object.freeze({ walk: 4, fly: 4.5, inspect: 2.5, cruise: 2, hang: 1.2 });
   /** The wait between two behaviours (ms). */
   const AMBIENT_GAP = Object.freeze({ minMs: 15000, maxMs: 60000 });
 
@@ -236,12 +242,14 @@
     }
 
     /**
-     * @param {{ enabled: boolean, trips?: boolean }} next
+     * @param {{ enabled: boolean, trips?: boolean, grounded?: boolean, hanging?: boolean }} next
      *   trips: moving around is allowed (no helpers, no cat)
+     *   grounded: it stands on the ground (GROUND_PLAYS need that)
+     *   hanging: it hangs from the top edge: the next thing is a trip away (no plays)
      */
-    update({ enabled, trips = false }) {
+    update({ enabled, trips = false, grounded = true, hanging = false }) {
       const was = this.allowed.enabled;
-      this.allowed = { enabled: Boolean(enabled), trips: Boolean(trips) };
+      this.allowed = { enabled: Boolean(enabled), trips: Boolean(trips), grounded: Boolean(grounded), hanging: Boolean(hanging) };
       if (!this.allowed.enabled) {
         this.stop();
         this.cancel();
@@ -252,8 +260,13 @@
 
     /** The behaviours possible right now, without the previous one. */
     choices() {
-      const out = Object.keys(PLAYS).map((name) => [name, 1]);
-      if (this.allowed.trips) {
+      const { trips, grounded, hanging } = this.allowed;
+      const out = hanging
+        ? []
+        : Object.keys(PLAYS)
+            .filter((name) => grounded !== false || !GROUND_PLAYS.includes(name))
+            .map((name) => [name, 1]);
+      if (trips) {
         for (const kind of Object.keys(TRIPS)) out.push([kind, WEIGHTS[kind]]);
       }
       return out.filter(([name]) => name !== this.last);
@@ -264,7 +277,9 @@
       const delay = this.minMs + this.random() * (this.maxMs - this.minMs);
       this.timer = this.clock.setTimeout(() => {
         this.timer = null;
-        if (this.allowed.enabled) this.run(pickWeighted(this.choices(), this.random));
+        const choices = this.allowed.enabled ? this.choices() : [];
+        if (choices.length) this.run(pickWeighted(choices, this.random));
+        else if (this.allowed.enabled) this.schedule();
       }, delay);
     }
 
@@ -563,6 +578,7 @@
     AMBIENT_GAP,
     WEIGHTS,
     PLAYS,
+    GROUND_PLAYS,
     TRIPS,
     pickCheer,
     CHEERS,

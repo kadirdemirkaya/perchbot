@@ -416,9 +416,13 @@ async function life() {
   await act(s, 'sneeze', 'sneeze', 3500);
   await act(s, 'moonwalk', 'moonwalk on the spot', 4200);
   await act(s, 'hum', 'hum a tune', 4000);
+  await act(s, 'sit', 'sit down and swing its legs', 5000);
   await act(s, 'walk', 'walk along the taskbar', 7000);
   await act(s, 'fly', 'a short flight on its thrusters', 5000);
   await act(s, 'inspect', 'fly over to the cursor, have a look', 7000);
+  await act(s, 'loop', 'a hop with a loop-the-loop', 6000);
+  await act(s, 'cruise', 'a slow, long, wavy flight', 12000);
+  await act(s, 'hang', 'up to the top edge, hang from it', 8000);
   await act(s, 'home', 'back home', 5000);
   console.log('\n  Quick taps it loves (no mouse): happy hops and hearts.');
   await act(s, 'glee', 'tap, tap, tap, tap, tap', 3500);

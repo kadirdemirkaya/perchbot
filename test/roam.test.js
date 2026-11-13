@@ -240,3 +240,104 @@ test('helpers roaming: the little window sits around the feet of the mini and sc
   assert.equal(big.bounds.width, 190);
   assert.equal(big.bounds.x, Math.round(500 - 68 * 1.25));
 });
+
+test('cruise: a slow, long flight far across the screen, up in the air; on foot with "Always stand"', () => {
+  const { CRUISE_PACE } = require('../app/roam');
+  for (let seed = 1; seed < 40; seed += 1) {
+    const from = { x: 768, y: 912 };
+    const cruise = planTrip({ kind: 'cruise', from, home, workArea, random: randoms(seed), fancy: true });
+    assert.equal(cruise.mode, 'fly');
+    assert.ok(inside(cruise.to), `seed ${seed}`);
+    assert.ok(Math.abs(cruise.to.x - from.x) >= (workArea.width - SLOT.width) * 0.3, `far: ${cruise.to.x}`);
+    assert.ok(cruise.to.y <= 912 - 80, 'up in the air');
+    assert.ok(['wave', 'loop'].includes(cruise.path.style), cruise.path.style);
+    // Slower than a plain flight over the same way.
+    const plain = planTrip({ kind: 'goto', from, home, workArea, to: cruise.to });
+    // (A loop-the-loop adds its own time on top.)
+    const loopShare = cruise.path.style === 'loop' ? 1 - cruise.path.len : 1;
+    assert.ok(Math.abs(cruise.ms * loopShare - plain.ms / CRUISE_PACE) <= 2, `${cruise.ms} vs ${plain.ms}`);
+  }
+  assert.equal(planTrip({ kind: 'cruise', from: home, home, workArea, hoverMode: 'stand', random: randoms(3) }).mode, 'walk');
+});
+
+test('hang: up to the top edge, the hands at the edge (the only trip above the work area)', () => {
+  const { HANG_REACH } = require('../app/roam');
+  for (const scale of [0.8, 1, 1.3]) {
+    const hang = planTrip({ kind: 'hang', from: home, home, workArea, scale, random: randoms(5) });
+    assert.equal(hang.mode, 'fly');
+    assert.equal(hang.to.y, workArea.y + Math.round(HANG_REACH * scale), `scale ${scale}`);
+    assert.ok(hang.to.y - SLOT.height * scale < workArea.y, 'the window reaches above the top edge');
+    assert.ok(hang.to.x - (SLOT.width / 2) * scale >= 0 && hang.to.x + (SLOT.width / 2) * scale <= workArea.width, 'not past the sides');
+    // Every point of the way stays between where it starts and the top edge.
+    for (let t = 0; t <= hang.ms; t += 50) assert.ok(positionAt(hang, t).y >= hang.to.y, `t ${t}`);
+  }
+  assert.equal(planTrip({ kind: 'hang', from: home, home, workArea, hoverMode: 'stand' }), null, 'no flying, no hanging');
+});
+
+test('flight paths: only the buddy own hops and cruises wave, soar or loop; the rest keep the arc', () => {
+  const from = { x: 300, y: 700 };
+  const to = { x: 1200, y: 600 };
+  const styles = new Set();
+  for (let seed = 1; seed < 80; seed += 1) styles.add(planTrip({ kind: 'hop', from, home, workArea, random: randoms(seed), fancy: true }).path.style);
+  assert.deepEqual([...styles].sort(), ['arc', 'loop', 'soar', 'wave']);
+  for (const kind of ['hop', 'flee', 'inspect']) {
+    for (let seed = 1; seed < 20; seed += 1) {
+      const plain = planTrip({ kind, from, home, workArea, random: randoms(seed), cursor: { x: 900, y: 300 } });
+      if (plain) assert.equal(plain.path.style, 'arc', `${kind} without fancy`);
+    }
+  }
+  for (const kind of ['goto', 'home']) {
+    const fancy = planTrip({ kind, from, home, workArea, to, fancy: true, random: randoms(2) });
+    assert.equal(fancy.path.style, 'arc', `${kind} keeps the arc`);
+  }
+  // The plain arc is the same as before (no path, or path arc).
+  const arc = planTrip({ kind: 'goto', from, home, workArea, to });
+  const legacy = { ...arc, path: undefined };
+  for (const t of [0, 300, 900, arc.ms]) assert.deepEqual(positionAt(arc, t), positionAt(legacy, t));
+  // A wave goes up and down on the way; it starts and ends where it should.
+  const wave = planTrip({ kind: 'goto', from, home, workArea, to, style: 'wave' });
+  assert.deepEqual(positionAt(wave, 0), from);
+  assert.deepEqual(positionAt(wave, wave.ms), to);
+  let turns = 0;
+  let last = null;
+  let dir = 0;
+  for (let t = 0; t <= wave.ms; t += 20) {
+    const y = positionAt(wave, t).y;
+    if (last !== null && y !== last) {
+      const d = Math.sign(y - last);
+      if (dir && d !== dir) turns += 1;
+      dir = d;
+    }
+    last = y;
+  }
+  assert.ok(turns >= 2, `up and down: ${turns} turns`);
+});
+
+test('flight paths: the loop-the-loop goes round once, halfway, and only with room above', () => {
+  const { LOOP } = require('../app/roam');
+  const from = { x: 200, y: 800 };
+  const to = { x: 1200, y: 760 };
+  const loop = planTrip({ kind: 'goto', from, home, workArea, to, style: 'loop' });
+  assert.equal(loop.path.style, 'loop');
+  // It starts LOOP.at along the way and takes its share of the time (at least minMs).
+  assert.ok(Math.abs(loop.path.at / (1 - loop.path.len) - LOOP.at) < 1e-9);
+  assert.ok(loop.path.len * loop.ms >= LOOP.minMs - 1);
+  const short = planTrip({ kind: 'goto', from: { x: 500, y: 800 }, home, workArea, to: { x: 640, y: 800 }, style: 'loop' });
+  assert.ok(Math.round(short.path.len * short.ms) >= LOOP.minMs - 1, 'a short hop: a loop that is not a blur');
+  assert.deepEqual(positionAt(loop, loop.ms), to);
+  // Inside the loop it moves backwards for a while (over the top), and it is higher than the arc there.
+  const arc = { ...loop, path: { style: 'arc' } };
+  let backwards = 0;
+  let prev = positionAt(loop, 0).x;
+  for (let t = 0; t <= loop.ms; t += 10) {
+    const x = positionAt(loop, t).x;
+    if (x < prev) backwards += 1;
+    prev = x;
+  }
+  assert.ok(backwards > 0, 'back over the top');
+  const top = Math.round((loop.path.at + loop.path.len / 2) * loop.ms);
+  assert.ok(positionAt(loop, top).y < positionAt(arc, top).y - 50, 'the top of the loop');
+  // Too close to the top of the screen: no loop.
+  const low = planTrip({ kind: 'goto', from: { x: 200, y: 290 }, home, workArea, to: { x: 1200, y: 290 }, style: 'loop' });
+  assert.notEqual(low.path.style, 'loop');
+});

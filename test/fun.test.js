@@ -513,3 +513,51 @@ test('bug fight: some strikes connect, the bug dodges the others; the finishing 
   assert.deepEqual(hits.at(-1), [true, true]);
   assert.ok(B.hitChance > 0.3 && B.hitChance < 0.9, 'mostly hits, but not every time');
 });
+
+test('ambient life: it sits down only on the ground, and from the top edge its next move is a trip away', () => {
+  const { GROUND_PLAYS } = require('../app/renderer/lib/fun');
+  assert.deepEqual(GROUND_PLAYS, ['sit']);
+  const run = (opts) => {
+    const { clock, a, log } = ambient(seeded(21));
+    a.update({ enabled: true, ...opts });
+    clock.tick(6 * 3600000);
+    return log.filter(([, name]) => name !== null);
+  };
+  assert.ok(run({ trips: true }).some(([, name]) => name === 'sit'), 'on the ground it sits now and then');
+  assert.ok(!run({ trips: true, grounded: false }).some(([, name]) => name === 'sit'), 'never in the air');
+  const hanging = run({ trips: true, hanging: true });
+  assert.ok(hanging.length > 0 && hanging.every(([kind]) => kind === 'trip'), 'hanging: only trips');
+  // Hanging with trips not allowed (helpers came): nothing at all, and no busy loop either.
+  assert.deepEqual(run({ trips: false, hanging: true }), []);
+  // The new trips are in the mix.
+  assert.ok(TRIPS.cruise === 'cruise' && TRIPS.hang === 'hang');
+  assert.ok(WEIGHTS.cruise > 0 && WEIGHTS.hang > 0);
+});
+
+test('the robot draws hanging and the loop-the-loop, and they can be demoed', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const { validateEvent } = require('../app/validate');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'characters', 'robot', 'robot.css'), 'utf8');
+  for (const rule of ['[data-hang] .rb-figure', '[data-hang] .rb-arm-back', '[data-hang]:not([data-rest]) .rb-react', '[data-loop] .rb-figure']) {
+    assert.ok(css.includes(rule), rule);
+  }
+  assert.match(css, /animation: rb-loop var\(--loop-ms, \d+ms\) ease-in-out var\(--loop-delay, 0ms\)/);
+  for (const demo of ['sit', 'cruise', 'hang', 'loop']) {
+    assert.ok(validateEvent({ v: 1, event: 'Demo', session: 's', ts: 1, demo }), `${demo} is a valid demo`);
+  }
+});
+
+test('the page may ask for every trip it plans: preload and main allow the same fun actions', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const read = (file) => fs.readFileSync(path.join(__dirname, '..', 'app', file), 'utf8');
+  const actions = (text) => {
+    const m = text.match(/const FUN_ACTIONS = new Set\(\[([^\]]*)\]\)/);
+    return m[1].split(',').map((s) => s.trim().replace(/^'|'$/g, '')).filter(Boolean).sort();
+  };
+  const preload = actions(read('preload.js'));
+  assert.deepEqual(preload, actions(read('main.js')));
+  for (const kind of Object.values(TRIPS)) assert.ok(preload.includes(kind), `${kind} can be asked for`);
+  assert.ok(preload.includes('loop'));
+});
