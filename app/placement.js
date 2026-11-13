@@ -292,6 +292,17 @@ function petSpots(crewCount, side) {
   return { play, nap, width: nap + PET.tail, size: PET.size };
 }
 
+/**
+ * A visitor (the idle story): it stands this far beyond the report point,
+ * close enough for the toy swords to meet; the column is as wide as `width`.
+ */
+const GUEST = Object.freeze({ gap: 22, tail: 84 });
+
+function guestSpot(side) {
+  const off = CREW.report[side === 'right' ? 'right' : 'left'] + GUEST.gap;
+  return { off, width: off + GUEST.tail };
+}
+
 /** Outward offset of work spot `index` (0 = next to the report point). */
 function crewSpot(index, side) {
   return CREW.report[side === 'right' ? 'right' : 'left'] + CREW.firstGap + index * CREW.spacing;
@@ -336,6 +347,8 @@ module.exports = {
   CREW,
   PET,
   petSpots,
+  GUEST,
+  guestSpot,
   BUG,
   bugSpot,
   HELPER,

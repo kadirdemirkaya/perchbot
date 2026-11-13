@@ -150,6 +150,24 @@
     }
 
     /** Resting / paused: every mini stops moving, no chats. */
+    /**
+     * A drawing for a visitor that is not one of the helpers (the idle story):
+     * a mini like theirs, in #actors, that never takes the mouse; the page
+     * moves and poses it. Null without mini artwork.
+     */
+    function makeGuest() {
+      if (!template) return null;
+      const el = document.createElement('div');
+      el.className = 'buddy-mini buddy-guest';
+      el.appendChild(template.cloneNode(true));
+      const dots = document.createElement('div');
+      dots.className = 'mini-dots';
+      for (let i = 0; i < 3; i += 1) dots.appendChild(document.createElement('i'));
+      el.appendChild(dots);
+      actors.appendChild(el);
+      return el;
+    }
+
     function setRest(value) {
       rest = Boolean(value);
       director.setQuiet(rest);
@@ -377,6 +395,7 @@
     const isPressing = () => Boolean(held);
 
     return {
+      makeGuest,
       setCharacter,
       setLayout,
       setAgents,

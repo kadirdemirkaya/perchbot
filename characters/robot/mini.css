@@ -173,6 +173,115 @@
   transform-origin: 88px 81px;
 }
 
+/* ------------------------------------------------------------ a visitor (the idle story)
+
+   A little robot that drops by when Robo has been idle for a while: they sit
+   and chat (data-phase="sit", data-talk), then practise with toy swords
+   (data-phase="spar", data-spar: guard | windup | strike | block). */
+
+.rbm-sword {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.buddy-mini[data-phase='spar'] .rbm-sword {
+  opacity: 1;
+}
+
+.buddy-mini[data-phase='spar'] .rbm-laptop {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.buddy-mini[data-phase='sit'] .rbm-figure {
+  transform: translateY(14px);
+}
+
+.buddy-mini[data-phase='sit'] .rbm-leg-l {
+  transform: translate(4px, -4px) rotate(-70deg);
+}
+
+.buddy-mini[data-phase='sit'] .rbm-leg-r {
+  transform: translate(4px, -4px) rotate(-62deg);
+}
+
+.buddy-mini[data-phase='sit'] .rbm-shadow {
+  transform: scaleX(1.15);
+}
+
+.buddy-mini[data-phase='sit'][data-talk] :is(.rbm-mouth) {
+  opacity: 0;
+}
+
+.buddy-mini[data-phase='sit'][data-talk] .rbm-mouth-talk {
+  opacity: 1;
+}
+
+.buddy-mini[data-phase='sit'][data-talk]:not([data-rest]) .rbm-head {
+  animation: rbm-nod 0.5s ease-in-out infinite;
+}
+
+.buddy-mini[data-phase='sit'][data-laugh] :is(.rbm-eyes, .rbm-mouth, .rbm-mouth-talk) {
+  opacity: 0;
+}
+
+.buddy-mini[data-phase='sit'][data-laugh] :is(.rbm-eyes-happy, .rbm-mouth-grin) {
+  opacity: 1;
+}
+
+.buddy-mini[data-phase='spar'] :is(.rbm-arm-front, .rbm-forearm-front) {
+  transition-duration: 0.14s;
+}
+
+.buddy-mini[data-phase='spar']:is([data-spar='guard'], :not([data-spar])) .rbm-arm-front {
+  transform: rotate(-80deg);
+}
+
+.buddy-mini[data-phase='spar']:is([data-spar='guard'], :not([data-spar])) .rbm-forearm-front {
+  transform: rotate(-55deg);
+}
+
+.buddy-mini[data-phase='spar'][data-spar='windup'] .rbm-arm-front {
+  transform: rotate(-150deg);
+}
+
+.buddy-mini[data-phase='spar'][data-spar='windup'] .rbm-forearm-front {
+  transform: rotate(-22deg);
+}
+
+.buddy-mini[data-phase='spar'][data-spar='strike'] .rbm-arm-front {
+  transform: rotate(-40deg);
+}
+
+.buddy-mini[data-phase='spar'][data-spar='strike'] .rbm-forearm-front {
+  transform: rotate(-30deg);
+}
+
+.buddy-mini[data-phase='spar'][data-spar='strike'] .rbm-figure {
+  transform: translateX(7px);
+  transition: transform 0.12s ease-out;
+}
+
+.buddy-mini[data-phase='spar'][data-spar='block'] .rbm-arm-front {
+  transform: rotate(-105deg);
+}
+
+.buddy-mini[data-phase='spar'][data-spar='block'] .rbm-forearm-front {
+  transform: rotate(-8deg);
+}
+
+.buddy-mini[data-phase='spar'][data-spar='block'] .rbm-figure {
+  transform: translateX(-3px);
+}
+
+.buddy-mini[data-phase='spar'] .rbm-arm {
+  transform: rotate(22deg);
+}
+
+@keyframes rbm-nod {
+  50% { transform: rotate(4deg) translateY(1px); }
+}
+
 /* Props: hidden unless their phase or attribute shows them. */
 .rbm-book {
   opacity: 0;

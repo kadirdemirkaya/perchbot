@@ -406,6 +406,8 @@
       hum: sheet([cue(300, 'hum'), cue(1800, 'hum', 1.12)]),
       // rb-sit 4 s: down on the ground at 16 %, up again from 84 %.
       sit: sheet([cue(640, 'bounce', 0.8), cue(3360, 'boing', 1.1)]),
+      // rb-page from 1.4 s, every 2.2 s: a page turns (a soft flutter).
+      read: sheet([cue(1500, 'whoosh', 1.7), cue(3700, 'whoosh', 1.7), cue(5900, 'whoosh', 1.7)]),
     }),
     cat: Object.freeze({
       // Hello while it walks in (the shortest walk is 400 ms).

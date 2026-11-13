@@ -254,7 +254,10 @@ test('ambient life: one behaviour every 15-60 s, never the same twice in a row',
   assert.ok(starts.length > 40, `${starts.length} behaviours in an hour`);
   const names = starts.map(([kind, name]) => (kind === 'trip' ? Object.keys(TRIPS).find((k) => TRIPS[k] === name) : name));
   for (let i = 1; i < names.length; i += 1) assert.notEqual(names[i], names[i - 1], `repeat at ${i}`);
-  assert.deepEqual([...new Set(names)].sort(), [...Object.keys(PLAYS), ...Object.keys(TRIPS)].sort(), 'every behaviour turns up');
+  // (The idle story's plays only come with the story.)
+  const { STORY_PLAYS } = require('../app/renderer/lib/fun');
+  const random = Object.keys(PLAYS).filter((name) => !STORY_PLAYS.includes(name));
+  assert.deepEqual([...new Set(names)].sort(), [...random, ...Object.keys(TRIPS)].sort(), 'every behaviour turns up');
   // Gaps between behaviours: at least 15 s after the previous one ended (or since enabling), at most 60 s.
   let end = 120000;
   for (const [kind, name, at] of log) {
@@ -312,7 +315,7 @@ test('ambient life and resting: nothing while it rests, a fresh countdown when i
 });
 
 test('ambient life: it likes to get around, about half of what it does by itself is a trip', () => {
-  const playWeight = Object.keys(PLAYS).length;
+  const playWeight = Object.keys(PLAYS).length - require('../app/renderer/lib/fun').STORY_PLAYS.length;
   const atHome = WEIGHTS.walk + WEIGHTS.fly + WEIGHTS.inspect;
   const share = atHome / (atHome + playWeight);
   assert.ok(share > 0.4 && share < 0.6, `trips at home: ${Math.round(share * 100)} %`);

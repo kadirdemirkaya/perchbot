@@ -71,6 +71,8 @@ comes out while a skill is in use; a page turns now and then.
   layers, orange / amber / pale yellow, outlined in ink, behind the antenna). Hidden until
   `data-annoyed` is 2 or 3, all `data-nohit`. The eruption's sparks are plain round
   embers drawn by the page.
+- **The visitor's sword:** the kids carry a smaller toy wooden sword like Robo's (lilac guard,
+  rounded tip), `rbm-sword`, only while sparring.
 - **Focus mode:** a coral headband with two tails over the head shell, thin mint rings round
   the eyes, and instead of the laptop a screen of light: a mint cone from the near eye to a
   floating panel (dark translucent backing, mint outline, three window dots, corner brackets,

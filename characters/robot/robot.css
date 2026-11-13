@@ -1879,6 +1879,43 @@
   50% { transform: rotate(-10deg); }
 }
 
+/* read: the book comes out of the pocket, it reads, turns three pages, puts it away
+   (the idle story's first beat; the skill book's pose, without the laptop work) */
+.buddy-character[data-play='read'] .rb-book {
+  animation: rb-read-book 9s ease both;
+}
+
+.buddy-character[data-play='read'] .rb-book-page {
+  animation: rb-page 2.2s steps(1) 1.4s 3;
+}
+
+.buddy-character[data-play='read'] .rb-arm-back {
+  transform: rotate(-35deg);
+}
+
+.buddy-character[data-play='read'] .rb-forearm-back {
+  transform: rotate(-70deg);
+}
+
+.buddy-character[data-play='read'] .rb-head {
+  transform: rotate(-3deg) translateY(1px);
+}
+
+.buddy-character[data-play='read'] :is(.rb-face, .rb-glasses) {
+  transform: translate(-3px, 3px);
+}
+
+.buddy-character[data-play='read'] .rb-glasses {
+  opacity: 1;
+}
+
+@keyframes rb-read-book {
+  0% { opacity: 0; transform: translate(-6px, 16px) scale(0.3); }
+  7% { opacity: 1; transform: rotate(-4deg); }
+  90% { opacity: 1; transform: rotate(-4deg); }
+  100% { opacity: 0; transform: translate(-6px, 16px) scale(0.3); }
+}
+
 /* ------------------------------------------------------------ the cat (data-pet) */
 
 /* The cat plays nearby: Robo looks down at it and taps the ball back. */
@@ -2622,6 +2659,44 @@
 @keyframes rb-sit-face-happy {
   0%, 30%, 70%, 100% { opacity: 0; }
   31%, 69% { opacity: 1; }
+}
+
+/* Sitting for a while (a visitor came to chat, the idle story): data-seated="down"
+   sits down and stays there, "up" gets up again (the app clears it after ~0.45 s). */
+.buddy-character[data-seated] .rb-figure {
+  animation: rb-seat-down 0.45s ease-out both;
+}
+
+.buddy-character[data-seated] .rb-leg-l {
+  animation: rb-seat-leg-l 0.45s ease-out both;
+}
+
+.buddy-character[data-seated] .rb-leg-r {
+  animation: rb-seat-leg-r 0.45s ease-out both;
+}
+
+.buddy-character[data-seated] .rb-arm-back {
+  transform: rotate(22deg);
+}
+
+.buddy-character[data-seated='up'] :is(.rb-figure, .rb-leg-l, .rb-leg-r) {
+  animation-direction: reverse;
+}
+
+@keyframes rb-seat-down {
+  0% { transform: none; }
+  50% { transform: translateY(5px) scale(1.03, 0.96); }
+  100% { transform: translateY(15px); }
+}
+
+@keyframes rb-seat-leg-l {
+  0%, 50% { transform: none; }
+  100% { transform: rotate(58deg); }
+}
+
+@keyframes rb-seat-leg-r {
+  0%, 50% { transform: none; }
+  100% { transform: rotate(-58deg); }
 }
 
 /* ------------------------------------------------------------ hang (from the top edge of the screen)

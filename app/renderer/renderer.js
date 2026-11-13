@@ -36,6 +36,7 @@
  *   data-rampage ("charge" | "laser" | "missile" | "smug" | "heal"; see "the rampage")
  *   data-holo (focus mode: intense work, see "focus mode")
  *   data-lens (a look through the magnifier where the cursor rested, see "following the cursor")
+ *   data-seated ("down" | "up": sitting with a visitor, see "the idle story")
  *   data-hunt (fights a bug at its feet, with data-duel phases; see "bug hunt")
  *   --look-x / --look-y (-1..1)  --type-line (0..7)  --fly-tilt (-1..1)
  *
@@ -45,7 +46,7 @@
 
 (() => {
   const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay } = window.BuddyInteraction;
-  const { TapMeter, Temper, TEMPER_MAX, Fury, FocusMeter, FOCUS, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight } = window.BuddyFun;
+  const { TapMeter, Temper, TEMPER_MAX, Fury, FocusMeter, FOCUS, IdleStory, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight } = window.BuddyFun;
 
   const root = document.documentElement;
   const stage = document.getElementById('stage');
@@ -985,13 +986,16 @@
   const NAP_MAX_MS = 240000;
 
   function syncRest() {
-    rest.setDelay(ambientOn() ? REST_LIVELY_MS : REST_MS);
+    // At the end of the idle story it is sleepy: a nap soon.
+    rest.setDelay(sleepy && ambientOn() ? SLEEPY_MS : ambientOn() ? REST_LIVELY_MS : REST_MS);
   }
 
   const rest = new RestTimer({
     delay: REST_MS,
     onChange: (resting) => {
       trace(resting ? 'resting' : 'awake');
+      // Asleep: the next time it gets tired as usual.
+      if (resting) sleepy = false;
       if (resting && ambientOn()) {
         later('nap', NAP_MIN_MS + Math.random() * (NAP_MAX_MS - NAP_MIN_MS), () => {
           if (!rest.resting || !ambientOn()) return;
@@ -1555,6 +1559,10 @@
     onPlay: (name) => {
       if (name) trace(`ambient: ${name}`);
       perfMark(name ? `ambient ${name}` : 'ambient end');
+      if (!name && storyReading) {
+        storyReading = false;
+        story.done();
+      }
       // Cut short (work came in): ease out of it instead of jumping back.
       const parts = name ? null : snapshotAnimated();
       flag('play', name);
@@ -1583,7 +1591,13 @@
     // Helpers may roam the screen: ambient life on (with motion), awake, not paused.
     crew.setRoam(ambientOn() && !rest.resting);
     const calm =
-      ambientOn() && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen && !raging;
+      ambientOn() && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen && !raging && !guest;
+    // The idle story runs while it is idle with ambient life on; anything else ends it.
+    if (ambientOn() && AMBIENT_STATES.has(view.state)) story.start();
+    else if (story.running || story.finished) story.stop();
+    if (guest && (!ambientOn() || !AMBIENT_STATES.has(view.state) || moving || drag || crewCount > 0 || raging || duel.active || hunt.active || paused)) {
+      endGuest('interrupted');
+    }
     ambient.update({
       enabled: calm && AMBIENT_STATES.has(view.state),
       // "Stay here": plays on the spot only.
@@ -2249,6 +2263,239 @@
     updateFun();
   }
 
+  // ---------------------------------------------------------------- the idle story (lib/fun.js IdleStory)
+
+  /**
+   * A long idle spell, before it naps (ambient life on, once per idle spell):
+   *   read   it takes the book out and reads a few pages (the 'read' play)
+   *   cat    the cat comes over and plays with it (only with the Cat switch on)
+   *   guest  a visitor drops by, a little robot like its helpers: they sit and
+   *          chat, then practise with toy swords, bow, and it flies off (the
+   *          cat the story brought goes first, to make room)
+   *   sleep  a big yawn, and it naps soon after
+   * Work, a drag, a trip, helpers arriving: the visitor leaves at once.
+   */
+  const STORY_CAT_MS = 11000;
+  const SLEEPY_MS = 9000;
+  const GUEST_LEAVE_MS = 900;
+  const story = new IdleStory({ onBeat: storyBeat });
+  /** The read play is the story's beat (its end is the beat's end). */
+  let storyReading = false;
+  /** The story brought the cat: it may send it away again to make room. */
+  let storyCat = false;
+  /** At the end of the story: it naps soon (see syncRest). */
+  let sleepy = false;
+  /** The visitor while it is here: { el, timers }. */
+  let guest = null;
+
+  /** Free for a beat: idle, awake, nothing else going on, not held or hovered. */
+  function storyFree() {
+    return (
+      ambientOn() &&
+      AMBIENT_STATES.has(view.state) &&
+      !rest.resting &&
+      !moving &&
+      !drag &&
+      !duel.active &&
+      !hunt.active &&
+      !chatOpen &&
+      !raging &&
+      !guest &&
+      zone === null &&
+      !crew.isPressing()
+    );
+  }
+
+  function storyBeat(name) {
+    if (!ambientOn() || !AMBIENT_STATES.has(view.state)) return 'skip';
+    if (!storyFree()) return 'later';
+    trace(`story: ${name}`);
+    if (name === 'read') {
+      storyReading = true;
+      ambient.run('read');
+      return 'busy';
+    }
+    if (name === 'cat') {
+      if (!settings.cat || !character || !character.pet || pet.here) return 'skip';
+      storyCat = true;
+      window.buddy.fun('cat');
+      later('story-cat', STORY_CAT_MS, () => story.done());
+      return 'busy';
+    }
+    if (name === 'guest') {
+      if (crewCount > 0 || !character || !character.mini) return 'skip';
+      // The user's own cat stays; then there is no room for a visitor.
+      if (pet.here && !storyCat) return 'skip';
+      if (pet.here) {
+        storyCat = false;
+        window.buddy.fun('cat-away');
+        later('story-guest', 2600, () => window.buddy.fun('guest'));
+      } else {
+        window.buddy.fun('guest');
+      }
+      return 'busy';
+    }
+    if (name === 'sleep') getSleepy();
+    return 'skip';
+  }
+
+  /** The end of the story: a big yawn, "nap time", and it rests soon. */
+  function getSleepy() {
+    if (!ambientOn() || rest.resting) return;
+    sleepy = true;
+    quip('sleepy', 2000);
+    ambient.run('stretch');
+    syncRest();
+    rest.activity();
+  }
+
+  /** The main process made room ({ on: true }) or refused / took it back. */
+  function onGuest(msg) {
+    if (msg && msg.on) startGuest();
+    else if (!guest && story.playing === 'guest') story.done();
+  }
+
+  /**
+   * The visit, step by step (ms from its arrival): it drops in on its
+   * thrusters and waves, they sit and chat, get up for sword practice (three
+   * exchanges, a clang each), bow, and it waves and flies off.
+   */
+  function startGuest() {
+    const spot = layout.guest;
+    const el = guest ? null : crew.makeGuest();
+    if (!el || !spot || !motionAllowed() || !ambientOn() || !AMBIENT_STATES.has(view.state) || moving || drag || raging) {
+      if (el) el.remove();
+      if (!guest) window.buddy.fun('guest-away');
+      if (!guest && story.playing === 'guest') story.done();
+      return;
+    }
+    ambient.stop();
+    const g = { el, timers: [] };
+    guest = g;
+    const onLeft = layout.side !== 'right';
+    const tints = (character && character.mini && character.mini.tints) || 1;
+    el.dataset.tint = String(Math.floor(Math.random() * tints));
+    el.style.setProperty('--off', `${spot.off}px`);
+    // The artwork faces right: on the right-hand side it turns to face the buddy.
+    if (!onLeft) el.dataset.flip = '1';
+    const set = (name, value) => {
+      if (value === null) delete el.dataset[name];
+      else el.dataset[name] = value;
+    };
+    const at = (ms, fn) => g.timers.push(setTimeout(() => guest === g && fn(), ms));
+    const face = () => !hunt.active && flag('face', onLeft ? 'left' : null);
+    trace('guest: drops by');
+    set('phase', 'arrive');
+    set('fly', '1');
+    updateFun();
+
+    // Hello.
+    at(700, () => {
+      set('fly', null);
+      set('phase', 'play');
+      set('play', 'wave');
+      face();
+      flag('greet', true, true);
+      quip('guestHi', 1600);
+    });
+    // They sit down and chat: turns to talk, a laugh at the end.
+    at(2700, () => {
+      set('play', null);
+      set('phase', 'sit');
+      flag('greet', null);
+      flag('seated', 'down', true);
+    });
+    for (let i = 0; i < 5; i += 1) {
+      const t = 3300 + i * 1300;
+      const theirs = i % 2 === 0;
+      at(t, () => {
+        set('talk', theirs ? '1' : null);
+        flag('talk', theirs ? null : true);
+      });
+    }
+    at(9800, () => {
+      set('talk', null);
+      flag('talk', null);
+      set('laugh', '1');
+      floatHearts();
+    });
+    // Up for sword practice.
+    at(11000, () => {
+      set('laugh', null);
+      flag('seated', 'up');
+      set('phase', 'look');
+      quip('guestSpar', 1500);
+    });
+    at(11500, () => flag('seated', null));
+    at(12300, () => {
+      set('phase', 'spar');
+      set('spar', 'guard');
+      flag('duel', 'guard');
+    });
+    // Three exchanges: the buddy strikes and it blocks, then the other way round.
+    for (let i = 0; i < 3; i += 1) {
+      const t = 13300 + i * 1700;
+      const buddyStrikes = i % 2 === 0;
+      at(t, () => (buddyStrikes ? flag('duel', 'windup') : set('spar', 'windup')));
+      at(t + 450, () => {
+        if (buddyStrikes) {
+          flag('duel', 'strike');
+          set('spar', 'block');
+        } else {
+          set('spar', 'strike');
+          flag('duel', 'block');
+        }
+        clash(el, onLeft);
+      });
+      at(t + 1050, () => {
+        flag('duel', 'guard');
+        set('spar', 'guard');
+      });
+    }
+    // A bow, a happy hop, goodbye.
+    at(18700, () => {
+      flag('duel', null);
+      set('spar', null);
+      set('phase', 'play');
+      set('play', 'jump');
+      if (motionAllowed()) glee.trigger();
+      quip('guestBow', 1600);
+    });
+    at(20600, () => set('play', 'wave'));
+    at(22200, () => endGuest('bye'));
+  }
+
+  /** The toy swords meet between them: a spark and a clang. */
+  function clash(el, onLeft) {
+    const g = el.getBoundingClientRect();
+    const h = holder.getBoundingClientRect();
+    const x = onLeft ? (g.left + g.width * 0.8 + h.left + h.width * 0.12) / 2 : (g.left + g.width * 0.2 + h.right - h.width * 0.12) / 2;
+    effect('spark', x, h.top + h.height * 0.5);
+    sfx('clang');
+  }
+
+  /** The visit is over (goodbye, or something else needs the buddy): it flies off. */
+  function endGuest(why) {
+    const g = guest;
+    if (!g) return;
+    guest = null;
+    for (const t of g.timers) clearTimeout(t);
+    trace(`guest: leaves (${why})`);
+    if (!duel.active && !hunt.active) flag('duel', null);
+    if (!duel.active && !hunt.active && !moving) flag('face', null);
+    flag('seated', null);
+    flag('talk', null);
+    for (const name of ['spar', 'talk', 'laugh', 'play']) delete g.el.dataset[name];
+    g.el.dataset.phase = 'leave';
+    g.el.dataset.fly = '1';
+    setTimeout(() => {
+      g.el.remove();
+      window.buddy.fun('guest-away');
+    }, GUEST_LEAVE_MS);
+    if (story.playing === 'guest') story.done();
+    updateFun();
+  }
+
   // ---------------------------------------------------------------- following the cursor (app/follow.js)
 
   /**
@@ -2551,6 +2798,14 @@
       temper.reset();
       fury.reset();
       [0, 300, 600, 3600, 3900, 4200].forEach((ms, i) => later(`rage-${i}`, ms, () => onClick(null, { meter: fixed, busy: true })));
+    } else if (name === 'guest') {
+      // A visitor right now (normally the idle story's third beat).
+      if (crewCount > 0 || guest) trace('guest: not now');
+      else window.buddy.fun('guest');
+    } else if (name === 'story') {
+      // The whole idle story, every wait a tenth as long.
+      story.stop();
+      story.start({ fast: true });
     } else if (name === 'lens') {
       // The magnifier pose on the spot (normally where the cursor rested, app/follow.js).
       peerThroughLens(Math.random() < 0.5 ? 'left' : 'right');
@@ -2699,6 +2954,7 @@
   window.buddy.onBug((bug) => applyBug(bug));
   window.buddy.onRampage((msg) => onRampage(msg));
   window.buddy.onFollow((msg) => onFollow(msg));
+  window.buddy.onGuest((msg) => onGuest(msg));
   window.buddy.onOutingBack((id) => {
     if (typeof id !== 'string') return;
     trace(`crew: ${id.slice(0, 4)} back from roaming`);

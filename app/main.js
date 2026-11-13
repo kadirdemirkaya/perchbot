@@ -82,7 +82,7 @@ const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
 /** Events that start the overlay (as in hooks/send.js). */
 const LAUNCH_EVENTS = new Set(['SessionStart', 'UserPromptSubmit']);
 /** What the page may ask for (fun mode): a trip, or the right-click menu. */
-const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch', 'peek']);
+const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch', 'peek', 'cat', 'cat-away', 'guest', 'guest-away']);
 /** What the page may not start by itself while "Stay here" is on (the menu still can). */
 const STAY_PUT_BLOCKS = new Set(['flee', 'stroll', 'hop', 'inspect', 'cruise', 'hang', 'loop', 'perch', 'peek']);
 /**
@@ -149,7 +149,7 @@ const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers', 'menu', 'chat']);
 const demo = isDev && DEMOS.has(process.env.AGENT_BUDDY_DEMO) ? process.env.AGENT_BUDDY_DEMO : null;
 const DEMO_TRIPS = ['stroll', 'hop', 'screen', 'inspect', 'home'];
 /** Short lines in the speech bubble when it is hit or fights (locales: "quip"). */
-const QUIPS = ['whoa', 'welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'rampage', 'rampageFix', 'focusOn', 'lensHmm', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
+const QUIPS = ['whoa', 'welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'rampage', 'rampageFix', 'focusOn', 'lensHmm', 'guestHi', 'guestSpar', 'guestBow', 'sleepy', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
 
 // Keep Chromium's own data (caches, the single-instance lock) under
 // ~/.agent-buddy too, so there is exactly one folder to delete on uninstall
@@ -404,6 +404,12 @@ function start() {
     if (action === 'context') popUpFunMenu();
     // To where the user's cursor rested a moment ago, with the magnifier (app/follow.js).
     else if (action === 'peek') settings.ambientLife && peekAtDwell();
+    // The idle story: the cat comes over (only with the Cat switch on) or goes again;
+    // a visitor drops by (the window makes room), or has left.
+    else if (action === 'cat') settings.ambientLife && setPet(true);
+    else if (action === 'cat-away') setPet(false);
+    else if (action === 'guest') settings.ambientLife && setGuest(true);
+    else if (action === 'guest-away') setGuest(false);
     else if (action === 'whip-off') whipOn = false;
     // With two screens, now and then a walk or a hop goes over to the other one.
     // 'loop' (a demo): a hop with a loop-the-loop.
@@ -720,23 +726,27 @@ function start() {
       placement.SIDE_WIDTH,
       chatOpen ? CHAT_WIDTH : 0,
       crew.length && pageLayout ? placement.crewWidth(Math.min(crew.length, placement.CREW.max), pageLayout.side) : 0,
+      guestOn && pageLayout ? placement.guestSpot(pageLayout.side).width : 0,
     );
     const side = placement.sideWithRoom(resolved.anchor, resolved.workArea, scale(), pageLayout ? pageLayout.side : null, wanted);
     const capacity =
       character && character.mini ? placement.crewCapacity(resolved.anchor, side, resolved.workArea, scale()) : 0;
     const shown = Math.min(crew.length, capacity);
     const pet = petOn && character && character.pet ? placement.petSpots(shown, side) : null;
+    const guest = guestOn && character && character.mini ? placement.guestSpot(side) : null;
     const bugAt = bug ? placement.bugSpot(side, bugOffset) : null;
     const sideWidth = Math.max(
       placement.SIDE_WIDTH,
       placement.crewWidth(shown, side),
       pet ? pet.width : 0,
+      guest ? guest.width : 0,
       bugAt ? bugAt.width : 0,
       chatOpen ? CHAT_WIDTH : 0,
     );
     const layout = placement.windowLayout(resolved.anchor, side, scale(), sideWidth);
     layout.page.crew = placement.crewGeometry(side, capacity);
     layout.page.pet = pet;
+    layout.page.guest = guest;
     layout.page.bug = bugAt;
     return { anchor: resolved.anchor, ...layout };
   }
@@ -1791,6 +1801,29 @@ function start() {
   const hasPet = () => Boolean(character && character.pet);
 
   /**
+   * A visitor (the idle story, page-driven): the window makes room beside the
+   * buddy first, then the page drops the little robot in; when it has flown
+   * off again ('guest-away') the window shrinks back a moment later.
+   */
+  let guestOn = false;
+  let guestTimer = null;
+  const GUEST_EXIT_MS = 300;
+
+  function setGuest(on) {
+    const want = Boolean(on && character && character.mini && !crew.length);
+    if (want === guestOn) {
+      if (on && !want && canSend()) win.webContents.send('buddy:guest', { on: false });
+      return;
+    }
+    clearTimeout(guestTimer);
+    guestOn = want;
+    log.devOnly(`guest: ${want ? 'drops by' : 'gone'}`);
+    if (want) placeWindow();
+    if (canSend()) win.webContents.send('buddy:guest', { on: want });
+    if (!want) guestTimer = setTimeout(placeWindow, GUEST_EXIT_MS);
+  }
+
+  /**
    * The cat comes (the window makes room first) or goes (the page plays its
    * exit, then the window shrinks back).
    */
@@ -2007,6 +2040,8 @@ function start() {
       hands: Boolean(settings.hands),
       // Stay here: no trips of its own, no fleeing, no following the cursor.
       stayPut: Boolean(settings.stayPut),
+      // The Cat switch: the idle story only calls the cat when it is on.
+      cat: Boolean(settings.cat),
       strings: pageStrings(),
     };
   }

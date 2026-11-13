@@ -6,6 +6,7 @@
  *   Temper            anger that builds up over unwelcome taps: cross, fuming, blazing
  *   Fury              its head on fire twice in five minutes: a rampage
  *   FocusMeter        intense work: a screen of light instead of the laptop
+ *   IdleStory         a long idle spell: a book, the cat, a visitor, then a nap
  *   AmbientScheduler  ambient life: short plays and trips, every 15-60 s
  *   pickCheer      a different celebration for "done" now and then
  *   Duel           the sword fight started from the right-click menu
@@ -229,10 +230,15 @@
     sneeze: 2700,
     moonwalk: 3400,
     sit: 4200,
+    /** Takes the book out of its pocket, reads a few pages, puts it away (also the idle story's first beat). */
+    read: 9000,
   });
 
   /** Plays that need the ground under its feet (not while it hovers or hangs). */
   const GROUND_PLAYS = Object.freeze(['sit']);
+
+  /** Plays only the idle story (or a demo) starts: never picked at random. */
+  const STORY_PLAYS = Object.freeze(['read']);
 
   /**
    * Trips around the screen (main.js plans them, see app/roam.js). It does not
@@ -299,6 +305,7 @@
       const out = hanging
         ? []
         : Object.keys(PLAYS)
+            .filter((name) => !STORY_PLAYS.includes(name))
             .filter((name) => grounded !== false || !GROUND_PLAYS.includes(name))
             .map((name) => [name, 1]);
       if (trips) {
@@ -356,6 +363,108 @@
     let pick = random() * entries.reduce((sum, [, w]) => sum + w, 0);
     for (const [name, w] of entries) if ((pick -= w) < 0) return name;
     return entries[entries.length - 1][0];
+  }
+
+  // ------------------------------------------------------------------ the idle story
+
+  /**
+   * A long idle spell, before it naps: it reads a little, the cat comes over
+   * (if the cat is on), a visitor (a little robot like its helpers) drops by
+   * to sit and chat and to practise with swords, and then it gets sleepy.
+   * Beats come in this order, `gapMs` apart (the first `firstMs` after the
+   * spell began); the page plays each one and says how it went:
+   *   'busy'   started: call done() when it is over
+   *   'skip'   not possible (the cat is off, helpers are around...): the next one
+   *   'later'  not now (the pointer is on it, it is on a trip...): try again soon
+   * stop() ends it (work came in); it plays once per idle spell.
+   */
+  const STORY = Object.freeze({
+    beats: Object.freeze(['read', 'cat', 'guest', 'sleep']),
+    firstMs: 20000,
+    gapMinMs: 15000,
+    gapMaxMs: 25000,
+    retryMs: 6000,
+    retries: 5,
+  });
+
+  class IdleStory {
+    constructor({ clock = realClock, random = Math.random, onBeat = () => 'skip', ...options } = {}) {
+      this.clock = clock;
+      this.random = random;
+      this.onBeat = onBeat;
+      this.o = { ...STORY, ...options };
+      this.index = -1;
+      this.timer = null;
+      this.tries = 0;
+      /** The beat that is playing now (waiting for done()). */
+      this.playing = null;
+    }
+
+    get running() {
+      return this.index >= 0 && this.index < this.o.beats.length;
+    }
+
+    /** It already played this spell (start() does nothing until stop()). */
+    get finished() {
+      return this.index >= this.o.beats.length;
+    }
+
+    /** A new idle spell began (fast: the demo, all waits a tenth as long). */
+    start({ fast = false } = {}) {
+      if (this.running || this.finished) return;
+      this.speed = fast ? 0.1 : 1;
+      this.index = 0;
+      this.tries = 0;
+      this.wait(this.o.firstMs);
+    }
+
+    /** Work came in (or ambient life went off): over, for this spell. */
+    stop() {
+      this.cancel();
+      this.index = -1;
+      this.playing = null;
+    }
+
+    /** The beat that was 'busy' is over: the next one after a gap. */
+    done() {
+      if (!this.running || !this.playing) return;
+      this.playing = null;
+      this.next();
+    }
+
+    next() {
+      this.index += 1;
+      this.tries = 0;
+      if (this.index >= this.o.beats.length) {
+        this.cancel();
+        this.playing = null;
+        return;
+      }
+      this.wait(this.o.gapMinMs + this.random() * (this.o.gapMaxMs - this.o.gapMinMs));
+    }
+
+    wait(ms) {
+      this.cancel();
+      this.timer = this.clock.setTimeout(() => {
+        this.timer = null;
+        this.fire();
+      }, ms * (this.speed || 1));
+    }
+
+    fire() {
+      const name = this.o.beats[this.index];
+      const how = this.onBeat(name);
+      if (how === 'busy') this.playing = name;
+      else if (how === 'later' && this.tries < this.o.retries) {
+        this.tries += 1;
+        this.wait(this.o.retryMs);
+      } else this.next();
+    }
+
+    cancel() {
+      if (this.timer) this.clock.clearTimeout(this.timer);
+      this.timer = null;
+    }
   }
 
   // ------------------------------------------------------------------ focus mode
@@ -678,11 +787,14 @@
     FURY,
     FocusMeter,
     FOCUS,
+    IdleStory,
+    STORY,
     AmbientScheduler,
     AMBIENT_GAP,
     WEIGHTS,
     PLAYS,
     GROUND_PLAYS,
+    STORY_PLAYS,
     TRIPS,
     pickCheer,
     CHEERS,

@@ -129,8 +129,9 @@ Use whatever you like; ignore the rest.
 | `data-press` | ~1.2 s: it presses a button with the near hand (hands: Chrome's new tab or close button). The app puts that hand ~46 px right of and ~115 px above the anchor (main.js `HAND_OFFSET`, medium size); raise the hand there |
 | `data-task` | at work, what it works on (from the tool, app/tools.js `taskFor`): `book` (reading a file, `data-state="reading"`), `search` (Grep / Glob, `reading`), `web` (WebSearch / WebFetch, `working`). Absent: the plain look of the state |
 | `data-think` | while thinking the app changes the pose every ~7 s: absent (the plain thinking look), `bulb` (an idea) or `pace` (pacing up and down; the app flips `data-face` every ~2.4 s) |
-| `data-talk` | up to ~1.8 s while it answers a question from the chat panel (talk, nod) |
-| `data-play` | ambient life, while idle: `stretch`, `look`, `peek`, `hum`, `jump`, `ball`, `antenna`, `flip`, `reboot`, `polish`, `sneeze`, `moonwalk` or `sit` (only on the ground) for 1.5-4.2 s (each name's time is in `PLAYS` in `app/renderer/lib/fun.js`; end your animation within it; the optional sounds that go with them are timed to the robot's keyframes, see `CUES` in `app/renderer/lib/sound.js`) |
+| `data-talk` | up to ~1.8 s while it answers a question from the chat panel (talk, nod); also while it chats with a visitor |
+| `data-seated` | `down` while it sits with a visitor (the idle story), `up` for ~0.5 s as it gets up again |
+| `data-play` | ambient life, while idle: `stretch`, `look`, `peek`, `hum`, `jump`, `ball`, `antenna`, `flip`, `reboot`, `polish`, `sneeze`, `moonwalk` or `sit` (only on the ground) for 1.5-4.2 s, and `read` (9 s: takes a book out and reads; only the idle story starts it) (each name's time is in `PLAYS` in `app/renderer/lib/fun.js`; end your animation within it; the optional sounds that go with them are timed to the robot's keyframes, see `CUES` in `app/renderer/lib/sound.js`) |
 | `data-pet` | `play` while the pet plays next to the character (it joins in) |
 | `data-cheer` | with `data-state="done"`: `jump` (the classic), `spin`, `dance` or `fist` |
 | `data-glee` | ~0.65 s: tapped and it liked it (a happy hop; quick taps: back to back). The app adds the hearts |
@@ -161,6 +162,7 @@ The app wraps each copy in `<div class="buddy-mini">` and sets:
 |---|---|
 | `data-phase` | `arrive` (drops in), `brief`, `walk`, `work` (laptop open), `chat`, `look` (looks around), `play` (a little show, see `data-play`), `prank` (pokes the main character), `held` (picked up by the user), `land`, `huff` (hit too often, about to stomp off), `done`, `report`, `leave`, `outing` (takes off out of the window to roam the screen: like a flying `leave`), `away` (out roaming: hide it). While it roams, the app draws the same mini SVG and CSS in a little window of its own (152 px, the 132 px box 10 px in) with `data-phase` `walk` / `look` / `play` / `prank` (a poke at the cursor), `data-fly`, `data-travel="walk"`, `data-flip` and `data-tint` |
 | `data-play` | during `play`, ~2 s: `spin`, `jump`, `wave` or `dance` |
+| `data-phase` (a visitor) | the idle story's visitor is a mini too (class `buddy-guest`, never takes the mouse): `arrive`, `play`, `sit` (sits and chats, with `data-talk` and `data-laugh`), `look`, `spar` with `data-spar` (`guard`, `windup`, `strike`, `block`: a toy sword, `rbm-sword`), `leave` |
 | `data-tint` | `0` … `tints - 1`: which colour variant to wear; neighbours always differ |
 | `data-fly` | thrusters on (dropping in, flying off, hopping over others, or the whole buddy hovers) |
 | `data-hop` | while walking: hopping over the helpers in the way |

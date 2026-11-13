@@ -903,6 +903,15 @@ html[data-duel] .duel-pad {
   pointer-events: none;
 }
 
+/* A visitor (the idle story) is only to look at: it never takes the mouse. */
+.buddy-mini.buddy-guest > svg * {
+  pointer-events: none;
+}
+
+.buddy-mini.buddy-guest {
+  z-index: 12;
+}
+
 /* The open hover menu wins over the minis standing under it. */
 .actors.menu-open .buddy-mini[data-near] {
   opacity: 0.3;

@@ -17,6 +17,7 @@
       rbm-laptop   open in front while working; rbm-lid hinge
       rbm-book     skill book (hidden unless the app sets data-skill)
       rbm-note     the note it hands over (report, chat)
+      rbm-sword    a toy wooden sword (a visitor sparring with Robo: data-spar)
     Elements marked data-nohit never count as "the character" for the mouse.
   -->
   <defs>
@@ -140,6 +141,13 @@
       <g class="rbm-forearm-front">
         <rect class="rbm-c-limb" x="113" y="124" width="10" height="19" rx="5" fill="#3FB597" stroke="#2A2650" stroke-width="3"/>
         <circle class="rbm-c-limb" cx="118" cy="128" r="3.6" fill="#3FB597"/>
+        <!-- a visitor's toy sword: rounded tip, held in this hand while sparring -->
+        <g class="rbm-sword" data-nohit="">
+          <rect x="115.5" y="138" width="5" height="11" rx="1.8" fill="#2A2650"/>
+          <rect x="110" y="148.5" width="16" height="4.4" rx="2.2" fill="#8C7BEA" stroke="#2A2650" stroke-width="2"/>
+          <path d="M115.2 152.9 H120.8 V178 Q120.8 183.2 118 185.6 Q115.2 183.2 115.2 178 Z" fill="#D9BC8C" stroke="#2A2650" stroke-width="2.2" stroke-linejoin="round"/>
+          <path d="M117 156 V177" stroke="#EDD9B3" stroke-width="1.5" stroke-linecap="round"/>
+        </g>
         <circle cx="118" cy="144" r="6.4" fill="#FFF6E8" stroke="#2A2650" stroke-width="3"/>
         <!-- the note it hands over: a folded page -->
         <g class="rbm-note" data-nohit="">
