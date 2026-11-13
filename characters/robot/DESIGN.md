@@ -66,6 +66,11 @@ comes out while a skill is in use; a page turns now and then.
   No many-rayed starbursts (that shape is close to Anthropic's mark).
 - **Annoyed mark** (four little curved veins), **dizzy ring** with three dots going round,
   **music notes**. All small, all `data-nohit`.
+- **Angrier and angrier:** a red flush over the head shell (the face screen stays cream),
+  white steam puffs out of both ear dials, and at the top a cartoon fire on the head (three
+  layers, orange / amber / pale yellow, outlined in ink, behind the antenna). Hidden until
+  `data-annoyed` is 2 or 3, all `data-nohit`. The eruption's sparks are plain round
+  embers drawn by the page.
 - **Ambient-play props:** a small yellow polishing cloth (in the far hand), a plain
   four-point sparkle on the clean face screen (four points only, never a many-rayed
   starburst), a little white sneeze puff of four circles, and a lilac power sign on the

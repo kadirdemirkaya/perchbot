@@ -8,6 +8,10 @@ const {
   TapMeter,
   tapMood,
   TAP_LIKES,
+  TAP_PATIENCE,
+  Temper,
+  TEMPER_HOLD,
+  TEMPER_MAX,
   AmbientScheduler,
   AMBIENT_GAP: G,
   WEIGHTS,
@@ -103,6 +107,77 @@ test('TapMeter: idle it mostly loves being tapped, at work it mostly does not', 
   assert.ok(TAP_LIKES.calm > TAP_LIKES.busy);
 });
 
+test('TapMeter: while it is still hot it likes nothing and a tap is never just a boop', () => {
+  const clock = new FakeClock();
+  // 0.01: it would love every streak.
+  const meter = new TapMeter({ clock: { now: () => clock.now }, random: () => 0.01 });
+  assert.equal(meter.tap(false, true), 'annoyed', 'a new streak while hot: cross at once');
+  clock.tick(300);
+  assert.equal(meter.tap(false, true), 'annoyed');
+  clock.tick(300);
+  assert.equal(meter.tap(false, true), 'flee', 'third tap: off it goes');
+  clock.tick(5000);
+  assert.equal(meter.tap(false, false), 'happy', 'cooled down: back to its own mood');
+});
+
+test('TapMeter: even a tap it loves gets too much after TAP_PATIENCE taps in a row', () => {
+  const clock = new FakeClock();
+  const meter = new TapMeter({ clock: { now: () => clock.now }, random: () => 0.01 });
+  const moods = [];
+  for (let i = 0; i < TAP_PATIENCE + 3; i += 1) {
+    moods.push(meter.tap(false));
+    if (i === TAP_PATIENCE) assert.equal(meter.fedUp, true, 'the tap where it has had enough');
+    else assert.equal(meter.fedUp, false);
+    clock.tick(300);
+  }
+  assert.deepEqual(moods.slice(0, TAP_PATIENCE), Array(TAP_PATIENCE).fill('happy'));
+  assert.deepEqual(moods.slice(TAP_PATIENCE), ['annoyed', 'annoyed', 'flee'], 'then the unwelcome ladder');
+  // The usual streaks (a few taps) never get there.
+  assert.ok(TAP_PATIENCE >= 10);
+});
+
+test('Temper: unwelcome taps heat it up, it cools one level at a time, and outlasts a flight', () => {
+  const clock = new FakeClock();
+  const temper = new Temper({ clock: { now: () => clock.now } });
+  assert.equal(temper.level, 0);
+  assert.equal(temper.coolsInMs(), 0);
+  assert.deepEqual(temper.flare('annoyed'), { level: 1, erupt: false });
+  assert.equal(temper.hot, false, 'just cross: taps may still be welcome later');
+  assert.equal(temper.coolsInMs(), TEMPER_HOLD[1]);
+  clock.tick(TEMPER_HOLD[1]);
+  assert.equal(temper.level, 0, 'the plain cross mark lasts as long as it always did');
+
+  temper.flare('annoyed');
+  clock.tick(300);
+  assert.deepEqual(temper.flare('flee'), { level: 2, erupt: false }, 'off it goes, fuming');
+  assert.equal(temper.hot, true);
+  clock.tick(2000); // caught it after its flight
+  assert.equal(temper.hot, true, 'still fuming');
+  assert.deepEqual(temper.flare('annoyed'), { level: 3, erupt: false }, 'blazing');
+  assert.deepEqual(temper.flare('annoyed'), { level: TEMPER_MAX, erupt: false }, 'never above the top');
+  assert.deepEqual(temper.flare('flee'), { level: TEMPER_MAX, erupt: true }, 'leaving while blazing: an eruption');
+
+  // Cooling: 3 holds, then 2, then 1, then calm.
+  assert.equal(temper.coolsInMs(), TEMPER_HOLD[3]);
+  clock.tick(TEMPER_HOLD[3]);
+  assert.equal(temper.level, 2);
+  assert.equal(temper.coolsInMs(), TEMPER_HOLD[2]);
+  clock.tick(TEMPER_HOLD[2] + TEMPER_HOLD[1] - 1);
+  assert.equal(temper.level, 1);
+  clock.tick(1);
+  assert.equal(temper.level, 0);
+  // Several levels at once after a long pause, and reset.
+  temper.flare('annoyed');
+  temper.flare('annoyed');
+  clock.tick(60000);
+  assert.equal(temper.level, 0);
+  temper.flare('annoyed');
+  temper.flare('annoyed');
+  temper.reset();
+  assert.equal(temper.level, 0);
+  assert.equal(temper.hot, false);
+});
+
 function ambient(random = Math.random) {
   const clock = new FakeClock();
   const log = [];
@@ -138,6 +213,34 @@ test('every ambient play is drawn by the robot, can be demoed, and its CSS ends 
     assert.match(svg, new RegExp(`class="${prop}" data-nohit=""`), prop);
     assert.match(css, new RegExp(`\\.${prop},?\\s`), `${prop} hidden by default`);
   }
+});
+
+test('the anger ladder is drawn by the robot, hidden until it is that angry, with its lines and a demo', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const { validateEvent } = require('../app/validate');
+  const root = path.join(__dirname, '..');
+  const svg = fs.readFileSync(path.join(root, 'characters', 'robot', 'robot.svg'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'characters', 'robot', 'robot.css'), 'utf8');
+  for (const prop of ['rb-fume', 'rb-steam', 'rb-blaze']) {
+    assert.match(svg, new RegExp(`class="${prop}" data-nohit=""`), `${prop} never catches the mouse`);
+  }
+  assert.match(css, /\.rb-fume,\s*\.rb-steam,\s*\.rb-blaze\s*\{\s*opacity: 0;/, 'hidden by default');
+  // Level 1 keeps the old look; 2 and 3 only add to it.
+  assert.match(css, /\.buddy-character\[data-annoyed\] \.rb-anger \{/);
+  for (const level of ['2', '3']) assert.ok(css.includes(`[data-annoyed='${level}']`), `level ${level} styled`);
+  assert.ok(css.includes('[data-erupt] .rb-blaze'), 'the eruption');
+  assert.equal(TEMPER_MAX, 3);
+  // Its lines, in every language, passed on by the main process.
+  const main = fs.readFileSync(path.join(root, 'app', 'main.js'), 'utf8');
+  for (const lang of ['en', 'tr']) {
+    const strings = JSON.parse(fs.readFileSync(path.join(root, 'app', 'locales', `${lang}.json`), 'utf8'));
+    for (const key of ['fedUp', 'fuming', 'blazing', 'erupt']) {
+      assert.ok(strings.quip[key], `${lang}: quip ${key}`);
+      assert.ok(main.includes(`'${key}'`), `main.js passes the quip ${key}`);
+    }
+  }
+  assert.ok(validateEvent({ v: 1, event: 'Demo', session: 's', ts: 1, demo: 'rage' }), 'rage is a valid demo');
 });
 
 test('ambient life: one behaviour every 15-60 s, never the same twice in a row', () => {

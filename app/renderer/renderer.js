@@ -42,7 +42,7 @@
 
 (() => {
   const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay } = window.BuddyInteraction;
-  const { TapMeter, AmbientScheduler, pickCheer, Duel, BugFight } = window.BuddyFun;
+  const { TapMeter, Temper, AmbientScheduler, pickCheer, Duel, BugFight } = window.BuddyFun;
 
   const root = document.documentElement;
   const stage = document.getElementById('stage');
@@ -327,8 +327,12 @@
       if (CALM.has(previous.state)) {
         cancel('flee');
         cancel('anger');
+        cancel('annoyed');
+        cancel('erupt');
         flag('annoyed', null);
+        flag('erupt', null);
         meter.reset();
+        temper.reset();
         glee.stop();
         dropQuip();
       }
@@ -1161,7 +1165,6 @@
   const AMBIENT_STATES = new Set(['idle', 'standby']);
   /** A duel may start in these (it goes on into idle / standby). */
   const DUEL_STATES = new Set(['idle', 'standby', 'greeting', 'done']);
-  const ANNOYED_MS = 1500;
   const INSPECT_MS = 3800;
   let moving = null;
   let crewCount = 0;
@@ -1169,6 +1172,8 @@
   let crewList = [];
 
   const meter = new TapMeter();
+  /** Anger that builds up over unwelcome taps and outlasts a flight (lib/fun.js). */
+  const temper = new Temper();
   const ambient = new AmbientScheduler({
     onPlay: (name) => {
       if (name) trace(`ambient: ${name}`);
@@ -1222,7 +1227,8 @@
       armWhip();
     }
     const busy = BUSY.has(view.state);
-    let verdict = ambientOn() ? (demo ? demo.meter.tap(demo.busy) : meter.tap(busy)) : 'boop';
+    const tapper = demo ? demo.meter : meter;
+    let verdict = ambientOn() ? tapper.tap(demo ? demo.busy : busy, temper.hot) : 'boop';
     // Nobody enjoys the whip.
     if (whip && verdict === 'happy') verdict = 'boop';
     trace(`tap: ${verdict}${busy ? ' (busy)' : ''}`);
@@ -1240,21 +1246,69 @@
     if (verdict === 'happy') {
       cancel('annoyed');
       flag('annoyed', null);
+      temper.reset();
       if (motionAllowed()) glee.trigger();
       quip('giggle', 900);
       return;
     }
     glee.stop();
-    // Already cross: stay cross a little longer, no restart (a restart looks like a stutter).
-    if (!holder.dataset.annoyed) flag('annoyed', true, true);
-    later('annoyed', ANNOYED_MS, () => flag('annoyed', null));
+    // Every unwelcome tap heats it up (Temper): cross, fuming, blazing. data-annoyed
+    // carries the level; already cross, a hotter level only changes the look (no
+    // restart, a restart looks like a stutter). It cools down by itself.
+    const { level, erupt } = temper.flare(verdict);
+    flag('annoyed', level, !holder.dataset.annoyed);
+    coolDown();
     if (verdict === 'flee') {
-      trace('hit too often: leaving');
-      quip('enough', 1800);
-      later('flee', 450, () => window.buddy.fun('flee'));
+      trace(erupt ? 'hit too often while blazing: erupting' : 'hit too often: leaving');
+      if (erupt) {
+        flag('erupt', true, true);
+        later('erupt', ERUPT_MS, () => flag('erupt', null));
+        burstEmbers();
+      }
+      quip(erupt ? 'erupt' : 'enough', 1800);
+      later('flee', erupt ? ERUPT_MS : 450, () => window.buddy.fun('flee'));
     } else {
-      quip(busy ? 'busy' : 'hey', 1100);
+      trace(`temper: ${level}`);
+      quip(tapper.fedUp ? 'fedUp' : TEMPER_QUIPS[level] || (busy ? 'busy' : 'hey'), 1100);
     }
+  }
+
+  /** What it says when a tap makes it this angry (level 1: "Hey!" / "Working, later!"). */
+  const TEMPER_QUIPS = { 2: 'fuming', 3: 'blazing' };
+  /** It erupts (leaves while blazing): the burst of flames before it flies off. */
+  const ERUPT_MS = 700;
+
+  /** The anger mark follows the temper as it cools, one level at a time. */
+  function coolDown() {
+    const level = temper.level;
+    if (level <= 0) {
+      cancel('annoyed');
+      flag('annoyed', null);
+      return;
+    }
+    flag('annoyed', level);
+    later('annoyed', temper.coolsInMs(), coolDown);
+  }
+
+  /** It erupts: sparks fly up from its burning head. */
+  const EMBER_MS = 1000;
+  function burstEmbers() {
+    if (!motionAllowed() || !character) return;
+    const anchor = character.bubbleAnchor || { x: 0.5, y: 0.1 };
+    const originX = CHAR_LEFT + anchor.x * CHAR_SIZE;
+    const originY = SLOT_HEIGHT - CHAR_BOTTOM - CHAR_SIZE + (anchor.y + 0.08) * CHAR_SIZE;
+    for (let i = 0; i < 8; i += 1) {
+      const ember = document.createElement('i');
+      ember.className = 'fx-ember';
+      ember.style.left = `${Math.round(originX + (Math.random() - 0.5) * 36)}px`;
+      ember.style.top = `${Math.round(originY + Math.random() * 8)}px`;
+      ember.style.setProperty('--dx', `${Math.round((Math.random() - 0.5) * 70)}px`);
+      ember.style.setProperty('--up', `${Math.round(-40 - Math.random() * 40)}px`);
+      ember.style.setProperty('--d', `${(Math.random() * 0.2).toFixed(2)}s`);
+      fx.appendChild(ember);
+      setTimeout(() => ember.remove(), EMBER_MS + 300);
+    }
+    while (fx.querySelectorAll('.fx-ember').length > 16) fx.querySelector('.fx-ember').remove();
   }
 
   /** The same for a helper: a hop or a happy hop, cross, then it stomps off to another spot. */
@@ -1919,8 +1973,17 @@
       const likes = name === 'glee';
       const fixed = new TapMeter({ random: () => (likes ? 0.01 : 0.99), likes: { calm: likes ? 1 : 0, busy: likes ? 1 : 0 } });
       const taps = likes ? [0, 250, 500, 750, 1000] : [0, 300, 600];
+      // It starts calm, so the demo always looks the same.
+      temper.reset();
       // The unwelcome demo counts as busy, so the third tap always sends it off.
       taps.forEach((ms, i) => later(`${name}-${i}`, ms, () => onClick(null, { meter: fixed, busy: !likes })));
+    } else if (name === 'rage') {
+      // The whole anger ladder: three taps (cross, then it leaves fuming), and
+      // three more where it landed while it still fumes: its head catches fire,
+      // and it erupts and leaves again.
+      const fixed = new TapMeter({ random: () => 0.99, likes: { calm: 0, busy: 0 } });
+      temper.reset();
+      [0, 300, 600, 3600, 3900, 4200].forEach((ms, i) => later(`rage-${i}`, ms, () => onClick(null, { meter: fixed, busy: true })));
     } else if (name === 'duel') {
       runDemo('duel');
     } else if (name === 'menu') {

@@ -129,7 +129,8 @@ Use whatever you like; ignore the rest.
 | `data-pet` | `play` while the pet plays next to the character (it joins in) |
 | `data-cheer` | with `data-state="done"`: `jump` (the classic), `spin`, `dance` or `fist` |
 | `data-glee` | ~0.65 s: tapped and it liked it (a happy hop; quick taps: back to back). The app adds the hearts |
-| `data-annoyed`, `data-ouch` | tapped and it did not want it (~1.5 s) / hit with the whip (~0.5 s) |
+| `data-annoyed`, `data-ouch` | tapped and it did not want it / hit with the whip (~0.5 s). The value of `data-annoyed` is how angry it is: `1` cross (~1.5 s), `2` fuming, `3` blazing; more unwelcome taps heat it up, and it cools one level at a time (`TEMPER_HOLD` in `app/renderer/lib/fun.js`). A plain `[data-annoyed]` rule covers every level |
+| `data-erupt` | ~0.7 s: tapped while blazing, it erupts and flies off (the app adds the sparks) |
 | `data-move` | on a trip around the screen: `walk` or `fly` (the app also sets `data-fly` while flying). Also `fly` while it glides after being thrown, `toss` for the same with hover mode "Always stand", and `settle` for the short ease into place after a drop |
 | `data-face` | `left` while walking or fighting towards the left (also towards a bug): the app mirrors your SVG, you do nothing |
 | `data-inspect` | `left` / `right` for ~4 s after it flew next to the cursor: have a look that way |

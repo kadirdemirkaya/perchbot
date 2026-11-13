@@ -69,6 +69,8 @@ const DEMOS = new Set([
   // A helper off to roam the screen in a window of its own (needs a helper at work).
   'roam',
   'anger',
+  // The anger ladder: cross, it leaves fuming, then three more taps set its head on fire.
+  'rage',
   // Five quick taps it loves (happy hops, hearts).
   'glee',
   'duel',

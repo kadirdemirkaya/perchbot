@@ -35,6 +35,7 @@ Open Claude Code sessions pick up the hooks after a restart (VS Code: *Developer
 - **Right-click** it: walk, fly, home, sword duel, the cat. More in the **tray icon**.
 - **Quiet mode** hides file names and commands: use it while sharing your screen.
 - **Ambient life** (tray) lets it and its helpers roam your screens when idle; switch it off to keep it still.
+- **Tap** it: idle it mostly likes that. Keep tapping and it gets cross, fumes, and its head catches fire.
 
 Only the event, the tool name, a file name (not the path) and a shortened command (secrets
 masked) leave the hook, and only to `127.0.0.1`. Settings: `~/.agent-buddy/settings.json`.

@@ -3,6 +3,7 @@
  * the same file runs in the renderer (window.BuddyFun) and in node:test.
  *
  *   TapMeter          quick taps in a row: happy or cross, by mood and by work (tapMood)
+ *   Temper            anger that builds up over unwelcome taps: cross, fuming, blazing
  *   AmbientScheduler  ambient life: short plays and trips, every 15-60 s
  *   pickCheer      a different celebration for "done" now and then
  *   Duel           the sword fight started from the right-click menu
@@ -49,37 +50,131 @@
     return busy || random() < 0.7 ? 'flee' : 'annoyed';
   }
 
+  /** Liked taps in one streak before even a happy character has had enough. */
+  const TAP_PATIENCE = 12;
+
   /**
    * Counts taps that come quickly one after another (each within `gapMs` of
    * the previous one) and asks tapMood what each one does. A new streak rolls
    * its mood from TAP_LIKES; after 'flee' the count starts over.
-   * tap(busy) returns 'happy' | 'boop' | 'annoyed' | 'flee'.
+   * tap(busy, hot) returns 'happy' | 'boop' | 'annoyed' | 'flee'.
+   *
+   * Two things on top, both only for a lot of tapping:
+   *   hot       the character is still angry (Temper.hot): it likes nothing
+   *             now, and a tap is never just a boop
+   *   patience  after this many liked taps in one streak it has had enough:
+   *             'annoyed' (fedUp is true for that tap), and the streak goes on
+   *             as an unwelcome one (annoyed, then off it goes)
    */
   class TapMeter {
-    constructor({ clock = realClock, random = Math.random, gapMs = 1100, likes = TAP_LIKES } = {}) {
+    constructor({ clock = realClock, random = Math.random, gapMs = 1100, likes = TAP_LIKES, patience = TAP_PATIENCE } = {}) {
       this.clock = clock;
       this.random = random;
       this.gapMs = gapMs;
       this.chances = likes;
+      this.patience = patience;
       this.count = 0;
       this.likes = false;
+      this.fedUp = false;
       this.last = -Infinity;
     }
 
-    /** @param {boolean} busy  the character is at work right now */
-    tap(busy = false) {
+    /**
+     * @param {boolean} busy  the character is at work right now
+     * @param {boolean} hot   it is still angry from earlier taps
+     */
+    tap(busy = false, hot = false) {
       const now = this.clock.now();
       const streak = this.count > 0 && now - this.last <= this.gapMs;
       this.count = streak ? this.count + 1 : 1;
       this.last = now;
-      if (!streak) this.likes = this.random() < (busy ? this.chances.busy : this.chances.calm);
-      const mood = tapMood({ likes: this.likes, busy, streak: this.count, random: this.random });
+      this.fedUp = false;
+      if (hot) this.likes = false;
+      else if (!streak) this.likes = this.random() < (busy ? this.chances.busy : this.chances.calm);
+      if (this.likes && this.count > this.patience) {
+        this.likes = false;
+        this.count = 1;
+        this.fedUp = true;
+        return 'annoyed';
+      }
+      let mood = tapMood({ likes: this.likes, busy, streak: this.count, random: this.random });
+      if (hot && mood === 'boop') mood = 'annoyed';
       if (mood === 'flee') this.count = 0;
       return mood;
     }
 
     reset() {
       this.count = 0;
+    }
+  }
+
+  /**
+   * How long each level of anger holds before it cools one level (ms).
+   *   1  cross (a vein mark): as long as the plain "annoyed" always lasted
+   *   2  fuming: red-faced, steam from the ears
+   *   3  blazing: its head is on fire
+   */
+  const TEMPER_HOLD = Object.freeze([0, 1500, 4500, 6000]);
+  const TEMPER_MAX = TEMPER_HOLD.length - 1;
+
+  /**
+   * Anger that builds up over unwelcome taps and cools down by itself. Every
+   * 'annoyed' or 'flee' tap (TapMeter) heats it one level; a level holds for
+   * TEMPER_HOLD[level], then drops by one. It outlasts a tap streak and a
+   * flight: catch the character soon after it fled and it is still fuming
+   * (hot), so the next taps make it blaze, and a flight while it already
+   * blazes is an eruption. Pure: the level is worked out from clock.now().
+   */
+  class Temper {
+    constructor({ clock = realClock, hold = TEMPER_HOLD } = {}) {
+      this.clock = clock;
+      this.hold = hold;
+      this.max = hold.length - 1;
+      this.heat = 0;
+      this.since = 0;
+    }
+
+    /** Let the time since the last flare cool it down. */
+    cool() {
+      const now = this.clock.now();
+      while (this.heat > 0 && now - this.since >= this.hold[this.heat]) {
+        this.since += this.hold[this.heat];
+        this.heat -= 1;
+      }
+    }
+
+    /** 0 (calm) .. 3 (blazing), right now. */
+    get level() {
+      this.cool();
+      return this.heat;
+    }
+
+    /** Still angry enough that taps are not welcome at all (fuming or worse). */
+    get hot() {
+      return this.level >= 2;
+    }
+
+    /**
+     * An unwelcome tap ('annoyed' or 'flee'): one level hotter.
+     * erupt: it leaves while it was already blazing.
+     * @returns {{ level: number, erupt: boolean }}
+     */
+    flare(verdict) {
+      this.cool();
+      const before = this.heat;
+      this.heat = Math.min(this.max, before + 1);
+      this.since = this.clock.now();
+      return { level: this.heat, erupt: verdict === 'flee' && before >= this.max };
+    }
+
+    /** Time until it cools one level (0 when calm). */
+    coolsInMs() {
+      this.cool();
+      return this.heat > 0 ? Math.max(0, this.since + this.hold[this.heat] - this.clock.now()) : 0;
+    }
+
+    reset() {
+      this.heat = 0;
     }
   }
 
@@ -460,6 +555,10 @@
     TapMeter,
     tapMood,
     TAP_LIKES,
+    TAP_PATIENCE,
+    Temper,
+    TEMPER_HOLD,
+    TEMPER_MAX,
     AmbientScheduler,
     AMBIENT_GAP,
     WEIGHTS,
