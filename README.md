@@ -118,8 +118,12 @@ stars, a few confetti fly and the buddy holds its sword up: "Bug fixed!".
 - It fights only while it works (thinking, reading, typing, running, working), and the
   bubble and the chips still say what it does. While Claude Code waits for your approval or
   asks a question, and when it is idle, the bug just sits there.
-- One bug at a time, from the main session (the helpers' checks are not watched yet). A bug
-  nobody fixes scuttles off after 20 minutes, or when its session ends.
+- The helpers' checks count too: a helper whose check fails jumps, and at the win every
+  helper on screen cheers. Whoever runs the check again (a helper or the main session), the
+  same check passing beats the bug, and while helpers are still at work in the background the
+  buddy keeps fighting even when the main session is idle.
+- One bug at a time. A bug nobody fixes scuttles off after 20 minutes, or when its session
+  ends (a helper finishing does not chase it off).
 - Nothing new leaves the hook: the overlay pairs the shortened command it already gets when
   a tool starts with the "finished" or "failed" event of the same tool id.
 - With reduced motion (a system setting) there is no fight: the bug shows up and goes.

@@ -288,7 +288,7 @@ class BuddyCore extends EventEmitter {
 
     // Sub-agents live their own life next to the main character.
     if (evt.agent) {
-      this.onAgentEvent(evt);
+      this.onAgentEvent(evt, stale);
       return;
     }
 
@@ -446,11 +446,14 @@ class BuddyCore extends EventEmitter {
   }
 
   /** SubagentStart / SubagentStop / tool events that carry an agent hash. */
-  onAgentEvent(evt) {
+  onAgentEvent(evt, stale = false) {
     const who = { agent: evt.agent, agentType: evt.agentType, session: evt.session };
     if (evt.event === 'SubagentStart') this.crew.start(who);
     else if (evt.event === 'SubagentStop') this.crew.stop(who);
     else if (TOOL_EVENTS.has(evt.event)) {
+      // The helpers' checks count for the bug hunt too (a SubagentStop leaves the bug alone).
+      if (!stale && evt.event === 'PreToolUse') this.bugs.toolStart(evt.session, evt.id, evt.tool, evt.detail, evt.agent);
+      else if (!stale) this.bugs.toolEnd(evt.session, evt.id, evt.event === 'PostToolUse');
       this.crew.activity({
         ...who,
         tool: evt.tool,

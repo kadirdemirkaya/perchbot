@@ -17,7 +17,8 @@
  *   fun        { action: 'duel' } from the right-click menu
  *   chat       { open, strings } the panel opens / closes; { answer, intent } an answer;
  *              { typing: false } the window lost the keyboard
- *   bug        { id, phase: 'open' | 'fixed' | 'escaped' } or null: the bug hunt (app/bugs.js)
+ *   bug        { id, phase: 'open' | 'fixed' | 'escaped', agent } or null: the bug hunt
+ *              (app/bugs.js); agent = the helper that found it, or null
  *
  * To the main process (window.buddy): ready(), capture(bool), drag(phase), menu(id),
  * crewLeft(id), fun(action) (a trip, or the right-click menu), chat(op, intent)
@@ -1099,6 +1100,8 @@
   const INSPECT_MS = 3800;
   let moving = null;
   let crewCount = 0;
+  /** The helpers as the main process last sent them ({ id, status, ... }). */
+  let crewList = [];
   let away = false;
 
   const meter = new TapMeter();
@@ -1137,7 +1140,8 @@
    * no duel, not already on a trip. Trips only without helpers or the cat.
    */
   function updateFun() {
-    const calm = ambientOn() && !duel.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen;
+    const calm =
+      ambientOn() && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen;
     ambient.update({ enabled: calm && AMBIENT_STATES.has(view.state), trips: crewCount === 0 && !pet.here, away });
   }
 
@@ -1438,10 +1442,12 @@
    * the bug hops out of the way) -> recover ... (BugFight in lib/fun.js).
    * When the same check passes, one last strike squashes it and the robot
    * cheers: "Bug fixed!" and a little confetti. It fights only in the work
-   * states (the bubble and the chips still say what it does): never in
-   * waiting / asking (the prompt matters more), never resting, on a trip, in
-   * a duel or without motion. Otherwise the bug just sits there, and a fix
-   * squashes it at once.
+   * states (the bubble and the chips still say what it does), or while idle
+   * when helpers are still at work (background agents): never in waiting /
+   * asking (the prompt matters more), never resting, on a trip, in a duel or
+   * without motion. Otherwise the bug just sits there, and a fix squashes it
+   * at once. A helper's failing check brings a bug too: that helper jumps,
+   * and at the win every helper on screen cheers.
    */
   const HUNT_STATES = new Set(['typing', 'reading', 'running', 'working', 'thinking']);
   /** "Bug fixed!" would cover something more important here. */
@@ -1452,12 +1458,22 @@
   let bugNow = null;
   const hunt = new BugFight({ onPhase: onHuntPhase, onStrike: onHuntStrike });
 
-  const huntAllowed = () => motionAllowed() && !rest.resting && !moving && !duel.active && HUNT_STATES.has(view.state);
+  /** Helpers still at work (the main session may be idle while background agents run). */
+  const helpersAtWork = () => crewList.some((a) => a && a.status === 'active');
+  const huntAllowed = () =>
+    motionAllowed() &&
+    !rest.resting &&
+    !moving &&
+    !duel.active &&
+    (HUNT_STATES.has(view.state) || (AMBIENT_STATES.has(view.state) && helpersAtWork()));
 
   /** From the main process (and init). */
   function applyBug(next) {
+    const fresh = Boolean(next && typeof next === 'object' && (!bugNow || bugNow.id !== next.id));
     bugNow = next && typeof next === 'object' ? next : null;
     bugView.setBug(bugNow);
+    // The helper whose check failed jumps (if it is on screen).
+    if (fresh && bugNow.phase === 'open' && typeof bugNow.agent === 'string' && motionAllowed()) crew.react(bugNow.agent, 'boop');
     if (bugNow && bugNow.phase === 'fixed') bugFixed();
     else updateHunt();
   }
@@ -1514,6 +1530,8 @@
     if (phase === 'win') {
       if (!NO_BUG_QUIP.has(view.state)) quip('bugFixed', BUG_QUIP_MS);
       burstConfetti(10, bugView.point());
+      // The helpers cheer along.
+      for (const a of crewList) if (a && typeof a.id === 'string') crew.react(a.id, 'glee');
     }
   }
 
@@ -1902,6 +1920,7 @@
       console.error(`Agent Buddy: ${err.message}`);
     }
     applyView(data.view || view);
+    crewList = Array.isArray(data.crew) ? data.crew : [];
     crew.setAgents(data.crew);
     pet.setOn(data.pet);
     applyBug(data.bug || null);
@@ -1918,7 +1937,9 @@
     const count = Array.isArray(list) ? list.length : 0;
     if (count !== crewCount) perfMark(`crew ${crewCount}→${count}`);
     crewCount = count;
+    crewList = Array.isArray(list) ? list : [];
     crew.setAgents(list);
+    updateHunt();
     updateFun();
   });
   window.buddy.onMove((m) => applyMove(m));

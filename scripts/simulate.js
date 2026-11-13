@@ -24,7 +24,9 @@
  *   npm run simulate -- bug             the bug hunt: "npm test" fails, a bug turns up and the
  *                                       buddy fights it while it works (not while it waits for
  *                                       approval); "npm test" passes and it beats the bug. Then
- *                                       a failing build whose session ends: that bug escapes.
+ *                                       a helper's lint fails (the helper jumps), the main
+ *                                       session fixes it and the helpers cheer. Last, a failing
+ *                                       build whose session ends: that bug escapes.
  *   npm run simulate -- --fast          shorter pauses
  *   npm run simulate -- --keep          skip the final SessionEnd (overlay stays open)
  */
@@ -460,6 +462,17 @@ async function bugHunt() {
   await edit('typing    bugs.js (fighting again)', 'bugs.js', 3500);
   await run('running   npm test -- -t bug', 'npm test -- -t bug', true, 2000, 4500);
   await step('done', base(s, 'Stop', { stop_hook_active: false }), 3500);
+
+  // A helper's check fails; the main session fixes it.
+  const helper = { agent_id: `sim-helper-${randomId()}`, agent_type: 'Explore' };
+  const htool = (event, name, input, id) => base(s, event, { tool_name: name, tool_input: input, tool_use_id: id, ...helper });
+  await step('thinking', base(s, 'UserPromptSubmit', { prompt: '(simulated prompt)' }), 1200);
+  await step('helper starts', base(s, 'SubagentStart', helper), 3500);
+  await step('helper runs   npm run lint', htool('PreToolUse', 'Bash', { command: 'npm run lint' }, 'toolu_h1'), 1500);
+  await step('(helper FAILED: a bug, it jumps)', htool('PostToolUseFailure', 'Bash', { command: 'npm run lint' }, 'toolu_h1'), 4000);
+  await step('helper is done (bug stays)', base(s, 'SubagentStop', helper), 2000);
+  await run('running   npm run lint', 'npm run lint', true, 2000, 4500);
+  await step('done', base(s, 'Stop', { stop_hook_active: false }), 3000);
 
   // A second session whose build fails and which then just ends: its bug escapes.
   const s2 = `sim-bug2-${randomId()}`;

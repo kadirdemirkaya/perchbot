@@ -7,6 +7,11 @@
  * paired by tool id with its PostToolUse / PostToolUseFailure. Pure, with an
  * injectable clock, so node:test drives it.
  *
+ * Checks of the session's helpers (sub-agents) count too: the bug remembers
+ * who found it (agent, or null for the main session), and it is fixed by the
+ * same check passing in the same session, whoever runs it (a helper finds it,
+ * the main session fixes it, or the other way round).
+ *
  * One bug at a time. Phases: 'open' -> 'fixed' (kept for the victory, then
  * gone) or 'escaped' (too old, or its session ended; kept for the exit, then
  * gone). onChange(bug | null) on every change.
@@ -60,24 +65,24 @@ class BugWatch {
     this.now = now;
     this.t = { ...BUG_TIMINGS, ...timings };
     this.onChange = onChange;
-    /** session -> Map(tool id -> check key) */
+    /** session -> Map(tool id -> { key, agent }) */
     this.pending = new Map();
     this.bug = null;
     this.nextId = 1;
     this.timer = null;
   }
 
-  /** The bug right now: { id, phase, session, key, since } or null. */
+  /** The bug right now: { id, phase, session, key, agent, since } or null. */
   current() {
     return this.bug ? { ...this.bug } : null;
   }
 
-  /** A main-session PreToolUse. Remembers commands that look like checks. */
-  toolStart(session, id, tool, detail) {
+  /** A PreToolUse (agent: the helper's id, or null for the main session). Remembers checks. */
+  toolStart(session, id, tool, detail, agent = null) {
     if (!id || !COMMAND_TOOLS.has(tool) || !isCheck(detail)) return;
     if (!this.pending.has(session)) this.pending.set(session, new Map());
     const map = this.pending.get(session);
-    map.set(id, checkKey(detail));
+    map.set(id, { key: checkKey(detail), agent: agent || null });
     while (map.size > this.t.maxPending) map.delete(map.keys().next().value);
   }
 
@@ -85,10 +90,10 @@ class BugWatch {
   toolEnd(session, id, ok) {
     const map = this.pending.get(session);
     if (!id || !map || !map.has(id)) return;
-    const key = map.get(id);
+    const { key, agent } = map.get(id);
     map.delete(id);
     if (!ok && !this.bug) {
-      this.set({ id: this.nextId++, phase: 'open', session, key, since: this.now() });
+      this.set({ id: this.nextId++, phase: 'open', session, key, agent, since: this.now() });
       this.after(this.t.maxMs, () => this.end('escaped'));
     } else if (ok && this.bug && this.bug.phase === 'open' && this.bug.session === session && this.bug.key === key) {
       this.end('fixed');

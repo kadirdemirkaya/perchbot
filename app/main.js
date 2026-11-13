@@ -234,8 +234,11 @@ function start() {
     sendView();
   });
 
-  /** What the page gets of the bug: no session, no command, just which one and how it goes. */
-  const bugPayload = () => (bug ? { id: bug.id, phase: bug.phase } : null);
+  /**
+   * What the page gets of the bug: no session, no command; which one, how it goes, and the
+   * helper that found it (its short hash, the same id the page already has for that helper).
+   */
+  const bugPayload = () => (bug ? { id: bug.id, phase: bug.phase, agent: bug.agent || null } : null);
 
   // Bug hunt (app/bugs.js): every new bug turns up at a slightly different spot at its feet.
   core.on('bug', (next) => {

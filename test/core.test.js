@@ -528,13 +528,35 @@ test('bug hunt: a failing test opens a bug, the same test passing fixes it, the 
   assert.deepEqual(bugs, ['open', 'fixed']);
   clock.tick(5000);
   assert.deepEqual(bugs, ['open', 'fixed', null]);
-  // Sub-agents do not count (for now); a session that ends takes its bug along.
-  send('PreToolUse', { tool: 'Bash', id: 'b3', detail: 'npm test', agent: 'abcdef0123' });
-  send('PostToolUseFailure', { tool: 'Bash', id: 'b3', agent: 'abcdef0123' });
-  assert.equal(bugs.length, 3);
   send('PreToolUse', { tool: 'Bash', id: 'b4', detail: 'cargo build' });
   send('PostToolUseFailure', { tool: 'Bash', id: 'b4' });
   send('SessionEnd', { reason: 'other' });
   assert.deepEqual(bugs.slice(3), ['open', 'escaped']);
+  core.dispose();
+});
+
+test('bug hunt: a helper finds a bug, the main session fixes it; a helper leaving does not chase it off', () => {
+  const { clock, core, send } = setup();
+  const bugs = [];
+  core.on('bug', (b) => bugs.push(b && { phase: b.phase, agent: b.agent }));
+  const helper = 'abcdef0123';
+  send('SessionStart', { source: 'startup' });
+  send('UserPromptSubmit');
+  send('SubagentStart', { agent: helper, agentType: 'Explore' });
+  send('PreToolUse', { tool: 'Bash', id: 'h1', detail: 'npm test', agent: helper });
+  send('PostToolUseFailure', { tool: 'Bash', id: 'h1', agent: helper });
+  assert.deepEqual(bugs, [{ phase: 'open', agent: helper }]);
+  send('SubagentStop', { agent: helper });
+  assert.equal(bugs.length, 1, 'still there when the helper is done');
+  send('PreToolUse', { tool: 'Bash', id: 'm1', detail: 'npm test -- -t parser' });
+  send('PostToolUse', { tool: 'Bash', id: 'm1' });
+  assert.deepEqual(bugs.at(-1), { phase: 'fixed', agent: helper });
+  clock.tick(5000);
+  // And the other way round: the main session's bug, fixed by a helper's run.
+  send('PreToolUse', { tool: 'Bash', id: 'm2', detail: 'pytest' });
+  send('PostToolUseFailure', { tool: 'Bash', id: 'm2' });
+  send('PreToolUse', { tool: 'Bash', id: 'h2', detail: 'pytest tests/a.py', agent: helper });
+  send('PostToolUse', { tool: 'Bash', id: 'h2', agent: helper });
+  assert.deepEqual(bugs.slice(-2), [{ phase: 'open', agent: null }, { phase: 'fixed', agent: null }]);
   core.dispose();
 });
