@@ -34,6 +34,7 @@
  *   data-move ("walk" | "fly")  data-face ("left")
  *   data-inspect ("left" | "right")  data-duel (phase, see lib/fun.js)
  *   data-rampage ("charge" | "laser" | "missile" | "smug" | "heal"; see "the rampage")
+ *   data-holo (focus mode: intense work, see "focus mode")
  *   data-hunt (fights a bug at its feet, with data-duel phases; see "bug hunt")
  *   --look-x / --look-y (-1..1)  --type-line (0..7)  --fly-tilt (-1..1)
  *
@@ -43,7 +44,7 @@
 
 (() => {
   const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay } = window.BuddyInteraction;
-  const { TapMeter, Temper, TEMPER_MAX, Fury, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight } = window.BuddyFun;
+  const { TapMeter, Temper, TEMPER_MAX, Fury, FocusMeter, FOCUS, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight } = window.BuddyFun;
 
   const root = document.documentElement;
   const stage = document.getElementById('stage');
@@ -347,6 +348,8 @@
     // Work comes in: the question can wait.
     if (curious && !curious.always && !CALM.has(next.state)) dropCurious();
     renderBubble();
+
+    noteFocus(previous, next);
 
     // Every event wakes the character; idle starts the rest countdown again.
     rest.setIdle(next.state === 'idle');
@@ -1055,6 +1058,40 @@
     const show = Boolean(name) && !settings.quiet;
     accountTag.textContent = show ? name.replace(/^claude-(?=.)/, '') : '';
     accountTag.classList.toggle('show', show);
+  }
+
+  // ---------------------------------------------------------------- focus mode
+
+  /**
+   * Intense work (lib/fun.js FocusMeter: many steps in the last two minutes,
+   * edits count double): it means business. data-holo puts on a headband,
+   * and in the laptop states a screen of light from its eyes takes the
+   * laptop's place. A calm spell of FOCUS.calmMs ends it.
+   */
+  const FOCUS_STATES = new Set(['typing', 'reading', 'running', 'working']);
+  const focus = new FocusMeter();
+
+  function noteFocus(previous, next) {
+    if (CALM.has(next.state) || next.state === 'done') {
+      if (focus.focused) later('focus-calm', FOCUS.calmMs, endFocus);
+      return;
+    }
+    cancel('focus-calm');
+    // A new step: another tool, or the same tool on something else.
+    if (!FOCUS_STATES.has(next.state) || (next.state === previous.state && next.text === previous.text)) return;
+    const was = focus.focused;
+    focus.step(next.state);
+    if (focus.focused === was) return;
+    trace(`focus: ${focus.focused ? 'on' : 'off'}`);
+    if (focus.focused) quip('focusOn', 1400);
+    flag('holo', focus.focused);
+  }
+
+  function endFocus() {
+    if (!focus.focused) return;
+    trace('focus: off (calm)');
+    focus.reset();
+    flag('holo', null);
   }
 
   // ---------------------------------------------------------------- thinking poses
@@ -2465,6 +2502,12 @@
       temper.reset();
       fury.reset();
       [0, 300, 600, 3600, 3900, 4200].forEach((ms, i) => later(`rage-${i}`, ms, () => onClick(null, { meter: fixed, busy: true })));
+    } else if (name === 'focus') {
+      // Focus mode at once (as after a burst of edits); it ends with the next calm spell.
+      for (let i = 0; i < FOCUS.on; i += 1) focus.step('typing');
+      trace('focus: on (demo)');
+      quip('focusOn', 1400);
+      flag('holo', true);
     } else if (name === 'rampage') {
       // Its head on fire for the second time (no taps needed): the whole show.
       temper.reset();

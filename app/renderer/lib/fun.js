@@ -5,6 +5,7 @@
  *   TapMeter          quick taps in a row: happy or cross, by mood and by work (tapMood)
  *   Temper            anger that builds up over unwelcome taps: cross, fuming, blazing
  *   Fury              its head on fire twice in five minutes: a rampage
+ *   FocusMeter        intense work: a screen of light instead of the laptop
  *   AmbientScheduler  ambient life: short plays and trips, every 15-60 s
  *   pickCheer      a different celebration for "done" now and then
  *   Duel           the sword fight started from the right-click menu
@@ -357,6 +358,54 @@
     return entries[entries.length - 1][0];
   }
 
+  // ------------------------------------------------------------------ focus mode
+
+  /**
+   * How intense the work is: steps (a new tool at work) in the last two
+   * minutes, edits count double. At `on` points it goes into focus mode (a
+   * screen of light instead of the laptop, a headband), below `off` it comes
+   * out again (the gap keeps it from flickering); calm for `calmMs` (the page
+   * keeps that timer) ends it too.
+   */
+  const FOCUS = Object.freeze({
+    windowMs: 120000,
+    on: 12,
+    off: 5,
+    calmMs: 25000,
+    weights: Object.freeze({ typing: 2, running: 1, reading: 1, working: 1 }),
+  });
+
+  class FocusMeter {
+    constructor({ clock = realClock, ...options } = {}) {
+      this.clock = clock;
+      this.o = { ...FOCUS, ...options };
+      this.steps = [];
+      this.focused = false;
+    }
+
+    /** Points in the window right now. */
+    score() {
+      const now = this.clock.now();
+      this.steps = this.steps.filter((s) => now - s.at < this.o.windowMs);
+      return this.steps.reduce((sum, s) => sum + s.weight, 0);
+    }
+
+    /** A new step of work in this state; returns whether it is focused now. */
+    step(state) {
+      const weight = this.o.weights[state] || 0;
+      if (weight) this.steps.push({ at: this.clock.now(), weight });
+      const score = this.score();
+      if (!this.focused && score >= this.o.on) this.focused = true;
+      else if (this.focused && score < this.o.off) this.focused = false;
+      return this.focused;
+    }
+
+    reset() {
+      this.steps = [];
+      this.focused = false;
+    }
+  }
+
   // ------------------------------------------------------------------ thinking poses
 
   /** Ways to think (robot.css data-think; 'chin' is the plain look), and how often it changes. */
@@ -627,6 +676,8 @@
     TEMPER_MAX,
     Fury,
     FURY,
+    FocusMeter,
+    FOCUS,
     AmbientScheduler,
     AMBIENT_GAP,
     WEIGHTS,

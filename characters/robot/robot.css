@@ -2679,6 +2679,113 @@
   45% { transform: translate(2px, -3px) rotate(-8deg); }
 }
 
+/* ------------------------------------------------------------ focus mode (data-holo)
+
+   The app sets data-holo while the work is intense (many steps in the last two
+   minutes, edits count double; lib/fun.js FocusMeter). Robo means business:
+   a headband and rings of light round the eyes for the whole spell, and in
+   the laptop states the laptop gives way to a screen of light projected from
+   its near eye, with a keyboard of light under its hands. Typing scrolls code
+   on it with the same taps as the laptop; other work fills bars. The
+   reading-with-a-task looks (book, search, web) stay as they are. */
+
+.rb-holo,
+.rb-band,
+.rb-holo-eye {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.rb-holo-cone,
+.rb-holo-screen {
+  transform-origin: 106px 69px;
+  transform: scale(0.12);
+  transition: transform 0.4s cubic-bezier(0.3, 1.35, 0.5, 1);
+}
+
+.rb-holo-keys {
+  transform-origin: 157px 148px;
+  transform: scaleY(0.1);
+  transition: transform 0.3s ease 0.12s;
+}
+
+.rb-holo-code,
+.rb-holo-bars {
+  opacity: 0;
+}
+
+.rb-holo-bar {
+  transform-box: fill-box;
+  transform-origin: left center;
+}
+
+.rb-band-tail {
+  transform-origin: 50px 43px;
+}
+
+.buddy-character[data-holo] :is(.rb-band, .rb-holo-eye) {
+  opacity: 1;
+}
+
+.buddy-character[data-holo]:not([data-rest]) .rb-band-tail {
+  animation: rb-band-flutter 0.5s steps(2) infinite;
+}
+
+.buddy-character[data-holo]:is([data-state='typing'], [data-state='running'], [data-state='working'], [data-state='reading']:not([data-task])) .rb-holo {
+  opacity: 1;
+}
+
+.buddy-character[data-holo]:is([data-state='typing'], [data-state='running'], [data-state='working'], [data-state='reading']:not([data-task]))
+  :is(.rb-holo-cone, .rb-holo-screen, .rb-holo-keys) {
+  transform: none;
+}
+
+/* The laptop gives way. */
+.buddy-character[data-holo]:is([data-state='typing'], [data-state='running'], [data-state='working'], [data-state='reading']:not([data-task])) .rb-laptop {
+  opacity: 0;
+  transition:
+    transform 0.5s cubic-bezier(0.4, 1.25, 0.5, 1),
+    opacity 0.2s ease;
+}
+
+.buddy-character[data-holo][data-state='typing'] .rb-holo-code {
+  opacity: 1;
+  transform: translateY(calc(var(--type-line, 0) * -6px));
+}
+
+.buddy-character[data-holo]:is([data-state='running'], [data-state='working'], [data-state='reading']:not([data-task])) .rb-holo-bars {
+  opacity: 1;
+}
+
+.buddy-character[data-holo]:is([data-state='running'], [data-state='working'], [data-state='reading']:not([data-task])):not([data-rest]) .rb-holo-bar {
+  animation: rb-holo-fill 1.8s steps(6) infinite;
+}
+
+.buddy-character[data-holo] .rb-holo-bar:nth-child(2) {
+  animation-delay: 0.3s;
+}
+
+.buddy-character[data-holo] .rb-holo-bar:nth-child(3) {
+  animation-delay: 0.6s;
+}
+
+.buddy-character[data-holo]:not([data-rest]) .rb-holo-scan {
+  animation: rb-holo-scan 2.2s steps(11) infinite;
+}
+
+@keyframes rb-band-flutter {
+  50% { transform: rotate(-9deg) scaleX(1.08); }
+}
+
+@keyframes rb-holo-fill {
+  0% { transform: scaleX(0.1); }
+  100% { transform: scaleX(1); }
+}
+
+@keyframes rb-holo-scan {
+  to { transform: translateY(36px); }
+}
+
 /* ------------------------------------------------------------ the rampage (data-rampage)
 
    Its head caught fire twice within five minutes. The app keeps data-annoyed

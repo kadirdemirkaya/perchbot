@@ -33,6 +33,8 @@
                  sneeze puff, the power sign of a reboot
       rb-laser, rb-hatch  the rampage (data-rampage): red eyes that fire (data-eye marks where
                  the beams start), a chest hatch the missiles fly out of (data-launch)
+      rb-holo, rb-band, rb-holo-eye  focus mode (data-holo): a holo screen and keyboard
+                 projected from the near eye instead of the laptop, a headband, glowing eyes
     Elements marked data-nohit never count as "the character" for the mouse.
   -->
   <defs>
@@ -42,6 +44,13 @@
     <clipPath id="rb-head-clip">
       <path d="M64 37 H112 Q127 37 128 52 L125 86 Q124 98 111 98 H65 Q52 98 51 86 L48 52 Q49 37 64 37 Z"/>
     </clipPath>
+    <clipPath id="rb-holo-clip">
+      <rect x="134" y="69" width="56" height="37" rx="2"/>
+    </clipPath>
+    <linearGradient id="rb-holo-beam" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7EE0D2" stop-opacity=".7"/>
+      <stop offset="1" stop-color="#7EE0D2" stop-opacity=".08"/>
+    </linearGradient>
     <clipPath id="rb-body-clip">
       <path d="M71 103 H105 Q113 103 114 111 L116 143 Q117 157 103 157 H73 Q59 157 60 143 L62 111 Q63 103 71 103 Z"/>
     </clipPath>
@@ -154,6 +163,13 @@
           <path class="rb-fume" data-nohit="" d="M64 37 H112 Q127 37 128 52 L125 86 Q124 98 111 98 H65 Q52 98 51 86 L48 52 Q49 37 64 37 Z" fill="#FF5A6E"/>
           <path d="M64 37 H112 Q127 37 128 52 L125 86 Q124 98 111 98 H65 Q52 98 51 86 L48 52 Q49 37 64 37 Z" fill="none" stroke="#2A2650" stroke-width="3" stroke-linejoin="round"/>
 
+          <!-- focus mode: a headband, it means business (tails flutter at the back) -->
+          <g class="rb-band" data-nohit="">
+            <path class="rb-band-tail" d="M50.5 41 L37 35.5 L39.5 42 Z M50.5 44.5 L38.5 49.5 L42.5 51.5 Z" fill="#FF5A6E" stroke="#2A2650" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M49.4 40 H127.4 L127.1 46 H49.8 Z" fill="#FF5A6E" stroke="#2A2650" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M58 43 H120" stroke="#FFB0BC" stroke-width="1.4" stroke-linecap="round"/>
+          </g>
+
           <!-- face screen -->
           <rect class="rb-visor" x="58" y="47" width="60" height="42" rx="14" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.4"/>
           <path d="M64 50.5 Q88 48.5 112 50.5" fill="none" stroke="#EADCC4" stroke-width="2" stroke-linecap="round"/>
@@ -173,6 +189,11 @@
               <g class="rb-eyes-happy" fill="none" stroke="#2A2650" stroke-width="3.2" stroke-linecap="round">
                 <path d="M69.5 69 Q75 61.5 80.5 69"/>
                 <path d="M95.5 69 Q101 61.5 106.5 69"/>
+              </g>
+              <!-- focus mode: rings of light round the eyes, the near one projects the screen -->
+              <g class="rb-holo-eye" data-nohit="" fill="none" stroke="#7EE0D2" stroke-width="1.6">
+                <circle cx="75" cy="67" r="4.4"/>
+                <circle cx="101" cy="67" r="4.4"/>
               </g>
               <!-- rampage: the eyes glow red and fire (data-eye: where the beams start) -->
               <g class="rb-laser" data-nohit="">
@@ -388,6 +409,53 @@
           </g>
           <path class="rb-base" d="M124 143 H188 L194 151 Q195 154 191 154 H121 Q117 154 118 151 Z" fill="#D9D6EA" stroke="#2A2650" stroke-width="3" stroke-linejoin="round"/>
           <path d="M138 148 H174" stroke="#8F89B3" stroke-width="2" stroke-linecap="round"/>
+        </g>
+
+        <!-- focus mode: a screen of light projected from the near eye, and a keyboard of light -->
+        <g class="rb-holo" data-nohit="">
+          <path class="rb-holo-cone" d="M106 66.5 L133 62 V108 L106 71.5 Z" fill="url(#rb-holo-beam)"/>
+          <g class="rb-holo-screen">
+            <rect x="133" y="62" width="60" height="46" rx="3" fill="#0E2A33" fill-opacity=".55"/>
+            <rect x="133" y="62" width="60" height="46" rx="3" fill="#7EE0D2" fill-opacity=".2" stroke="#7EE0D2" stroke-width="1.8"/>
+            <path d="M133 68 H193" stroke="#7EE0D2" stroke-width="1.2" stroke-opacity=".8"/>
+            <circle cx="137" cy="65" r="1.2" fill="#FF9DB0"/>
+            <circle cx="141" cy="65" r="1.2" fill="#FFD25A"/>
+            <circle cx="145" cy="65" r="1.2" fill="#7CF29C"/>
+            <path d="M130.5 59.5 H136 M130.5 59.5 V65 M195.5 110.5 H190 M195.5 110.5 V105" fill="none" stroke="#B7FFF3" stroke-width="1.6" stroke-linecap="round"/>
+            <g clip-path="url(#rb-holo-clip)">
+              <!-- typing: code of light, one line per few key presses (8 lines, repeated once) -->
+              <g class="rb-holo-code">
+                <rect x="137" y="71" width="14" height="2.6" rx="1.3" fill="#FFFFFF"/>
+                <rect x="153" y="71" width="12" height="2.6" rx="1.3" fill="#7EE0D2"/>
+                <rect x="141" y="77" width="26" height="2.6" rx="1.3" fill="#B7FFF3"/>
+                <rect x="145" y="83" width="12" height="2.6" rx="1.3" fill="#FFD25A"/>
+                <rect x="159" y="83" width="16" height="2.6" rx="1.3" fill="#FFFFFF"/>
+                <rect x="145" y="89" width="22" height="2.6" rx="1.3" fill="#7EE0D2"/>
+                <rect x="141" y="95" width="10" height="2.6" rx="1.3" fill="#FF9DB0"/>
+                <rect x="137" y="101" width="6" height="2.6" rx="1.3" fill="#B7FFF3"/>
+                <rect x="137" y="107" width="14" height="2.6" rx="1.3" fill="#FFFFFF"/>
+                <rect x="153" y="107" width="12" height="2.6" rx="1.3" fill="#7EE0D2"/>
+                <rect x="141" y="113" width="26" height="2.6" rx="1.3" fill="#B7FFF3"/>
+                <rect x="145" y="119" width="12" height="2.6" rx="1.3" fill="#FFD25A"/>
+                <rect x="159" y="119" width="16" height="2.6" rx="1.3" fill="#FFFFFF"/>
+                <rect x="145" y="125" width="22" height="2.6" rx="1.3" fill="#7EE0D2"/>
+                <rect x="141" y="131" width="10" height="2.6" rx="1.3" fill="#FF9DB0"/>
+                <rect x="137" y="137" width="6" height="2.6" rx="1.3" fill="#B7FFF3"/>
+              </g>
+              <!-- other work: bars that fill up -->
+              <g class="rb-holo-bars" fill="#7EE0D2">
+                <rect class="rb-holo-bar" x="138" y="75" width="44" height="4" rx="2"/>
+                <rect class="rb-holo-bar" x="138" y="85" width="44" height="4" rx="2"/>
+                <rect class="rb-holo-bar" x="138" y="95" width="44" height="4" rx="2"/>
+              </g>
+              <rect class="rb-holo-scan" x="133" y="69" width="60" height="2" fill="#FFFFFF" opacity=".45"/>
+            </g>
+          </g>
+          <g class="rb-holo-keys">
+            <path d="M121 143 H185 L193 153 H129 Z" fill="#0E2A33" fill-opacity=".45"/>
+            <path d="M121 143 H185 L193 153 H129 Z" fill="#7EE0D2" fill-opacity=".3" stroke="#7EE0D2" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M130 146.5 H182 M133 150 H187" stroke="#B7FFF3" stroke-width="1.5" stroke-dasharray="3 2.2" stroke-linecap="round"/>
+          </g>
         </g>
 
         <!-- arm on the near side: types on the laptop -->

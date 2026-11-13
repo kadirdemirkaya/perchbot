@@ -37,6 +37,8 @@ Open Claude Code sessions pick up the hooks after a restart (VS Code: *Developer
 - **Several Claude accounts** (`CLAUDE_CONFIG_DIR`)? Tray > Account > **One buddy per account**
   gives each account a buddy of its own, side by side, each with a small name tag.
 - **Ambient life** (tray) lets it and its helpers roam your screens when idle; switch it off to keep it still.
+- **Focus mode:** when the work gets intense (lots of edits in a couple of minutes) it puts on a headband
+  and codes on a screen of light projected from its eye instead of the laptop.
 - **Tap** it: idle it mostly likes that. Keep tapping and it gets cross, fumes, and its head catches fire.
   Set its head on fire twice within five minutes and it goes on a rampage: laser eyes and missiles
   leave burn marks on your screen (a click-through layer; nothing real is touched) that fade after ten seconds.

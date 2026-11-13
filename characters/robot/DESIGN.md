@@ -71,6 +71,11 @@ comes out while a skill is in use; a page turns now and then.
   layers, orange / amber / pale yellow, outlined in ink, behind the antenna). Hidden until
   `data-annoyed` is 2 or 3, all `data-nohit`. The eruption's sparks are plain round
   embers drawn by the page.
+- **Focus mode:** a coral headband with two tails over the head shell, thin mint rings round
+  the eyes, and instead of the laptop a screen of light: a mint cone from the near eye to a
+  floating panel (dark translucent backing, mint outline, three window dots, corner brackets,
+  light-coloured code lines), and a keyboard of light where the laptop base was. All
+  `data-nohit`.
 - **Rampage:** red eyes with a soft red halo and a cream glint (`rb-laser`, the eyes marked
   `data-eye`), and the gauge window as a hatch that drops open (`rb-hatch`): dark inside, a
   small cream missile with a red nose and teal fins. The beams (red with a white core), the

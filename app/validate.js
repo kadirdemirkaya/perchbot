@@ -98,6 +98,8 @@ const DEMOS = new Set([
   'rage',
   // Its head on fire twice in five minutes: laser eyes, missiles, marks that fade after ten seconds.
   'rampage',
+  // Focus mode at once (intense work): a headband, and a screen of light instead of the laptop.
+  'focus',
   // Five quick taps it loves (happy hops, hearts).
   'glee',
   'duel',
