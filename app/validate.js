@@ -96,7 +96,7 @@ const DEMOS = new Set([
   'anger',
   // The anger ladder: cross, it leaves fuming, then three more taps set its head on fire.
   'rage',
-  // Its head on fire twice in five minutes: laser eyes, missiles, marks that fade after ten seconds.
+  // Its head on fire twice in five minutes: laser eyes, missiles, marks that fade 5-10 s after the last blast.
   'rampage',
   // Focus mode at once (intense work): a headband, and a screen of light instead of the laptop.
   'focus',

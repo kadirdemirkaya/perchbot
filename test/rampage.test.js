@@ -3,7 +3,8 @@
 /**
  * The rampage: its head on fire twice in five minutes (lib/fun.js Fury) ->
  * laser eyes and missiles over the screen (app/rampage.js plans it, main.js
- * opens a click-through effect window), marks that fade after ten seconds.
+ * opens a click-through effect window), marks that fade five to ten seconds
+ * after the last blast.
  */
 
 const { test } = require('node:test');
@@ -68,9 +69,10 @@ test('rampage: page px of the buddy window become the effect window px (DIP from
   assert.deepEqual(toEffect({ x: 100, y: 50 }, { x: 2000, y: 700 }, 1.25, { x: 1920, y: 0 }), { x: 205, y: 763 });
 });
 
-test('rampage plan: the beams, four missiles away from the buddy and each other, marks that fade after ten seconds', () => {
+test('rampage plan: the beams, four missiles away from the buddy and each other, marks that stay 5-10 s', () => {
   const area = { x: 0, y: 0, width: 1920, height: 1040 };
   const inside = (p) => p.x >= RAMPAGE.margin && p.y >= RAMPAGE.margin && p.x <= 1920 - RAMPAGE.margin && p.y <= 1040 - RAMPAGE.margin;
+  const holds = [];
   for (let seed = 1; seed <= 40; seed += 1) {
     const eyes = [{ x: 1700, y: 900 }, { x: 1726, y: 900 }];
     const hatch = { x: 1713, y: 950 };
@@ -101,8 +103,9 @@ test('rampage plan: the beams, four missiles away from the buddy and each other,
       }
     }
     const lastBlast = Math.max(...missiles.map((m) => m.at + m.ms));
-    assert.ok(plan.healAt >= RAMPAGE.holdMs, 'ten seconds before the screen heals');
-    assert.ok(plan.healAt >= lastBlast + RAMPAGE.settleMs);
+    const hold = plan.healAt - lastBlast;
+    assert.ok(hold >= 5000 && hold <= 10000, `the marks stay 5-10 s after the last blast (${hold} ms)`);
+    holds.push(hold);
     assert.equal(plan.endAt, plan.healAt + RAMPAGE.healMs);
     assert.deepEqual(
       plan.phases.map((p) => p.phase),
@@ -110,6 +113,8 @@ test('rampage plan: the beams, four missiles away from the buddy and each other,
     );
     for (let i = 1; i < plan.phases.length; i += 1) assert.ok(plan.phases[i].at > plan.phases[i - 1].at, 'phases in order');
   }
+  assert.deepEqual(RAMPAGE.holdMs, [5000, 10000]);
+  assert.ok(Math.min(...holds) < 6500 && Math.max(...holds) > 8500, 'a different length each time');
 });
 
 test('rampage plan: a small screen still gets a plan inside it', () => {

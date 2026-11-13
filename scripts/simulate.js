@@ -433,7 +433,7 @@ async function life() {
   await act(s, 'anger', 'tap, tap, tap', 7000);
   console.log('\n  Keep at it and it gets angrier: fuming, then its head catches fire and it erupts.');
   await act(s, 'rage', 'tap x3, it leaves fuming, tap x3 where it landed', 12000);
-  console.log('\n  Its head on fire twice in five minutes: laser eyes and missiles; the marks fade after ten seconds.');
+  console.log('\n  Its head on fire twice in five minutes: laser eyes and missiles; the marks fade 5-10 s after the last blast.');
   await act(s, 'rampage', 'laser eyes, missiles, blast marks', 16000);
   console.log('\n  Play: the sword duel (plays itself here; with the mouse, every click is a swing).');
   await act(s, 'duel', 'sword duel', 26000);

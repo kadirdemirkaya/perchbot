@@ -1745,7 +1745,7 @@
    * off it stays, its eyes glow, beams from its eyes burn a line into the
    * screen and missiles fly out of a hatch in its chest. The main process
    * draws that in a click-through window over the screen and sends the
-   * phases; the marks fade after ten seconds and it calms down, a little
+   * phases; the marks fade 5-10 s after the last blast and it calms down, a little
    * sheepish. Taps wait until it is over.
    */
   const RAMPAGE_GUARD_MS = 20000;

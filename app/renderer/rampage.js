@@ -9,7 +9,7 @@
  *   missiles  fly out of the hatch in its chest on arcs, with smoke trails;
  *             each one bursts (flash, shock ring, debris, smoke) and leaves
  *             a blast mark with cracks and glowing embers
- *   heal      ten seconds later the marks sparkle and fade away
+ *   heal      5-10 s after the last blast the marks sparkle and fade away
  *
  * Only the beams and the missiles in flight move frame by frame (a shared
  * requestAnimationFrame that runs only while something flies); everything

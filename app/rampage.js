@@ -4,7 +4,8 @@
  * The rampage: its head caught fire twice within five minutes (lib/fun.js
  * Fury). Beams from its eyes burn a line into the screen, then missiles fly
  * out of a hatch in its chest and leave blast marks elsewhere on the screen;
- * ten seconds later the marks fade and the screen is as it was.
+ * five to ten seconds after the last blast (at random) the marks fade and the
+ * screen is as it was.
  *
  * All of it is drawn in one click-through window over the buddy's screen
  * (renderer/rampage.html); nothing on the real screen is touched, the mouse
@@ -27,9 +28,8 @@ const RAMPAGE = Object.freeze({
   launchGapMs: 320,
   /** One missile's flight (shortest, longest). */
   flightMs: Object.freeze([850, 1150]),
-  /** The marks stay this long from the first burn, then fade (and never less than settleMs after the last blast). */
-  holdMs: 10000,
-  settleMs: 3000,
+  /** The marks stay this long after the last blast (shortest, longest; at random), then fade. */
+  holdMs: Object.freeze([5000, 10000]),
   healMs: 1400,
   /** Marks keep this far from the buddy's eyes / hatch (DIP), and this far from each other. */
   clearance: 230,
@@ -146,7 +146,7 @@ function planRampage({ area, eyes, hatch, face = 'right', random = Math.random, 
   }
 
   const lastBlast = missiles.reduce((max, x) => Math.max(max, x.at + x.ms), t.laserMs);
-  const healAt = Math.max(t.holdMs, lastBlast + t.settleMs);
+  const healAt = lastBlast + Math.round(t.holdMs[0] + random() * (t.holdMs[1] - t.holdMs[0]));
   const endAt = healAt + t.healMs;
   const lastLaunch = missiles.length ? missiles[missiles.length - 1].at : t.laserMs;
   const phases = [{ phase: 'laser', at: 0 }];
