@@ -57,6 +57,7 @@ const { greetingKey } = require('./moments');
 const { PresenceWatch, PRESENCE } = require('./presence');
 const perchLib = require('./perch');
 const { createScanner } = require('./winscan');
+const { createHands } = require('./hands');
 const FEATURES = require('./features');
 const { createLogger } = require('./log');
 
@@ -256,7 +257,7 @@ function start() {
     log.devOnly(`bubble: ${bubbleText(snap) || '(none)'}`);
     // Work comes first: a trip stops where it is the moment Claude Code needs the buddy.
     // (Not a throw: it only takes a moment, and the bubble shows the work at once anyway.)
-    if (trip && trip.plan.kind !== 'fling' && !CALM_STATES.has(snap.state)) {
+    if (trip && trip.plan.kind !== 'fling' && trip.plan.kind !== 'reach' && !CALM_STATES.has(snap.state)) {
       log.devOnly(`trip: stopped by ${snap.state}`);
       endTrip(true);
       placeWindow();
@@ -1027,6 +1028,101 @@ function start() {
     if (plan) beginTrip(plan, kind);
   }
 
+  // ------------------------------------------------------------------ hands: Chrome tabs (opt-in)
+
+  /**
+   * "Open a tab" / "close the last tab" in the chat panel (app/hands.js): it finds
+   * the button, flies over and reaches for it, presses it on arrival (UI
+   * Automation, never the real mouse), then flies home. Interrupted on the way
+   * (a drag, a lock): no press. Only one at a time.
+   */
+  const hands = createHands({ log });
+  /** Where the robot's near hand is when it presses (robot.css data-press), from the anchor, DIP at medium size. */
+  const HAND_OFFSET = Object.freeze({ x: 46, y: 115 });
+  const HANDS_WHY = Object.freeze({
+    nochrome: 'handsNoChrome',
+    last: 'handsLastTab',
+    nobutton: 'handsNoButton',
+    error: 'handsNoButton',
+    unsupported: 'handsOnlyWindows',
+  });
+  let handsBusy = false;
+  let handsTimer = null;
+
+  function handsSay(key) {
+    if (canSend()) win.webContents.send('buddy:hands', { say: translate(settings.language, 'chat', key) });
+  }
+
+  function handsDone() {
+    handsBusy = false;
+    clearTimeout(handsTimer);
+  }
+
+  async function runHands(intent) {
+    const target = intent === 'newtab' ? 'newtab' : 'close';
+    if (!settings.hands) return handsSay('handsOff');
+    if (!hands.supported()) return handsSay('handsOnlyWindows');
+    if (handsBusy) return undefined;
+    handsBusy = true;
+    // Whatever happens on the way, it is free again after a while.
+    handsTimer = setTimeout(handsDone, 20000);
+    handsSay(target === 'newtab' ? 'handsNewTab' : 'handsCloseTab');
+    const found = await hands.find(target);
+    if (!found.ok) {
+      handsSay(HANDS_WHY[found.why] || 'handsNoButton');
+      return handsDone();
+    }
+    if (typeof screen.screenToDipRect !== 'function' || !win || win.isDestroyed()) return handsDone();
+    const r = screen.screenToDipRect(null, { x: found.x, y: found.y, width: found.w, height: found.h });
+    const point = {
+      x: Math.round(r.x + r.width / 2 - HAND_OFFSET.x * scale()),
+      y: Math.round(r.y + r.height / 2 + HAND_OFFSET.y * scale()),
+    };
+    log.devOnly(`hands: ${target} at ${Math.round(r.x)},${Math.round(r.y)}, flying over`);
+    goReach(point, () => pressNow(target));
+    return undefined;
+  }
+
+  /** Fly to `point` (on this screen or another one), then `then` (only if it got there). */
+  function goReach(point, then) {
+    if (!win || win.isDestroyed() || drag || warping || paused || !anchor || !pageLayout) return handsDone();
+    if (trip) endTrip(true);
+    const all = displays();
+    const here = placement.nearestDisplay(anchor, all);
+    const there = placement.nearestDisplay(point, all);
+    const b = win.getBounds();
+    const spans = { spanLeft: anchor.x - b.x, spanRight: b.x + b.width - anchor.x };
+    if (there.id !== here.id) {
+      const way = roam.planCrossing({ from: anchor, fromArea: here.workArea, toArea: there.workArea, scale: scale(), hoverMode: settings.hoverMode, ...spans });
+      if (!way) return handsDone();
+      const goOn = () => warpTo(way.entry, () => goReach(point, then));
+      const leg = roam.planTrip({ kind: 'goto', to: way.exit, from: anchor, home: homeAnchor(), workArea: here.workArea, scale: scale(), hoverMode: settings.hoverMode, ...spans });
+      if (!leg) return goOn();
+      leg.kind = 'reach';
+      return beginTrip(leg, 'reach', goOn);
+    }
+    const plan = roam.planTrip({ kind: 'reach', to: point, from: anchor, home: homeAnchor(), workArea: here.workArea, scale: scale(), hoverMode: settings.hoverMode, ...spans });
+    if (!plan) return then(); // already there
+    return beginTrip(plan, 'reach', then);
+  }
+
+  /** At the button: reach out (the page's press pose), press it, then home. */
+  function pressNow(target) {
+    // Up near the top edge the window may reach above the work area: it stays there for the press.
+    if (roamAnchor) hangAt = { ...roamAnchor };
+    if (canSend()) win.webContents.send('buddy:hands', { press: true });
+    setTimeout(async () => {
+      const done = await hands.press(target);
+      log.devOnly(`hands: pressed ${target}: ${done.ok ? 'ok' : done.why}`);
+      if (!done.ok) handsSay(HANDS_WHY[done.why] || 'handsNoButton');
+      setTimeout(() => {
+        handsDone();
+        hangAt = null;
+        startTrip('home');
+      }, 900);
+    }, 380);
+  }
+
   // ------------------------------------------------------------------ perching on a window (Windows)
 
   /**
@@ -1528,6 +1624,9 @@ function start() {
     else if (name === 'cat') setPet(true, true); // the simulator shows it even with the setting off
     else if (name === 'cat-away') setPet(false);
     else if (name === 'chat') demoChat();
+    // Hands, for a test overlay only (--dev): a real tab is opened or closed, so a plain
+    // overlay never does this for an event, only for the user in its chat panel.
+    else if ((name === 'newtab' || name === 'closetab') && isDev) runHands(name);
     else if (canSend()) win.webContents.send('buddy:fun', { action: 'demo', name });
   }
 
@@ -1575,6 +1674,12 @@ function start() {
         break;
       case 'ask': {
         if (!chatOpen || !canSend()) return;
+        // Hands: "open a tab" / "close the tab" are commands, not questions.
+        if (chat.HAND_SET.has(req.intent)) {
+          log.devOnly(`chat: ${req.intent}`);
+          runHands(req.intent);
+          break;
+        }
         // Built from what the overlay already knows; only the intent is logged.
         const text = chat.answer(req.intent, core.facts(Date.now()), settings.language);
         log.devOnly(`chat: ${req.intent}`);
@@ -1598,7 +1703,7 @@ function start() {
   }
 
   function sendChat(hold = false) {
-    if (canSend()) win.webContents.send('buddy:chat', { open: chatOpen, hold, strings: chat.panelStrings(settings.language) });
+    if (canSend()) win.webContents.send('buddy:chat', { open: chatOpen, hold, strings: chat.panelStrings(settings.language, { hands: settings.hands }) });
   }
 
   /** "Type…": the window may take the keyboard until the question is done. */
@@ -1705,6 +1810,8 @@ function start() {
       soundVolume: settings.soundVolume,
       // One buddy per account: the page shows which account this one is for.
       account: ACCOUNT,
+      // Hands: typed "open" / "close" become commands.
+      hands: Boolean(settings.hands),
       strings: pageStrings(),
     };
   }
@@ -1980,6 +2087,11 @@ function start() {
       updateSettings(withPlace(null, { corner }), placeWindow);
     },
     setPerAccount: (perAccount) => updateSettings({ perAccount }, checkMode),
+    setHands: (on) =>
+      updateSettings({ hands: on }, () => {
+        if (!on) hands.stop();
+        if (chatOpen) sendChat();
+      }),
     setSize: (size) => updateSettings({ size }, placeWindow),
     setHoverMode: (hoverMode) => updateSettings({ hoverMode }, placeWindow),
     setCharacter: (id) =>
@@ -2062,6 +2174,7 @@ function start() {
     clearInterval(presenceTimer);
     stopPerch();
     scanner.stop();
+    hands.stop();
     endAllOutings();
     stopWatchdog();
     core.dispose();

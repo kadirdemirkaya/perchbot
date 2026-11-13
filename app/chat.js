@@ -21,6 +21,9 @@ const { translate } = require('./i18n');
 /** The ready-made questions, in panel order. */
 const INTENTS = Object.freeze(['doing', 'duration', 'tools', 'agents', 'skill', 'waiting', 'done']);
 const INTENT_SET = new Set(INTENTS);
+/** Hands (app/hands.js): commands, not questions. Only offered while the setting is on. */
+const HAND_INTENTS = Object.freeze(['newtab', 'closetab']);
+const HAND_SET = new Set(HAND_INTENTS);
 
 const FILE_WRITE = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const FILE_READ = new Set(['Read', 'NotebookRead']);
@@ -157,15 +160,18 @@ const CHAT_OPS = new Set(['open', 'close', 'type', 'untype', 'ask']);
 function parseChatRequest(msg) {
   if (!msg || typeof msg !== 'object' || !CHAT_OPS.has(msg.op)) return null;
   if (msg.op !== 'ask') return { op: msg.op };
-  if (msg.intent === 'unknown' || INTENT_SET.has(msg.intent)) return { op: 'ask', intent: msg.intent };
+  if (msg.intent === 'unknown' || INTENT_SET.has(msg.intent) || HAND_SET.has(msg.intent)) return { op: 'ask', intent: msg.intent };
   return null;
 }
 
-/** The panel's labels in `lang`: the questions in order, the "Type…" button, the input's hint. */
-function panelStrings(lang) {
+/**
+ * The panel's labels in `lang`: the questions in order (with hands on, the two
+ * commands first), the "Type…" button, the input's hint.
+ */
+function panelStrings(lang, { hands = false } = {}) {
   const t = (key) => translate(lang, 'chat', key);
   return {
-    questions: INTENTS.map((id) => ({ id, label: t(`q_${id}`) })),
+    questions: [...(hands ? HAND_INTENTS : []), ...INTENTS].map((id) => ({ id, label: t(`q_${id}`) })),
     type: t('type'),
     placeholder: t('placeholder'),
     title: t('title'),
@@ -173,4 +179,4 @@ function panelStrings(lang) {
   };
 }
 
-module.exports = { INTENTS, INTENT_SET, CHAT_OPS, answer, answerKey, formatDuration, typeList, panelStrings, parseChatRequest };
+module.exports = { INTENTS, INTENT_SET, HAND_INTENTS, HAND_SET, CHAT_OPS, answer, answerKey, formatDuration, typeList, panelStrings, parseChatRequest };

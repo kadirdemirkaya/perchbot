@@ -2647,6 +2647,38 @@
   to { transform: rotate(-360deg); }
 }
 
+/* ------------------------------------------------------------ hands: pressing a button (data-press, ~1.2 s)
+
+   The app flew it next to a button (Chrome's new tab or close button) so that
+   the near hand ends up on it: the arm goes up and forward (the hand ~46 px
+   right of and ~115 px above the anchor at medium size: main.js HAND_OFFSET),
+   a little push, then back. */
+
+.buddy-character[data-press] .rb-arm-front {
+  transform: rotate(-130deg);
+}
+
+.buddy-character[data-press] .rb-forearm-front {
+  transform: none;
+}
+
+.buddy-character[data-press]:not([data-rest]) .rb-forearm-front {
+  animation: rb-press 0.5s ease-in-out 0.3s 1;
+}
+
+.buddy-character[data-press] .rb-laptop {
+  opacity: 0;
+}
+
+.buddy-character[data-press] .rb-face {
+  transform: translate(4px, -4px);
+}
+
+@keyframes rb-press {
+  0%, 100% { transform: none; }
+  45% { transform: translate(2px, -3px) rotate(-8deg); }
+}
+
 /* ------------------------------------------------------------ reduced motion */
 
 @media (prefers-reduced-motion: reduce) {

@@ -138,6 +138,7 @@ function lifeToggles(settings, t, on) {
     box('ambientLife', settings.ambientLife !== false, on.setAmbientLife),
     box('playMode', Boolean(settings.playMode), on.setPlayMode),
     box('cat', Boolean(settings.cat), on.setCat),
+    box('hands', Boolean(settings.hands), on.setHands),
   ];
 }
 

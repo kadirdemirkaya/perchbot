@@ -5,7 +5,9 @@ param(
   [int]$Y = 0,
   # Ambient life, play mode and the cat are OFF here by default: a trip in the
   # middle of a test would move the window. -Fun turns all three on.
-  [switch]$Fun
+  [switch]$Fun,
+  # Hands (open / close Chrome tabs when asked): off unless -Hands.
+  [switch]$Hands
 )
 # Starts an ISOLATED overlay for interactive tests: its own port and its own
 # settings folder, so the hooks of a live Claude Code session (which talk to
@@ -28,7 +30,7 @@ $busy = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Silentl
 if ($busy) { throw "port $Port is already in use (pid $($busy.OwningProcess)); stop that process first, e.g. an older test overlay" }
 
 New-Item -ItemType Directory -Force $TestHome | Out-Null
-$settings = @{ quiet = $false; ambientLife = [bool]$Fun; playMode = [bool]$Fun; cat = [bool]$Fun }
+$settings = @{ quiet = $false; ambientLife = [bool]$Fun; playMode = [bool]$Fun; cat = [bool]$Fun; hands = [bool]$Hands }
 if ($X -or $Y) { $settings.position = @{ x = $X; y = $Y } }
 $settings | ConvertTo-Json -Compress | Out-File -Encoding ascii (Join-Path $TestHome 'settings.json')
 

@@ -68,6 +68,11 @@ const DEMOS = new Set([
   // It asks "What's this?" (with answers to click); the user is back after a while.
   'curious',
   'welcome',
+  // The pose it presses a button with (hands); nothing is pressed.
+  'press',
+  // Hands for real, but only on a test overlay (--dev): open a tab, close the last one.
+  'newtab',
+  'closetab',
   // Moments of the work: a flag (commit), a rocket (push), sweat, phew, a squeezed head (compaction),
   // and the nudges while Claude Code waits for the user.
   'commit',

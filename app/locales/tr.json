@@ -64,7 +64,8 @@
     "soundVolume": "Ses düzeyi",
     "volume_low": "Düşük",
     "volume_medium": "Orta",
-    "volume_high": "Yüksek"
+    "volume_high": "Yüksek",
+    "hands": "Eller: Chrome sekmeleri"
   },
   "hover": {
     "hideBubble": "Baloncuğu gizle",
@@ -163,7 +164,16 @@
     "doneHelpersBusy": "Ana iş bitti, ama {count} alt ajan hâlâ çalışıyor.",
     "doneYes": "Evet, {ago} önce bitti.",
     "doneNothing": "Bu oturumda henüz bir iş yok.",
-    "unknown": "Bunu bilmiyorum, ama şunları sorabilirsin."
+    "unknown": "Bunu bilmiyorum, ama şunları sorabilirsin.",
+    "q_newtab": "Yeni sekme aç",
+    "q_closetab": "Son sekmeyi kapat",
+    "handsOff": "Eller kapalı: tepsiden \"Eller: Chrome sekmeleri\"ni aç.",
+    "handsOnlyWindows": "Bu şimdilik sadece Windows'ta çalışıyor.",
+    "handsNewTab": "Hemen, yeni sekme!",
+    "handsCloseTab": "Son sekmeyi kapatıyorum!",
+    "handsNoChrome": "Açık bir Chrome penceresi göremiyorum.",
+    "handsLastTab": "Tek sekme kaldı, onu kapatmıyorum!",
+    "handsNoButton": "Düğmeyi bulamadım."
   },
   "quip": {
     "ouch": "Ay!",

@@ -64,7 +64,8 @@
     "soundVolume": "Volume",
     "volume_low": "Low",
     "volume_medium": "Medium",
-    "volume_high": "High"
+    "volume_high": "High",
+    "hands": "Hands: Chrome tabs"
   },
   "hover": {
     "hideBubble": "Hide speech bubble",
@@ -163,7 +164,16 @@
     "doneHelpersBusy": "The main task is done, but {count} sub-agents are still working.",
     "doneYes": "Yes, it finished {ago} ago.",
     "doneNothing": "No work yet in this session.",
-    "unknown": "I don't know that, but you can ask me these."
+    "unknown": "I don't know that, but you can ask me these.",
+    "q_newtab": "Open a new tab",
+    "q_closetab": "Close the last tab",
+    "handsOff": "Hands are off: turn on \"Hands: Chrome tabs\" in the tray.",
+    "handsOnlyWindows": "That only works on Windows for now.",
+    "handsNewTab": "On it: a new tab!",
+    "handsCloseTab": "Closing the last tab!",
+    "handsNoChrome": "I can't see a Chrome window.",
+    "handsLastTab": "That's the only tab left, I'll leave it.",
+    "handsNoButton": "I couldn't find the button."
   },
   "quip": {
     "ouch": "Ouch!",

@@ -2190,6 +2190,20 @@
     trace(`chat: answer (${intent})`);
   }
 
+  /** Hands: how long the press pose lasts (robot.css data-press). */
+  const PRESS_MS = 1200;
+
+  /** A line about a command (hands): shown like a chat answer, also with the panel closed. */
+  function sayAnswer(text) {
+    dropQuip();
+    answerText = text;
+    renderBubble();
+    later('answer', answerMs(text), () => {
+      answerText = null;
+      renderBubble();
+    });
+  }
+
   function dropAnswer() {
     cancel('answer');
     cancel('talk');
@@ -2231,7 +2245,7 @@
       closeChat('esc');
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      const intent = matchIntent(chatInput.value);
+      const intent = matchIntent(chatInput.value, { hands: Boolean(settings.hands) });
       chatInput.value = ''; // not kept, not even in the field
       ask(intent || 'unknown');
     }
@@ -2311,6 +2325,10 @@
       const fixed = new TapMeter({ random: () => 0.99, likes: { calm: 0, busy: 0 } });
       temper.reset();
       [0, 300, 600, 3600, 3900, 4200].forEach((ms, i) => later(`rage-${i}`, ms, () => onClick(null, { meter: fixed, busy: true })));
+    } else if (name === 'press') {
+      // The press pose only (nothing is pressed).
+      flag('press', true, true);
+      later('press', PRESS_MS, () => flag('press', null));
     } else if (name === 'curious') {
       askWhatsThis();
     } else if (name === 'welcome') {
@@ -2425,6 +2443,15 @@
   window.buddy.onMove((m) => applyMove(m));
   window.buddy.onMoment((kind) => onMoment(kind));
   window.buddy.onPresence((change) => onPresence(change));
+  // Hands (app/hands.js): the press pose at the button, and what it says about it.
+  window.buddy.onHands((msg) => {
+    if (!msg || typeof msg !== 'object') return;
+    if (msg.press === true && motionAllowed()) {
+      flag('press', true, true);
+      later('press', PRESS_MS, () => flag('press', null));
+    }
+    if (typeof msg.say === 'string' && msg.say) sayAnswer(msg.say);
+  });
   window.buddy.onFlip((phase) => onFlip(phase));
   window.buddy.onChat((msg) => applyChat(msg));
   window.buddy.onBug((bug) => applyBug(bug));

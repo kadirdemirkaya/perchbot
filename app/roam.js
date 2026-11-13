@@ -17,6 +17,8 @@
  *   goto     fly (or walk) to a given point: the first leg of a trip to
  *            another screen, to the edge that faces it
  *   cruise   a slow, long, wavy flight far across the screen, just for fun
+ *   reach    fly to a given point to press a button there (hands), which may be
+ *            near the top of the screen (REACH_TOP)
  *   hang     up to the top edge of the screen, to hang from it upside down:
  *            the only trip that ends with part of the window above the work
  *            area (HANG_REACH: its boots hook over the edge)
@@ -49,7 +51,12 @@ const MIN_TRIP_MS = 700;
 const EDGE = 8;
 /** Distance kept between the character's slot and the cursor (DIP at medium size). */
 const CURSOR_GAP = 60;
-const KINDS = new Set(['stroll', 'hop', 'inspect', 'home', 'flee', 'goto', 'cruise', 'hang']);
+const KINDS = new Set(['stroll', 'hop', 'inspect', 'home', 'flee', 'goto', 'cruise', 'hang', 'reach']);
+/**
+ * Reaching for a button near the top of the screen (hands, app/hands.js): the
+ * anchor may come this close to the top of the work area (DIP at medium size).
+ */
+const REACH_TOP = 120;
 /** A cruise takes its time: this share of the flying speed. */
 const CRUISE_PACE = 0.5;
 /**
@@ -138,6 +145,8 @@ function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverM
   const b = bounds(workArea, scale, spanLeft, spanRight);
   // Hanging: its hands at the top edge, so the window reaches above the work area.
   if (kind === 'hang') b.minY = Math.min(b.minY, workArea.y + Math.round(HANG_REACH * scale));
+  // Reaching for a button up there: part of the window may be above the work area too.
+  if (kind === 'reach') b.minY = Math.min(b.minY, workArea.y + Math.round(REACH_TOP * scale));
   const canFly = hoverMode !== 'stand';
   const onGround = from.y >= b.ground - 2;
   const gap = CURSOR_GAP * scale;
@@ -174,6 +183,7 @@ function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverM
       mode = sameGround && Math.abs(home.x - from.x) < 500 * scale ? 'walk' : canFly ? 'fly' : 'walk';
       break;
     }
+    case 'reach':
     case 'goto': {
       if (!goal) return null;
       to = { x: goal.x, y: goal.y };
@@ -213,7 +223,7 @@ function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverM
   to = { x: Math.round(clamp(to.x, b.minX, b.maxX)), y: Math.round(clamp(to.y, b.minY, b.ground)) };
   if (!canFly) to.y = b.ground;
   // Never park right under the cursor: the user may be about to click there.
-  if (kind !== 'home' && kind !== 'goto' && covers(to, cursor, b, gap / 2)) {
+  if (kind !== 'home' && kind !== 'goto' && kind !== 'reach' && covers(to, cursor, b, gap / 2)) {
     const shift = cursor.x > to.x ? -1 : 1;
     to.x = Math.round(clamp(cursor.x + shift * (b.half + gap), b.minX, b.maxX));
     if (covers(to, cursor, b, gap / 2)) to.x = Math.round(clamp(cursor.x - shift * (b.half + gap), b.minX, b.maxX));
@@ -398,6 +408,7 @@ module.exports = {
   FLY_SPEED,
   CRUISE_PACE,
   HANG_REACH,
+  REACH_TOP,
   STYLES,
   LOOP,
 };

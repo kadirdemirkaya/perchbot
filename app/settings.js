@@ -47,6 +47,11 @@ const DEFAULTS = Object.freeze({
   perAccount: false,
   /** perAccount: where each account's buddy was dragged to ({ name: {x, y} }); missing = its corner spot. */
   positions: {},
+  /**
+   * Hands (app/hands.js, Windows): when asked in the chat panel, it opens a new
+   * tab in Chrome or closes the active one. Off until the user turns it on.
+   */
+  hands: false,
   /** Ambient life: idle plays, walks and flights, varied cheers, getting annoyed when poked. */
   ambientLife: true,
   /** Play mode: the sword duel ("Play") and the whip. */
@@ -116,6 +121,7 @@ function normalizeSettings(raw) {
   if (HOVER_MODES.includes(raw.hoverMode)) s.hoverMode = raw.hoverMode;
   if (typeof raw.account === 'string' && (raw.account === 'all' || ACCOUNT_RE.test(raw.account))) s.account = raw.account;
   if (typeof raw.perAccount === 'boolean') s.perAccount = raw.perAccount;
+  if (typeof raw.hands === 'boolean') s.hands = raw.hands;
   s.positions = normalizePositions(raw.positions);
   if (Array.isArray(raw.knownAccounts)) {
     s.knownAccounts = [...new Set(raw.knownAccounts.filter((a) => typeof a === 'string' && ACCOUNT_RE.test(a) && a !== 'all'))].slice(

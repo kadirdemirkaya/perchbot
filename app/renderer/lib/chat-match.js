@@ -78,8 +78,29 @@
     return out;
   }
 
+  /**
+   * Hands (opt-in): "aç", "sekme aç", "yeni sekme", "open a new tab" -> 'newtab';
+   * "kapat", "sekmeyi kapat", "close the tab" -> 'closetab'. Whole words only and
+   * short texts only, so a longer question never turns into a command.
+   */
+  function handIntent(text) {
+    const words = normalize(text).split(' ').filter(Boolean);
+    if (!words.length || words.length > 6) return null;
+    const has = (w) => words.includes(w);
+    const starts = (p) => words.some((w) => w.startsWith(p));
+    if (has('kapat') || has('kapa') || starts('kapatir') || starts('kapatsana') || has('close')) return 'closetab';
+    if (has('ac') || has('open') || (has('new') && has('tab')) || (has('yeni') && starts('sekme')) || (starts('acar') && starts('sekme'))) {
+      return 'newtab';
+    }
+    return null;
+  }
+
   /** The intent a typed question means, or null when it is none of them. */
-  function matchIntent(text) {
+  function matchIntent(text, { hands = false } = {}) {
+    if (hands) {
+      const command = handIntent(text);
+      if (command) return command;
+    }
     const s = scores(text);
     let best = null;
     for (const intent of PRIORITY) if (s[intent] > 0 && (best === null || s[intent] > s[best])) best = intent;
@@ -92,5 +113,5 @@
     return Math.max(3200, Math.min(8000, 2400 + length * 60));
   }
 
-  return { normalize, matchIntent, scores, answerMs, MAX_INPUT, RULES };
+  return { normalize, matchIntent, handIntent, scores, answerMs, MAX_INPUT, RULES };
 });
