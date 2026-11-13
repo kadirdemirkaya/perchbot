@@ -409,7 +409,9 @@ async function life() {
   await act(s, 'fly', 'a short flight on its thrusters', 5000);
   await act(s, 'inspect', 'fly over to the cursor, have a look', 7000);
   await act(s, 'home', 'back home', 5000);
-  console.log('\n  Three quick taps (no mouse): it gets angry and moves; the new place is saved.');
+  console.log('\n  Quick taps it loves (no mouse): happy hops and hearts.');
+  await act(s, 'glee', 'tap, tap, tap, tap, tap', 3500);
+  console.log('\n  Three quick taps it does not want (no mouse): it gets angry and moves; the new place is saved.');
   console.log('  ("Back to the corner" in its menu brings it back.)');
   await act(s, 'anger', 'tap, tap, tap', 7000);
   console.log('\n  Play: the sword duel (plays itself here; with the mouse, every click is a swing).');

@@ -124,10 +124,14 @@ Trips only happen while no helpers and no cat are around. Where a trip took it i
 saved; it returns home sooner or later. "done" is celebrated with a jump, a pirouette, a
 little dance or fist pumps.
 
-**Poke it three times.** Click it twice in a row and it frowns; a third time and it says so
-and walks or flies off to a random spot elsewhere on the screen. That spot is saved as its new
-place (*Back to the corner* in its menu undoes it). Handy when it sits right where you want to
-click. Helpers do the same inside their row.
+**Tap it.** How it takes a few quick taps depends on its mood, picked anew for every streak
+of taps. While idle it mostly loves it: happy hops with both arms up, rosy cheeks, little
+hearts and a giggle. Now and then it is not in the mood and frowns. While it works it mostly
+does not want to be tapped: it frowns ("Working, later!"), and a third quick tap sends it
+off: it says so and walks or flies to a random spot elsewhere on the screen. That spot is
+saved as its new place (*Back to the corner* in its menu undoes it). Handy when it sits right
+where you want to click. Helpers do the same inside their row. Quick taps never restart a
+hop half-way; the next one follows right after.
 
 **Play mode.** *Play: sword duel* (the sword button in the hover menu, or the right-click
 menu; one click, play mode is switched on if needed): the buddy puts its laptop down and draws a toy wooden
@@ -171,8 +175,8 @@ main process releases the mouse whenever the cursor is outside the window.
 | Throw it | Let go while moving: it glides on in that direction, slows down, bounces softly off the screen edges and stays where it stops, in the air or on the ground. That spot is saved like a drag |
 | Rest the cursor on a helper | A tooltip: its type, tool and file name |
 | Drag a helper | Pick it up and drop it elsewhere next to the buddy; it lands there and keeps that spot |
-| Click a helper | A little hop (twice: it gets annoyed; three times: it stomps off to another spot) |
-| Click it twice / three times quickly | It frowns / it moves to a random spot on the screen and stays there (ambient life) |
+| Click a helper | A little hop; quick taps: happy hops, or cross and then it stomps off to another spot (by mood, like the buddy) |
+| Tap it a few times quickly | Idle: mostly happy hops and hearts. At work: mostly a frown, and the third tap sends it to a random spot on the screen, where it stays (ambient life) |
 | Right-click it | Play (duel), whip, walk, fly, come back home, call the cat, and the three switches |
 | Leave it alone for a minute while idle | It rests: eyes half closed, no animation. Any event or hover wakes it |
 

@@ -60,6 +60,8 @@ const DEMOS = new Set([
   'inspect',
   'home',
   'anger',
+  // Five quick taps it loves (happy hops, hearts).
+  'glee',
   'duel',
   'cat',
   'cat-away',

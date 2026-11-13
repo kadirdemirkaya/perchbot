@@ -28,7 +28,8 @@
  *   data-mood ("worried")  data-tap ("down" | "up")  data-sway ("a" | "b")
  *   data-fly ("hover" | "boost")  data-land
  *   data-skill ("open" | "stow")  data-brief / data-receive ("left" | "right": where the mini stands)
- *   fun mode: data-play  data-cheer  data-annoyed  data-move ("walk" | "fly")  data-face ("left")
+ *   fun mode: data-play  data-cheer  data-annoyed  data-glee (tapped and liked it)
+ *   data-move ("walk" | "fly")  data-face ("left")
  *   data-inspect ("left" | "right")  data-duel (phase, see lib/fun.js)
  *   --look-x / --look-y (-1..1)  --type-line (0..7)  --fly-tilt (-1..1)
  *
@@ -37,8 +38,8 @@
  */
 
 (() => {
-  const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm } = window.BuddyInteraction;
-  const { ClickMeter, AmbientScheduler, pickCheer, Duel } = window.BuddyFun;
+  const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay } = window.BuddyInteraction;
+  const { TapMeter, AmbientScheduler, pickCheer, Duel } = window.BuddyFun;
 
   const root = document.documentElement;
   const stage = document.getElementById('stage');
@@ -72,6 +73,7 @@
   const DRAG_THRESHOLD = 4;
   const GREET_MS = 1800;
   const BOOP_MS = 460;
+  const GLEE_MS = 640;
   const SWAY_MS = 1200;
   const CODE_LINES = 8;
   const TAPS_PER_LINE = 3;
@@ -292,12 +294,17 @@
     }
     if (BUSY.has(next.state)) sound.stopAll();
     if (!CALM.has(next.state)) {
-      cancel('flee');
-      cancel('anger');
-      flag('annoyed', null);
-      meter.reset();
       pet.interrupt();
-      dropQuip();
+      // Work starts: what the taps were doing gives way to it. Not on every
+      // event during work: taps at work have their own reactions (lib/fun.js).
+      if (CALM.has(previous.state)) {
+        cancel('flee');
+        cancel('anger');
+        flag('annoyed', null);
+        meter.reset();
+        glee.stop();
+        dropQuip();
+      }
     }
     // A chat answer gives way to work news at once (never the other way round).
     if (answerText && next.text && (next.state !== previous.state || next.text !== previous.text)) dropAnswer();
@@ -634,11 +641,24 @@
     later('greet', GREET_MS, () => flag('greet', null));
   }
 
+  /**
+   * A boop and a happy hop: quick taps queue one more round instead of
+   * restarting the animation mid-way (that looked like a stutter).
+   */
+  const booping = new Replay({ ms: BOOP_MS, onStart: () => flag('boop', true, true), onEnd: () => flag('boop', null) });
+  const glee = new Replay({
+    ms: GLEE_MS,
+    onStart: () => {
+      flag('glee', true, true);
+      floatHearts();
+    },
+    onEnd: () => flag('glee', null),
+  });
+
   function boop() {
     rest.activity();
     if (!motionAllowed()) return;
-    flag('boop', true, true);
-    later('boop', BOOP_MS, () => flag('boop', null));
+    booping.trigger();
   }
 
   let drag = null;
@@ -944,6 +964,31 @@
     later('confetti', 1900, () => fx.replaceChildren());
   }
 
+  /** Tapped and it liked it: two little hearts float up from its head. */
+  const HEART_MS = 1100;
+  function floatHearts() {
+    if (!motionAllowed() || !character) return;
+    const anchor = character.bubbleAnchor || { x: 0.5, y: 0.1 };
+    const originX = CHAR_LEFT + anchor.x * CHAR_SIZE;
+    const originY = SLOT_HEIGHT - CHAR_BOTTOM - CHAR_SIZE + (anchor.y + 0.04) * CHAR_SIZE;
+    for (let i = 0; i < 2; i += 1) {
+      const svg = document.createElementNS(SVG_NS, 'svg');
+      svg.setAttribute('class', 'fx-heart');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      const use = document.createElementNS(SVG_NS, 'use');
+      use.setAttribute('href', '#i-heart');
+      svg.appendChild(use);
+      const side = i === 0 ? -1 : 1;
+      svg.style.left = `${Math.round(originX + side * (20 + Math.random() * 14))}px`;
+      svg.style.top = `${Math.round(originY + Math.random() * 10)}px`;
+      svg.style.setProperty('--dx', `${Math.round(side * (6 + Math.random() * 10))}px`);
+      svg.style.setProperty('--d', `${i * 0.12}s`);
+      fx.appendChild(svg);
+      setTimeout(() => svg.remove(), HEART_MS + 200);
+    }
+    while (fx.querySelectorAll('.fx-heart').length > 6) fx.querySelector('.fx-heart').remove();
+  }
+
   // ---------------------------------------------------------------- hovering
 
   /**
@@ -1038,7 +1083,7 @@
   let crewCount = 0;
   let away = false;
 
-  const meter = new ClickMeter();
+  const meter = new TapMeter();
   const ambient = new AmbientScheduler({
     onPlay: (name) => {
       if (name) trace(`ambient: ${name}`);
@@ -1076,10 +1121,12 @@
 
   /**
    * A click on the character: with the whip a lash (crack + wince), otherwise
-   * a boop. Hit twice in a row it gets annoyed; a third time and it leaves for
-   * a random spot somewhere else on the screen.
+   * a tap, and how it takes a streak of taps is up to its mood (TapMeter in
+   * lib/fun.js): idle it mostly loves it (a happy hop, hearts, a giggle), at
+   * work it mostly does not (cross, "Working, later!", and at the third tap
+   * it leaves for a random spot somewhere else on the screen).
    */
-  function onClick(e) {
+  function onClick(e, demo = null) {
     rest.activity();
     const whip = playOn() && weapon === 'whip';
     if (whip && e) {
@@ -1088,8 +1135,12 @@
       later('ouch', OUCH_MS, () => flag('ouch', null));
       armWhip();
     }
-    const verdict = ambientOn() ? meter.click() : 'boop';
-    // A bonk that climbs with quick taps (a crack with the whip); "hmph" the third time.
+    const busy = BUSY.has(view.state);
+    let verdict = ambientOn() ? (demo ? demo.meter.tap(demo.busy) : meter.tap(busy)) : 'boop';
+    // Nobody enjoys the whip.
+    if (whip && verdict === 'happy') verdict = 'boop';
+    trace(`tap: ${verdict}${busy ? ' (busy)' : ''}`);
+    // A bonk that climbs with quick taps (a crack with the whip); "hmph" when it leaves.
     const pitch = sound.tapPitch();
     if (whip && e) sfx('crack');
     else if (verdict === 'flee') sfx('grumble');
@@ -1099,19 +1150,28 @@
       else boop();
       return;
     }
-    flag('boop', null);
-    flag('annoyed', true, true);
+    booping.stop();
+    if (verdict === 'happy') {
+      cancel('annoyed');
+      flag('annoyed', null);
+      if (motionAllowed()) glee.trigger();
+      quip('giggle', 900);
+      return;
+    }
+    glee.stop();
+    // Already cross: stay cross a little longer, no restart (a restart looks like a stutter).
+    if (!holder.dataset.annoyed) flag('annoyed', true, true);
     later('annoyed', ANNOYED_MS, () => flag('annoyed', null));
     if (verdict === 'flee') {
       trace('hit too often: leaving');
       quip('enough', 1800);
       later('flee', 450, () => window.buddy.fun('flee'));
     } else {
-      quip('hey', 1100);
+      quip(busy ? 'busy' : 'hey', 1100);
     }
   }
 
-  /** The same for a helper: it winces, gets annoyed, then stomps off to another spot. */
+  /** The same for a helper: a hop or a happy hop, cross, then it stomps off to another spot. */
   const miniMeters = new Map();
   function onMiniClick(id, x, y) {
     rest.activity();
@@ -1127,11 +1187,13 @@
       crew.react(id, 'boop');
       return;
     }
-    if (!miniMeters.has(id)) miniMeters.set(id, new ClickMeter());
+    if (!miniMeters.has(id)) miniMeters.set(id, new TapMeter());
     if (miniMeters.size > 16) miniMeters.delete(miniMeters.keys().next().value);
-    const verdict = miniMeters.get(id).click();
-    if (verdict === 'boop') {
+    const verdict = miniMeters.get(id).tap(BUSY.has(view.state));
+    if (verdict === 'boop' || (whip && verdict === 'happy')) {
       if (!whip) crew.react(id, 'boop');
+    } else if (verdict === 'happy') {
+      crew.react(id, 'glee');
     } else if (verdict === 'annoyed') {
       crew.react(id, 'annoyed');
     } else {
@@ -1635,9 +1697,14 @@
         }
       };
       tick();
-    } else if (name === 'anger') {
-      // Three quick taps, without a mouse.
-      [0, 300, 600].forEach((ms, i) => later(`anger-${i}`, ms, () => onClick(null)));
+    } else if (name === 'anger' || name === 'glee') {
+      // Quick taps without a mouse, in a mood fixed for the demo: three unwelcome
+      // ones (cross, then it leaves) or five it loves (happy hops, hearts).
+      const likes = name === 'glee';
+      const fixed = new TapMeter({ random: () => (likes ? 0.01 : 0.99), likes: { calm: likes ? 1 : 0, busy: likes ? 1 : 0 } });
+      const taps = likes ? [0, 250, 500, 750, 1000] : [0, 300, 600];
+      // The unwelcome demo counts as busy, so the third tap always sends it off.
+      taps.forEach((ms, i) => later(`${name}-${i}`, ms, () => onClick(null, { meter: fixed, busy: !likes })));
     } else if (name === 'duel') {
       runDemo('duel');
     } else if (name === 'menu') {

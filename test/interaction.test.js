@@ -10,6 +10,7 @@ const {
   RestTimer,
   lookVector,
   createTapRhythm,
+  Replay,
 } = require('../app/renderer/lib/interaction');
 const { FakeClock } = require('./helpers/fake-clock');
 
@@ -182,4 +183,40 @@ test('typing rhythm: bursts of quick taps with irregular pauses', () => {
       run = 0;
     } else run += 1;
   }
+});
+
+test('Replay: quick repeats queue one more round instead of restarting mid-way', () => {
+  const clock = new FakeClock();
+  const log = [];
+  const r = new Replay({ clock, ms: 460, onStart: (again) => log.push(again ? 'again' : 'start'), onEnd: () => log.push('end') });
+  assert.equal(r.trigger(), true);
+  for (let i = 0; i < 4; i += 1) {
+    clock.tick(110);
+    assert.equal(r.trigger(), false, 'queued, not restarted');
+  }
+  assert.deepEqual(log, ['start']);
+  clock.tick(20);
+  assert.deepEqual(log, ['start', 'again'], 'one more round right after the first');
+  clock.tick(460);
+  assert.deepEqual(log, ['start', 'again', 'end']);
+  assert.equal(r.running, false);
+
+  // Ten seconds of taps every 110 ms (91 taps): rounds back to back at 460 ms, not 91 restarts.
+  log.length = 0;
+  for (let t = 0; t <= 10000; t += 110) {
+    r.trigger();
+    clock.tick(110);
+  }
+  clock.tick(1000);
+  const rounds = log.filter((x) => x !== 'end').length;
+  assert.ok(rounds >= 21 && rounds <= 23, `${rounds} rounds`);
+  assert.equal(log.at(-1), 'end');
+
+  // stop() ends at once, nothing queued afterwards.
+  log.length = 0;
+  r.trigger();
+  r.trigger();
+  r.stop();
+  clock.tick(2000);
+  assert.deepEqual(log, ['start', 'end']);
 });

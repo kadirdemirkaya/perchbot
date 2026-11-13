@@ -4,24 +4,88 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { ClickMeter, AmbientScheduler, PLAYS, TRIPS, pickCheer, CHEERS, Duel, DUEL_TIMINGS: D } = require('../app/renderer/lib/fun');
+const { TapMeter, tapMood, TAP_LIKES, AmbientScheduler, PLAYS, TRIPS, pickCheer, CHEERS, Duel, DUEL_TIMINGS: D } = require('../app/renderer/lib/fun');
 const { FakeClock } = require('./helpers/fake-clock');
 
+/** A small seeded random (mulberry32), so the statistics below never flake. */
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
-test('quick hits: the second annoys, the third makes it leave; a pause starts over', () => {
+test('tapMood: liked taps make it happy, unwelcome ones annoy it and then it leaves', () => {
+  const at = (r) => () => r;
+  // Liked: the first tap a boop or already a giggle, then happy.
+  assert.equal(tapMood({ likes: true, streak: 1, random: at(0.1) }), 'happy');
+  assert.equal(tapMood({ likes: true, streak: 1, random: at(0.9) }), 'boop');
+  for (const streak of [2, 3, 7]) assert.equal(tapMood({ likes: true, streak, random: at(0.99) }), 'happy');
+  // Unwelcome while calm: boop, annoyed, then mostly off it goes.
+  assert.equal(tapMood({ likes: false, streak: 1, random: at(0.1) }), 'boop');
+  assert.equal(tapMood({ likes: false, streak: 2, random: at(0.1) }), 'annoyed');
+  assert.equal(tapMood({ likes: false, streak: 3, random: at(0.5) }), 'flee');
+  assert.equal(tapMood({ likes: false, streak: 3, random: at(0.9) }), 'annoyed', 'calm: sometimes it only stays cross');
+  // Unwelcome at work: often cross at the first tap, always leaves at the third.
+  assert.equal(tapMood({ likes: false, busy: true, streak: 1, random: at(0.3) }), 'annoyed');
+  assert.equal(tapMood({ likes: false, busy: true, streak: 1, random: at(0.9) }), 'boop');
+  assert.equal(tapMood({ likes: false, busy: true, streak: 3, random: at(0.99) }), 'flee');
+});
+
+test('TapMeter: one mood per streak, rolled again after a pause or after leaving', () => {
   const clock = new FakeClock();
-  const meter = new ClickMeter({ clock: { now: () => clock.now } });
-  const seq = [];
-  for (let i = 0; i < 3; i += 1) {
-    seq.push(meter.click());
-    clock.tick(500);
-  }
-  assert.deepEqual(seq, ['boop', 'annoyed', 'flee']);
-  assert.equal(meter.click(), 'boop', 'counting starts over after leaving');
-  clock.tick(3000);
-  assert.equal(meter.click(), 'boop');
+  let r = 0.75;
+  const meter = new TapMeter({ clock: { now: () => clock.now }, random: () => r });
+  const streak = (n, busy) =>
+    Array.from({ length: n }, () => {
+      const mood = meter.tap(busy);
+      clock.tick(400);
+      return mood;
+    });
+  // 0.75 < 0.8: idle, it likes this streak.
+  assert.deepEqual(streak(4, false), ['boop', 'happy', 'happy', 'happy']);
   clock.tick(1500);
-  assert.equal(meter.click(), 'boop', 'too slow: not a streak');
+  // The same 0.75 at work (not below 0.15): unwelcome, and the third tap sends it off.
+  assert.deepEqual(streak(4, true), ['boop', 'annoyed', 'flee', 'boop'], 'counting starts over after leaving');
+  clock.tick(1500);
+  r = 0.1;
+  assert.deepEqual(streak(2, true), ['happy', 'happy'], 'sometimes it likes it even at work');
+  clock.tick(1101 + 1500);
+  r = 0.95;
+  assert.deepEqual(streak(1, false), ['boop'], 'too slow: a new streak');
+  assert.equal(meter.tap(false), 'annoyed', 'a quick second tap of an unwelcome streak');
+  meter.reset();
+  assert.equal(meter.tap(false), 'boop', 'reset starts over');
+});
+
+test('TapMeter: idle it mostly loves being tapped, at work it mostly does not', () => {
+  const share = (busy) => {
+    const clock = new FakeClock();
+    const meter = new TapMeter({ clock: { now: () => clock.now }, random: seeded(busy ? 7 : 3) });
+    const count = { happy: 0, boop: 0, annoyed: 0, flee: 0 };
+    for (let s = 0; s < 1500; s += 1) {
+      for (let i = 0; i < 3; i += 1) {
+        count[meter.tap(busy)] += 1;
+        clock.tick(300);
+      }
+      clock.tick(5000);
+    }
+    const total = 1500 * 3;
+    return Object.fromEntries(Object.entries(count).map(([k, v]) => [k, v / total]));
+  };
+  const idle = share(false);
+  assert.ok(idle.happy > 0.55, `idle happy ${idle.happy}`);
+  assert.ok(idle.annoyed + idle.flee < 0.15, `idle cross ${idle.annoyed + idle.flee}`);
+  assert.ok(idle.flee > 0, 'still, now and then it has had enough');
+  const busy = share(true);
+  assert.ok(busy.annoyed + busy.flee > 0.6, `busy cross ${busy.annoyed + busy.flee}`);
+  assert.ok(busy.happy < 0.15, `busy happy ${busy.happy}`);
+  assert.ok(busy.happy > 0, 'still, now and then it likes it');
+  assert.ok(TAP_LIKES.calm > TAP_LIKES.busy);
 });
 
 function ambient(random = Math.random) {

@@ -2,7 +2,7 @@
  * Fun mode logic for the overlay page. Pure, injectable clock and random, so
  * the same file runs in the renderer (window.BuddyFun) and in node:test.
  *
- *   ClickMeter        quick hits in a row: "annoyed", then "flee"
+ *   TapMeter          quick taps in a row: happy or cross, by mood and by work (tapMood)
  *   AmbientScheduler  ambient life: short plays and trips, every 20-90 s
  *   pickCheer      a different celebration for "done" now and then
  *   Duel           the sword fight started from the right-click menu
@@ -23,33 +23,58 @@
     now: () => Date.now(),
   };
 
-  // ------------------------------------------------------------------ clicks
+  // ------------------------------------------------------------------ taps
 
   /**
-   * Counts hits that come quickly one after another (each within `gapMs` of
-   * the previous one): the second one annoys the character, the third one is
-   * too much and it leaves; then the count starts over.
-   * click() returns 'boop' | 'annoyed' | 'flee'.
+   * How likely a streak of taps is welcome. Idle it loves being tapped; at
+   * work (busy) it mostly does not. Rolled once per streak, so the character
+   * keeps one mood for the whole streak instead of flipping from tap to tap.
    */
-  class ClickMeter {
-    constructor({ clock = realClock, gapMs = 1100, annoyAt = 2, fleeAt = 3 } = {}) {
+  const TAP_LIKES = Object.freeze({ calm: 0.8, busy: 0.15 });
+
+  /**
+   * One tap's reaction, from the streak's mood:
+   *   likes     1st tap: a boop, sometimes a giggle already; then 'happy' (giggles, hearts)
+   *   dislikes  1st tap: a boop (busy: often 'annoyed' at once), 2nd: 'annoyed',
+   *             3rd: 'flee' (calm: sometimes it only stays cross)
+   * Pure: the caller passes the random function (seeded in tests).
+   * @param {{ likes: boolean, busy?: boolean, streak: number, random?: () => number }} o
+   * @returns {'happy' | 'boop' | 'annoyed' | 'flee'}
+   */
+  function tapMood({ likes, busy = false, streak, random = Math.random }) {
+    if (likes) return streak >= 2 || random() < 0.35 ? 'happy' : 'boop';
+    if (streak <= 1) return busy && random() < 0.6 ? 'annoyed' : 'boop';
+    if (streak === 2) return 'annoyed';
+    return busy || random() < 0.7 ? 'flee' : 'annoyed';
+  }
+
+  /**
+   * Counts taps that come quickly one after another (each within `gapMs` of
+   * the previous one) and asks tapMood what each one does. A new streak rolls
+   * its mood from TAP_LIKES; after 'flee' the count starts over.
+   * tap(busy) returns 'happy' | 'boop' | 'annoyed' | 'flee'.
+   */
+  class TapMeter {
+    constructor({ clock = realClock, random = Math.random, gapMs = 1100, likes = TAP_LIKES } = {}) {
       this.clock = clock;
+      this.random = random;
       this.gapMs = gapMs;
-      this.annoyAt = annoyAt;
-      this.fleeAt = fleeAt;
+      this.chances = likes;
       this.count = 0;
+      this.likes = false;
       this.last = -Infinity;
     }
 
-    click() {
+    /** @param {boolean} busy  the character is at work right now */
+    tap(busy = false) {
       const now = this.clock.now();
-      this.count = now - this.last <= this.gapMs ? this.count + 1 : 1;
+      const streak = this.count > 0 && now - this.last <= this.gapMs;
+      this.count = streak ? this.count + 1 : 1;
       this.last = now;
-      if (this.count >= this.fleeAt) {
-        this.count = 0;
-        return 'flee';
-      }
-      return this.count >= this.annoyAt ? 'annoyed' : 'boop';
+      if (!streak) this.likes = this.random() < (busy ? this.chances.busy : this.chances.calm);
+      const mood = tapMood({ likes: this.likes, busy, streak: this.count, random: this.random });
+      if (mood === 'flee') this.count = 0;
+      return mood;
     }
 
     reset() {
@@ -320,5 +345,5 @@
     }
   }
 
-  return { ClickMeter, AmbientScheduler, PLAYS, TRIPS, pickCheer, CHEERS, Duel, DUEL_TIMINGS };
+  return { TapMeter, tapMood, TAP_LIKES, AmbientScheduler, PLAYS, TRIPS, pickCheer, CHEERS, Duel, DUEL_TIMINGS };
 });

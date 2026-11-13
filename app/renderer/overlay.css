@@ -922,6 +922,25 @@ html[data-duel] .duel-pad {
   animation: buddy-confetti 1.5s cubic-bezier(0.2, 0.7, 0.4, 1) var(--d) forwards;
 }
 
+/* Tapped and it liked it: little hearts float up from its head. */
+.fx-heart {
+  position: absolute;
+  width: 17px;
+  height: 17px;
+  margin: -8px 0 0 -8px;
+  fill: #ff8fa3;
+  stroke: var(--ink);
+  stroke-width: 1.8;
+  opacity: 0;
+  animation: buddy-heart 1.1s ease-out var(--d) forwards;
+}
+
+@keyframes buddy-heart {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  18% { opacity: 1; transform: translate(calc(var(--dx) * 0.3), -8px) scale(1.1); }
+  100% { opacity: 0; transform: translate(var(--dx), -42px) scale(0.9); }
+}
+
 @keyframes buddy-confetti {
   0% {
     opacity: 1;

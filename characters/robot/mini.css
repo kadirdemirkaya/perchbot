@@ -609,6 +609,19 @@
   opacity: 1;
 }
 
+/* Tapped and liked it: two happy hops with a grin. */
+.buddy-mini[data-glee] .rbm-figure {
+  animation: rbm-hop 0.42s cubic-bezier(0.3, 0, 0.4, 1) 2;
+}
+
+.buddy-mini[data-glee] :is(.rbm-eyes, .rbm-mouth) {
+  opacity: 0;
+}
+
+.buddy-mini[data-glee] :is(.rbm-eyes-happy, .rbm-mouth-grin) {
+  opacity: 1;
+}
+
 /* ------------------------------------------------------------ leave: off it goes */
 
 .buddy-mini[data-phase='leave'] .rbm-figure {

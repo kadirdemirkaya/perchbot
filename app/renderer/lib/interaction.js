@@ -8,6 +8,7 @@
  *   RestTimer          "resting" after a quiet minute, instant wake-up
  *   lookVector         where the eyes should look, from a cursor offset
  *   createTapRhythm    irregular typing rhythm (bursts and pauses)
+ *   Replay             a one-shot reaction that quick repeats queue instead of restart
  */
 (function (root, factory) {
   const api = factory();
@@ -215,5 +216,57 @@
     };
   }
 
-  return { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm };
+  /**
+   * A short one-shot reaction (a boop, a happy hop) that quick repeats must
+   * not cut short: restarting it on every tap of a fast streak looks like a
+   * stutter. trigger() starts it when nothing runs; while it runs, more
+   * triggers only ask for one more round right after it, so a streak of taps
+   * plays it back to back at its own pace. onStart(again) restarts the
+   * animation (again: a chained round), onEnd() clears it.
+   */
+  class Replay {
+    constructor({ clock = realClock, ms, onStart = () => {}, onEnd = () => {} } = {}) {
+      this.clock = clock;
+      this.ms = ms;
+      this.onStart = onStart;
+      this.onEnd = onEnd;
+      this.timer = null;
+      this.again = false;
+    }
+
+    get running() {
+      return this.timer !== null;
+    }
+
+    /** @returns {boolean} true when it started now, false when it was queued after the running round */
+    trigger() {
+      if (this.running) {
+        this.again = true;
+        return false;
+      }
+      this.start(false);
+      return true;
+    }
+
+    start(again) {
+      this.again = false;
+      this.onStart(again);
+      this.timer = this.clock.setTimeout(() => {
+        this.timer = null;
+        if (this.again) this.start(true);
+        else this.onEnd();
+      }, this.ms);
+    }
+
+    /** End at once (no further round). */
+    stop() {
+      if (!this.running) return;
+      this.clock.clearTimeout(this.timer);
+      this.timer = null;
+      this.again = false;
+      this.onEnd();
+    }
+  }
+
+  return { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay };
 });

@@ -112,7 +112,7 @@ Use whatever you like; ignore the rest.
 | `data-blink` | present for ~140 ms at random intervals (sometimes twice in a row) |
 | `data-hover` | the pointer is over the character or its menu |
 | `data-greet` | present for ~1.8 s when the pointer arrives while idle: wave hello |
-| `data-boop` | present for ~0.5 s after a click |
+| `data-boop` | present for ~0.5 s after a click (quick clicks: back to back, never restarted half-way) |
 | `data-rest` | idle for a minute with nothing happening: show a calm pose, **stop all animation** |
 | `data-tap` | while typing: `down` / `up` on every key press of an irregular rhythm |
 | `data-sway` | `a` or `b` for ~1.2 s after each state change (secondary motion, e.g. an antenna wobble) |
@@ -128,7 +128,8 @@ Use whatever you like; ignore the rest.
 | `data-play` | ambient life, while idle: `stretch`, `look`, `peek`, `hum`, `jump`, `ball` or `antenna` for 1.5-4 s |
 | `data-pet` | `play` while the pet plays next to the character (it joins in) |
 | `data-cheer` | with `data-state="done"`: `jump` (the classic), `spin`, `dance` or `fist` |
-| `data-annoyed`, `data-ouch` | clicked twice in a row (~1.5 s) / hit with the whip (~0.5 s) |
+| `data-glee` | ~0.65 s: tapped and it liked it (a happy hop; quick taps: back to back). The app adds the hearts |
+| `data-annoyed`, `data-ouch` | tapped and it did not want it (~1.5 s) / hit with the whip (~0.5 s) |
 | `data-move` | on a trip around the screen: `walk` or `fly` (the app also sets `data-fly` while flying). Also `fly` while it glides after being thrown, `toss` for the same with hover mode "Always stand", and `settle` for the short ease into place after a drop |
 | `data-face` | `left` while walking or fighting towards the left: the app mirrors your SVG, you do nothing |
 | `data-inspect` | `left` / `right` for ~4 s after it flew next to the cursor: have a look that way |
@@ -155,7 +156,8 @@ The app wraps each copy in `<div class="buddy-mini">` and sets:
 | `data-give` | present for ~0.7 s while it hands over a note |
 | `data-skill` | `open` while its agent uses a skill |
 | `data-boop` | ~0.5 s after a click |
-| `data-ouch`, `data-annoyed` | hit with the whip / clicked twice in a row |
+| `data-glee` | ~0.9 s: tapped and it liked it |
+| `data-ouch`, `data-annoyed` | hit with the whip / tapped and it did not want it |
 | `data-travel` | `walk` or `fly`: the whole buddy is on a trip and the helpers come along (the app mirrors them to face the way); `toss` or `settle` while it is thrown or eases into place after a drop |
 | `data-rest` | the main character is resting (or the screen is locked): stop every animation |
 

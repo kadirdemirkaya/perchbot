@@ -3,7 +3,7 @@
  *
  * The app wraps the SVG in <div class="buddy-character" data-state="..."> and
  * sets these on that wrapper (see characters/README.md):
- *   data-blink, data-hover, data-greet, data-boop, data-rest, data-mood,
+ *   data-blink, data-hover, data-greet, data-boop, data-glee, data-rest, data-mood,
  *   data-tap ("down" | "up", typing rhythm), data-sway ("a" | "b"),
  *   data-fly ("hover" | "boost"), data-land,
  *   --look-x / --look-y (-1..1), --type-line (0..7), --fly-tilt (-1..1)
@@ -1383,6 +1383,48 @@
 @keyframes rb-huff {
   0%, 100% { transform: none; }
   50% { transform: translateX(1.5px); }
+}
+
+/* ------------------------------------------------------------ glee (tapped and liked it) */
+
+/* A happy hop with both arms up, a big grin and rosy cheeks (the page adds hearts). */
+.buddy-character[data-glee] .rb-react {
+  animation: rb-glee 0.64s cubic-bezier(0.3, 0, 0.4, 1);
+}
+
+.buddy-character[data-glee] .rb-arm-back {
+  transform: rotate(140deg);
+}
+
+.buddy-character[data-glee] .rb-arm-front {
+  transform: rotate(-140deg);
+}
+
+.buddy-character[data-glee] .rb-brow {
+  transform: translateY(-3px);
+}
+
+.buddy-character[data-glee] :is(.rb-eyes, .rb-mouth, .rb-mouth-o, .rb-mouth-worry) {
+  opacity: 0;
+}
+
+.buddy-character[data-glee] :is(.rb-eyes-happy, .rb-mouth-grin) {
+  opacity: 1;
+}
+
+.buddy-character[data-glee] .rb-cheek {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(1.35);
+}
+
+@keyframes rb-glee {
+  0% { transform: none; }
+  16% { transform: scale(1.08, 0.9); }
+  42% { transform: translateY(-13px) scale(0.95, 1.06) rotate(-4deg); }
+  62% { transform: translateY(-9px) rotate(4deg); }
+  84% { transform: scale(1.05, 0.95); }
+  100% { transform: none; }
 }
 
 /* ------------------------------------------------------------ inspecting (next to the cursor) */

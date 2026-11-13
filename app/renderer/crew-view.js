@@ -21,6 +21,7 @@
   const TALK_MS = 700;
   const GIVE_MS = 700;
   const BOOP_MS = 500;
+  const GLEE_MS = 900;
   const DRAG_THRESHOLD = 4;
   /** How high a mini can be held above the ground (CSS px). */
   const MAX_LIFT = 110;
@@ -323,9 +324,13 @@
     }
 
     /**
-     * React to a click: 'boop' (a hop), 'ouch' (a lash of the whip),
-     * 'annoyed' (hit twice), 'shoo' (hit too often: it huffs and moves away).
+     * React to a click: 'boop' (a hop), 'glee' (tapped and liked it: a happy
+     * double hop), 'ouch' (a lash of the whip), 'annoyed' (cross),
+     * 'shoo' (hit too often: it huffs and moves away). A reaction that is
+     * still running is not restarted: quick taps restarting it mid-way look
+     * like a stutter.
      */
+    const REACT_MS = { boop: BOOP_MS, glee: GLEE_MS, annoyed: 1400, ouch: BOOP_MS };
     function react(id, how) {
       const el = els.get(id);
       if (!el) return;
@@ -334,11 +339,10 @@
         director.shoo(id);
         return;
       }
-      const name = how === 'boop' ? 'boop' : how === 'annoyed' ? 'annoyed' : 'ouch';
-      delete el.dataset[name];
-      void el.offsetWidth; // restart the animation
+      const name = Object.prototype.hasOwnProperty.call(REACT_MS, how) ? how : 'ouch';
+      if (el.dataset[name]) return;
       el.dataset[name] = '1';
-      setTimeout(() => delete el.dataset[name], name === 'annoyed' ? 1400 : BOOP_MS);
+      setTimeout(() => delete el.dataset[name], REACT_MS[name]);
     }
 
     const isHolding = () => Boolean(held && held.grabbed);
