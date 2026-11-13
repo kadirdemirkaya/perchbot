@@ -2531,25 +2531,25 @@
   // ---------------------------------------------------------------- following the cursor (app/follow.js)
 
   /**
-   * The cursor moved somewhere and rests there (main.js samples its position,
-   * nothing else): the user is probably looking at that spot. Idle, awake and
-   * free to move, now and then (FOLLOW chance, at most every 40 s) it flies
-   * over and peers at it through a big magnifier, held up to its eye on the
-   * side of the spot (data-lens; the figure turns to put that side towards it).
-   * Never with "Stay here".
+   * The cursor moved somewhere and rested there for ten seconds (main.js
+   * samples its position, nothing else): the user is probably looking at that
+   * spot. Idle, awake and free to move, it flies over and peers at it through
+   * a big magnifier, held up to its eye on the side of the spot (data-lens;
+   * the figure turns to put that side towards it). Once per spot (main.js
+   * offers the spot again while it is busy, until it has been), at most every
+   * 15 s. Never with "Stay here".
    */
-  const FOLLOW_CHANCE = 0.5;
-  const FOLLOW_GAP_MS = 40000;
+  const FOLLOW_GAP_MS = 15000;
   const LENS_MS = 5200;
   let lastFollow = -Infinity;
 
   function onFollow(msg) {
     if (!msg || !msg.dwell) return;
     const demo = Boolean(msg.demo);
-    if (settings.stayPut || !ambientOn() || raging || moving || drag || duel.active || hunt.active || chatOpen || rest.resting) return;
+    if (settings.stayPut || !ambientOn() || raging || moving || drag || duel.active || hunt.active || chatOpen || rest.resting || guest) return;
     // As for its own trips: idle, nobody else around, the pointer not on it.
     if (!AMBIENT_STATES.has(view.state) || crewCount > 0 || pet.here || zone !== null) return;
-    if (!demo && (Date.now() - lastFollow < FOLLOW_GAP_MS || Math.random() >= FOLLOW_CHANCE)) return;
+    if (!demo && Date.now() - lastFollow < FOLLOW_GAP_MS) return;
     lastFollow = Date.now();
     trace('follow: off to look at where the cursor rests');
     window.buddy.fun('peek');

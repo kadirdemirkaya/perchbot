@@ -577,13 +577,16 @@ function start() {
   /** The last spot the cursor rested at: { x, y, at }. */
   let dwellSpot = null;
 
-  /** One look at where the cursor is (its position only). Quiet unless it rests somewhere new. */
+  /**
+   * One look at where the cursor is (its position only). Quiet unless it has
+   * rested somewhere new for a while (only calm time counts; the spots it has
+   * been to stay seen).
+   */
   function followTick() {
-    if (!settings.ambientLife || settings.stayPut || paused || quitting || !win || win.isDestroyed() || drag || trip || rampage) {
-      dwell.reset();
+    if (!settings.ambientLife || settings.stayPut || paused || quitting || !win || win.isDestroyed() || drag || trip || rampage || !CALM_STATES.has(core.snapshot().state)) {
+      dwell.hold();
       return;
     }
-    if (!CALM_STATES.has(core.snapshot().state)) return;
     const spot = dwell.sample(screen.getCursorScreenPoint(), Date.now(), anchor);
     if (!spot) return;
     dwellSpot = { ...spot, at: Date.now() };
@@ -599,11 +602,16 @@ function start() {
     win.webContents.send('buddy:follow', { dwell: true, demo: true });
   }
 
-  /** The page wants a look: fly over beside that spot (same screen only) with the magnifier. */
+  /**
+   * The page wants a look: fly over beside that spot (same screen only) with
+   * the magnifier. Once per spot: it is marked as seen (on another screen too,
+   * where it does not go).
+   */
   function peekAtDwell() {
     const spot = dwellSpot;
     dwellSpot = null;
     if (!spot || Date.now() - spot.at > FOLLOW.freshMs || !anchor) return;
+    dwell.visited(spot);
     const all = displays();
     if (placement.nearestDisplay(spot, all).id !== placement.nearestDisplay(anchor, all).id) return;
     startTrip('inspect', { at: { x: spot.x, y: spot.y }, lens: true });

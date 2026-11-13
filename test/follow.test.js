@@ -31,13 +31,39 @@ function feed(watch, points, { start = 0, buddy = null } = {}) {
 
 const rest = (p, ms) => Array.from({ length: Math.ceil(ms / FOLLOW.sampleMs) + 1 }, (_, i) => ({ x: p.x + (i % 2), y: p.y }));
 
-test('follow: the cursor moves somewhere and rests there: one dwell, once', () => {
+test('follow: the cursor moves somewhere and rests there for ten seconds: a dwell', () => {
+  assert.equal(FOLLOW.dwellMs, 10000);
   const watch = new DwellWatch();
-  const spots = feed(watch, [...rest({ x: 100, y: 100 }, 3000), ...rest({ x: 900, y: 500 }, 6000)]);
-  assert.equal(spots.length, 1, 'the first resting place is where it started: no dwell there');
-  assert.equal(spots[0].x, 900);
-  assert.equal(spots[0].y, 500);
-  assert.ok(spots[0].at >= 3000 + FOLLOW.dwellMs, 'after it rested long enough');
+  const spots = feed(watch, [...rest({ x: 100, y: 100 }, 12000), ...rest({ x: 900, y: 500 }, 9000), ...rest({ x: 900, y: 500 }, 2000)]);
+  assert.ok(spots.length >= 1, 'the first resting place is where it started: no dwell there');
+  for (const s of spots) assert.deepEqual([s.x, s.y], [900, 500]);
+  assert.ok(spots[0].at >= 12600 + FOLLOW.dwellMs, 'after it rested ten seconds');
+  // Nine seconds is not enough.
+  assert.deepEqual(feed(new DwellWatch(), [...rest({ x: 100, y: 100 }, 1000), ...rest({ x: 900, y: 500 }, 9000)]), []);
+});
+
+test('follow: once per spot: offered again until it has been, never after; a new spot gets its own visit', () => {
+  const watch = new DwellWatch();
+  const s0 = feed(watch, [...rest({ x: 100, y: 100 }, 1000), ...rest({ x: 900, y: 500 }, 20000)]);
+  // It was busy: the spot comes again every retryMs while the cursor still rests there.
+  assert.ok(s0.length >= 2, `offered again (${s0.length})`);
+  for (let i = 1; i < s0.length; i += 1) assert.ok(s0[i].at - s0[i - 1].at >= FOLLOW.retryMs);
+  // It went to look: not again, however long the cursor rests there (or near it).
+  watch.visited({ x: 900, y: 500 });
+  assert.deepEqual(feed(watch, rest({ x: 905, y: 500 }, 30000), { start: 30000 }), []);
+  watch.hold();
+  assert.deepEqual(feed(watch, rest({ x: 960, y: 560 }, 30000), { start: 70000 }), [], 'a hold (busy, a trip) keeps it seen');
+  // Somewhere new: one more visit.
+  const s1 = feed(watch, rest({ x: 300, y: 700 }, 12000), { start: 110000 });
+  assert.ok(s1.length >= 1);
+  assert.deepEqual([s1[0].x, s1[0].y], [300, 700]);
+  watch.visited(s1[0]);
+  assert.deepEqual(feed(watch, rest({ x: 300, y: 700 }, 20000), { start: 130000 }), []);
+  // A hold restarts the ten seconds.
+  const w2 = new DwellWatch();
+  feed(w2, [...rest({ x: 100, y: 100 }, 1000), ...rest({ x: 900, y: 500 }, 6000)]);
+  w2.hold();
+  assert.deepEqual(feed(w2, rest({ x: 900, y: 500 }, 6000), { start: 8000 }), [], 'six more seconds after a hold are not ten');
 });
 
 test('follow: small moves, quick moves and spots next to the buddy are no dwell', () => {
@@ -45,13 +71,13 @@ test('follow: small moves, quick moves and spots next to the buddy are no dwell'
   // Wandering all the time: never still long enough.
   const wander = Array.from({ length: 40 }, (_, i) => ({ x: 100 + i * 40, y: 300 }));
   assert.deepEqual(feed(watch, wander), []);
-  // A rest close to the last spot: no new dwell.
+  // A rest close to where it started: no new dwell.
   const w2 = new DwellWatch();
-  const near = feed(w2, [...rest({ x: 500, y: 500 }, 3000), ...rest({ x: 560, y: 520 }, 4000)]);
+  const near = feed(w2, [...rest({ x: 500, y: 500 }, 3000), ...rest({ x: 560, y: 520 }, 14000)]);
   assert.deepEqual(near, []);
   // Next to the buddy (the user is busy with it): no dwell.
   const w3 = new DwellWatch();
-  const byBuddy = feed(w3, [...rest({ x: 0, y: 0 }, 1000), ...rest({ x: 1500, y: 900 }, 4000)], { buddy: { x: 1520, y: 1000 } });
+  const byBuddy = feed(w3, [...rest({ x: 0, y: 0 }, 1000), ...rest({ x: 1500, y: 900 }, 14000)], { buddy: { x: 1520, y: 1000 } });
   assert.deepEqual(byBuddy, []);
   // Bad samples are ignored.
   assert.equal(new DwellWatch().sample({ x: Number.NaN, y: 1 }, 0), null);
@@ -65,13 +91,19 @@ test('follow wiring: main samples the position only, the page decides, a trip wi
   assert.ok(tick.includes('settings.stayPut'), 'never with "Stay here"');
   assert.ok(!/clipboard|getTitle|readText/.test(tick), 'nothing but the position');
   assert.ok(main.includes("startTrip('inspect', { at: { x: spot.x, y: spot.y }, lens: true });"));
+  assert.ok(tick.includes('dwell.hold();') && !tick.includes('dwell.reset();'), 'busy or on a trip: the spots it has been to stay seen');
+  assert.ok(/!CALM_STATES\.has\(core\.snapshot\(\)\.state\)\) \{\s+dwell\.hold\(\);/.test(tick), 'only calm time counts');
+  const peek = main.slice(main.indexOf('function peekAtDwell()'), main.indexOf("startTrip('inspect', { at: { x: spot.x, y: spot.y }, lens: true });"));
+  assert.ok(peek.includes('dwell.visited(spot);'), 'once per spot');
   assert.ok(main.includes('...(lens ? { lens: true } : {}),'), 'the page hears about the magnifier on arrival');
   assert.ok(main.includes('clearInterval(followTimer);'));
   const preload = read('app', 'preload.js');
   assert.ok(preload.includes("onFollow: on('buddy:follow')"));
   const page = read('app', 'renderer', 'renderer.js');
   assert.ok(page.includes("window.buddy.fun('peek');"));
-  assert.ok(page.includes('if (!demo && (Date.now() - lastFollow < FOLLOW_GAP_MS || Math.random() >= FOLLOW_CHANCE)) return;'));
+  assert.ok(page.includes('if (!demo && Date.now() - lastFollow < FOLLOW_GAP_MS) return;'), 'no dice: it goes when it can');
+  assert.ok(page.includes('const FOLLOW_GAP_MS = 15000;') && FOLLOW.gapMs === 15000, 'page and app/follow.js agree');
+  assert.ok(!page.includes('FOLLOW_CHANCE'));
   assert.ok(page.includes("if (m.kind === 'inspect' && m.arrived && motionAllowed() && m.lens) {"));
   for (const demo of ['follow', 'lens']) assert.ok(DEMOS.has(demo), demo);
   const svg = read('characters', 'robot', 'robot.svg');
