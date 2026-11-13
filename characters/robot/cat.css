@@ -2,7 +2,7 @@
  * "Pip", Robo's cat.
  *
  * The app wraps the SVG in <div class="buddy-pet" data-phase="...">:
- *   data-phase   enter | play | aside | nap | leave
+ *   data-phase   enter | play | aside | nap | cuddle | leave
  *   data-walk    present while it walks (enter, aside, leave)
  *   data-travel  "walk" | "fly": the whole buddy is on a trip and the cat comes along
  *   data-rest    the main character rests (or the screen is locked): no animation
@@ -16,7 +16,8 @@
 
 .rbc-curl,
 .rbc-zzz,
-.rbc-ball {
+.rbc-ball,
+.rbc-eyes-happy {
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -80,6 +81,34 @@
 @keyframes rbc-tail {
   0%, 100% { transform: rotate(-6deg); }
   50% { transform: rotate(8deg); }
+}
+
+/* ------------------------------------------------------------ cuddle: petted by the robot */
+
+/* Close beside the robot: it pushes its head up into the hand, eyes shut, a slow happy tail. */
+.buddy-pet[data-phase='cuddle']:not([data-walk]) .rbc-eyes {
+  opacity: 0;
+}
+
+.buddy-pet[data-phase='cuddle']:not([data-walk]) .rbc-eyes-happy {
+  opacity: 1;
+}
+
+.buddy-pet[data-phase='cuddle']:not([data-walk]) .rbc-head {
+  transform: rotate(-10deg);
+}
+
+.buddy-pet[data-phase='cuddle']:not([data-walk]):not([data-rest]) .rbc-head {
+  animation: rbc-nuzzle 1.1s ease-in-out infinite;
+}
+
+.buddy-pet[data-phase='cuddle']:not([data-walk]):not([data-rest]) .rbc-tail {
+  animation: rbc-tail 1.8s ease-in-out infinite;
+}
+
+@keyframes rbc-nuzzle {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(-14deg) translateY(2px); }
 }
 
 /* ------------------------------------------------------------ play: crouch, pounce, bat the ball */

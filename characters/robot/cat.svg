@@ -9,6 +9,7 @@
         rbc-tail, rbc-leg-*, rbc-head
       rbc-ball    the ball it plays with (rolls towards the robot and back)
       rbc-curl    curled up, napping;  rbc-zzz  sleepy marks
+      rbc-eyes-happy  eyes shut happily (being petted, data-phase="cuddle")
     Everything faces right (towards the robot); the app mirrors it when needed.
   -->
   <ellipse class="rbc-shadow" data-nohit="" cx="100" cy="186" rx="44" ry="5" fill="#2A2650" opacity=".15"/>
@@ -54,6 +55,10 @@
         <ellipse cx="164" cy="109" rx="3.2" ry="4.4"/>
         <circle cx="147.2" cy="107.4" r="1.2" fill="#FFFFFF"/>
         <circle cx="165.2" cy="107.4" r="1.2" fill="#FFFFFF"/>
+      </g>
+      <g class="rbc-eyes-happy" fill="none" stroke="#2A2650" stroke-width="2.6" stroke-linecap="round">
+        <path d="M141.5 110.5 Q146 104.5 150.5 110.5"/>
+        <path d="M159.5 110.5 Q164 104.5 168.5 110.5"/>
       </g>
       <path d="M152.5 117 H158.5 L155.5 120.5 Z" fill="#FF9DB0" stroke="#2A2650" stroke-width="1.6" stroke-linejoin="round"/>
       <path d="M155.5 120.5 Q153 125 150 123 M155.5 120.5 Q158 125 161 123" fill="none" stroke="#2A2650" stroke-width="2" stroke-linecap="round"/>

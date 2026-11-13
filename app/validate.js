@@ -103,8 +103,12 @@ const DEMOS = new Set([
   // As if the cursor rested where it is: it flies over and looks through its magnifier; 'lens': the pose only.
   'follow',
   'lens',
-  // The idle story: reads a book; a visitor drops by (sit, chat, sword practice); the whole story at once.
+  // The idle story: reads a book, blows bubbles, throws a paper plane, pets the cat; a visitor
+  // drops by (sit, chat, sword practice); the whole story at once.
   'read',
+  'bubbles',
+  'plane',
+  'pat',
   'guest',
   'story',
   // Five quick taps it loves (happy hops, hearts).

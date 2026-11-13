@@ -131,8 +131,8 @@ Use whatever you like; ignore the rest.
 | `data-think` | while thinking the app changes the pose every ~7 s: absent (the plain thinking look), `bulb` (an idea) or `pace` (pacing up and down; the app flips `data-face` every ~2.4 s) |
 | `data-talk` | up to ~1.8 s while it answers a question from the chat panel (talk, nod); also while it chats with a visitor |
 | `data-seated` | `down` while it sits with a visitor (the idle story), `up` for ~0.5 s as it gets up again |
-| `data-play` | ambient life, while idle: `stretch`, `look`, `peek`, `hum`, `jump`, `ball`, `antenna`, `flip`, `reboot`, `polish`, `sneeze`, `moonwalk` or `sit` (only on the ground) for 1.5-4.2 s, and `read` (9 s: takes a book out and reads; only the idle story starts it) (each name's time is in `PLAYS` in `app/renderer/lib/fun.js`; end your animation within it; the optional sounds that go with them are timed to the robot's keyframes, see `CUES` in `app/renderer/lib/sound.js`) |
-| `data-pet` | `play` while the pet plays next to the character (it joins in) |
+| `data-play` | ambient life, while idle: `stretch`, `look`, `peek`, `hum`, `jump`, `ball`, `antenna`, `flip`, `reboot`, `polish`, `sneeze`, `moonwalk` or `sit` (only on the ground) for 1.5-4.2 s, and the idle story's own plays (only the story starts them): `read` (9 s: takes a book out and reads), `bubbles` (7 s: blows soap bubbles through a wand), `plane` (6 s: throws a paper plane that loops back to its hand) (each name's time is in `PLAYS` in `app/renderer/lib/fun.js`; end your animation within it; the optional sounds that go with them are timed to the robot's keyframes, see `CUES` in `app/renderer/lib/sound.js`) |
+| `data-pet` | `play` while the pet plays next to the character (it joins in); `cuddle` while the pet stands close to be petted (the idle story; the app also turns the character towards it with `data-face`) |
 | `data-cheer` | with `data-state="done"`: `jump` (the classic), `spin`, `dance` or `fist` |
 | `data-glee` | ~0.65 s: tapped and it liked it (a happy hop; quick taps: back to back). The app adds the hearts |
 | `data-annoyed`, `data-ouch` | tapped and it did not want it / hit with the whip (~0.5 s). The value of `data-annoyed` is how angry it is: `1` cross (~1.5 s), `2` fuming, `3` blazing; more unwelcome taps heat it up, and it cools one level at a time (`TEMPER_HOLD` in `app/renderer/lib/fun.js`). A plain `[data-annoyed]` rule covers every level |
@@ -187,7 +187,7 @@ sets on its wrapper `<div class="buddy-pet">`:
 
 | Attribute | Meaning |
 |---|---|
-| `data-phase` | `enter` (walks in), `play`, `aside` (walks to its nap spot), `nap`, `leave` |
+| `data-phase` | `enter` (walks in), `play`, `aside` (walks to its nap spot), `nap`, `cuddle` (walks up close to the character and is petted there, ~6 s; `data-walk` while it walks up), `leave` |
 | `data-walk` | present while it walks |
 | `data-travel` | `walk` / `fly`: the whole buddy is on a trip and the pet comes along |
 | `data-rest` | the main character rests or the screen is locked: no animation |

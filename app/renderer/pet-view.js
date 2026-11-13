@@ -15,8 +15,8 @@
    * @param {object} o
    * @param {HTMLElement} o.actors
    * @param {(markup: string) => SVGElement} o.sanitizeSvg
-   * @param {(name: string, on: boolean) => void} o.onCue  'play' starts / ends
-   * @param {(phase: string | null) => void} [o.onPhase]  enter, play, aside, nap, leave; null: gone
+   * @param {(name: string, on: boolean) => void} o.onCue  'play' / 'cuddle' starts / ends
+   * @param {(phase: string | null) => void} [o.onPhase]  enter, play, aside, nap, cuddle, leave; null: gone
    * @param {(message: string) => void} o.trace
    */
   function createPetView(o) {
@@ -87,6 +87,12 @@
       director.interrupt();
     }
 
+    /** The idle story: the cat comes close to be petted (false: not here yet, or leaving). */
+    function cuddle() {
+      if (!template) return false;
+      return director.cuddle();
+    }
+
     function setRest(value) {
       rest = Boolean(value);
       if (last) render(last);
@@ -127,6 +133,7 @@
       setLayout,
       setOn,
       interrupt,
+      cuddle,
       setRest,
       setTravel,
       get here() {

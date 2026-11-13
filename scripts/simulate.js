@@ -418,6 +418,8 @@ async function life() {
   await act(s, 'hum', 'hum a tune', 4000);
   await act(s, 'sit', 'sit down and swing its legs', 5000);
   await act(s, 'read', 'take a book out and read a little', 9500);
+  await act(s, 'bubbles', 'blow soap bubbles', 7500);
+  await act(s, 'plane', 'throw a paper plane that loops back', 6500);
   await act(s, 'guest', 'a visitor drops by: they chat and practise with swords', 24000);
   await act(s, 'walk', 'walk along the taskbar', 7000);
   await act(s, 'fly', 'a short flight on its thrusters', 5000);

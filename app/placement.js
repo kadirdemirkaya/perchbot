@@ -249,6 +249,11 @@ const PET = Object.freeze({
   nap: 80,
   /** Room behind it. */
   tail: 46,
+  /**
+   * Where it comes to be petted (the idle story): this far beyond the slot edge, per side
+   * (inside it: the cat's head under the main character's hand, which reaches out past the edge).
+   */
+  cuddle: Object.freeze({ left: -28, right: -32 }),
 });
 
 /**
@@ -289,7 +294,8 @@ function helperWindow(feet, scale = 1) {
 function petSpots(crewCount, side) {
   const play = CREW.report[side === 'right' ? 'right' : 'left'] + PET.play;
   const nap = crewCount > 0 ? crewWidth(crewCount, side) + PET.nap / 2 : play + PET.nap;
-  return { play, nap, width: nap + PET.tail, size: PET.size };
+  const cuddle = PET.cuddle[side === 'right' ? 'right' : 'left'];
+  return { play, nap, width: nap + PET.tail, size: PET.size, cuddle };
 }
 
 /**

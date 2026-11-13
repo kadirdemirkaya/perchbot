@@ -617,6 +617,10 @@
       sit: sheet([cue(640, 'bounce', 0.8), cue(3360, 'boing', 1.1)]),
       // rb-page from 1.4 s, every 2.2 s: a page turns (a soft flutter).
       read: sheet([cue(1500, 'whoosh', 1.7), cue(3700, 'whoosh', 1.7), cue(5900, 'whoosh', 1.7)]),
+      // rb-bubbles-blow 6.6 s: three soft blows (15 / 39 / 63 %), each rb-bubble pops at ~93 % of its run.
+      bubbles: sheet([cue(1000, 'whoosh', 1.45), cue(2580, 'whoosh', 1.45), cue(3100, 'tick', 1.7), cue(3780, 'tick', 1.55), cue(4160, 'whoosh', 1.45), cue(4700, 'tick', 1.8), cue(5090, 'tick', 1.6), cue(6480, 'tick', 1.4)]),
+      // rb-plane-* 5.6 s: the throw at 28 %, back in the hand at 86 % (PLANE_CATCH_MS).
+      plane: sheet([cue(1550, 'whoosh', 1.25), cue(4820, 'chirp', 1.35)]),
     }),
     /**
      * The rampage's phases (app/rampage.js: four launches 320 ms apart, the
@@ -643,6 +647,8 @@
       ]),
       // Curled up: one sleepy purr, then quiet.
       nap: sheet([cue(600, 'purr', 0.85)]),
+      // Petted by the robot (after a short walk up to it): it purrs and purrs.
+      cuddle: sheet([cue(900, 'purr'), cue(2600, 'purr', 1.05), cue(4300, 'purr')]),
     }),
   });
 

@@ -9,10 +9,12 @@
  *   play    plays with the main character (a ball goes back and forth)
  *   aside   walks off to its nap spot
  *   nap     curls up and sleeps until it is sent away
+ *   cuddle  (cuddle(), the idle story) walks up close to the main character
+ *           and stays there to be petted, then goes to nap
  *   leave   walks out again; then onGone()
  *
- * interrupt() (Claude Code needs the main character): no more playing, it
- * goes straight to its nap spot.
+ * interrupt() (Claude Code needs the main character): no more playing or
+ * petting, it goes straight to its nap spot.
  *
  * onPhase(phase) is told each time the phase changes, and null once the cat
  * is gone (walked out, or the pet was changed): the page plays its sounds.
@@ -34,6 +36,8 @@
     walkSpeed: 0.08,
     minWalkMs: 400,
     playMs: 7000,
+    /** Being petted, once it is there. */
+    cuddleMs: 6000,
     /** How far beyond the window edge it comes from and goes to. */
     outside: 70,
   });
@@ -47,24 +51,27 @@
       this.onGone = onGone;
       this.onPhase = onPhase;
       this.phase = null;
-      this.geo = { play: 60, nap: 140, width: 190 };
+      this.geo = { play: 60, nap: 140, width: 190, cuddle: 10 };
       this.pet = null;
       this.timer = null;
+      /** The cue that is on ('play', 'cuddle') or null. */
+      this.cue = null;
     }
 
     get here() {
       return this.pet !== null && this.pet.phase !== 'leave';
     }
 
-    /** { play, nap, width } from the layout (placement.petSpots). */
+    /** { play, nap, width, cuddle } from the layout (placement.petSpots). */
     setGeometry(geo) {
       if (!geo) return;
-      this.geo = { play: geo.play, nap: geo.nap, width: geo.width };
+      this.geo = { play: geo.play, nap: geo.nap, width: geo.width, cuddle: Number.isFinite(geo.cuddle) ? geo.cuddle : this.geo.cuddle };
       const p = this.pet;
       if (!p || p.walkMs) return;
       // Re-place a resting pet (side or helpers changed).
       if (p.phase === 'play') this.place(this.geo.play);
       if (p.phase === 'nap') this.place(this.geo.nap);
+      if (p.phase === 'cuddle') this.place(this.geo.cuddle);
     }
 
     /** Called from the menu. */
@@ -89,27 +96,61 @@
       });
     }
 
-    /** Work came in: stop playing, go and nap. */
+    /** Work came in: stop playing (or being petted), go and nap. */
     interrupt() {
       const p = this.pet;
-      if (!p || (p.phase !== 'enter' && p.phase !== 'play')) return;
+      if (!p || (p.phase !== 'enter' && p.phase !== 'play' && p.phase !== 'cuddle')) return;
       this.endPlay();
       this.aside();
+    }
+
+    /**
+     * The main character wants to pet it (the idle story): from wherever it is
+     * (playing, napping), it walks up close, stays to be petted (onCue
+     * 'cuddle' on / off), then goes back to its nap spot. False while it is
+     * not here, still walking in, or leaving.
+     */
+    cuddle() {
+      const p = this.pet;
+      if (!p || p.phase === 'enter' || p.phase === 'leave' || p.phase === 'cuddle') return false;
+      this.endPlay();
+      p.phase = 'cuddle';
+      this.walk(this.geo.cuddle, 'in', () => {
+        p.face = 'in';
+        this.emit();
+        this.cueOn('cuddle');
+        this.after(this.t.cuddleMs, () => {
+          this.endPlay();
+          this.aside();
+        });
+      });
+      return true;
     }
 
     play() {
       this.pet.phase = 'play';
       this.pet.face = 'in';
       this.emit();
-      this.onCue('play', true);
+      // Something else was asked for from a phase callback (cuddle(), dismiss()): that wins.
+      if (!this.pet || this.pet.phase !== 'play') return;
+      this.cueOn('play');
       this.after(this.t.playMs, () => {
         this.endPlay();
         this.aside();
       });
     }
 
+    /** The main character joins in ('play', 'cuddle'): onCue(name, true), once. */
+    cueOn(name) {
+      this.cue = name;
+      this.onCue(name, true);
+    }
+
+    /** Whatever the main character joined in on is over. */
     endPlay() {
-      if (this.pet && this.pet.phase === 'play') this.onCue('play', false);
+      const name = this.cue;
+      this.cue = null;
+      if (name) this.onCue(name, false);
     }
 
     aside() {
@@ -168,6 +209,7 @@
 
     dispose() {
       this.clear();
+      this.cue = null;
       this.pet = null;
       this.setPhase(null);
     }

@@ -151,7 +151,10 @@ test('sound cues: known sounds, and each one is over before its play ends', () =
   }
   const silent = Object.keys(PLAYS).filter((name) => !CUES.play[name]).sort();
   assert.deepEqual(silent, ['look', 'moonwalk', 'peek', 'stretch'], 'the quiet plays stay quiet');
-  assert.deepEqual(Object.keys(CUES.cat).sort(), ['enter', 'nap', 'play']);
+  assert.deepEqual(Object.keys(CUES.cat).sort(), ['cuddle', 'enter', 'nap', 'play']);
+  // Petted: it purrs while it is petted (the walk up to the robot is short).
+  check('cat cuddle', CUES.cat.cuddle, PET_TIMINGS.cuddleMs);
+  assert.ok(CUES.cat.cuddle.every((c) => c.sound === 'purr'));
   // It may still ring as the play starts; it only has to begin while the cat walks in.
   check('cat enter', CUES.cat.enter, PET_TIMINGS.minWalkMs, { startOnly: true });
   check('cat play', CUES.cat.play, PET_TIMINGS.playMs);

@@ -40,8 +40,9 @@ Open Claude Code sessions pick up the hooks after a restart (VS Code: *Developer
   Leave the cursor resting somewhere for ten seconds and it flies over and peers at that spot through
   a magnifier (once per spot).
   **Stay here** (tray or right-click) keeps it on its spot: it still plays there, but no trips, no fleeing.
-- Left **idle** for a while it reads a little, the cat comes over (if it is on), a visitor drops by to chat
-  and practise with toy swords, and then it yawns and takes a nap.
+- Left **idle** for a while it does three things, picked at random each time: it reads a little, blows
+  soap bubbles, throws a paper plane that loops back to its hand, plays with the cat or pets it (if the cat
+  is on), or a visitor drops by to chat and practise with toy swords. Then it yawns and takes a nap.
 - **Focus mode:** when the work gets intense (lots of edits in a couple of minutes) it puts on a headband
   and codes on a screen of light projected from its eye instead of the laptop.
 - **Tap** it: idle it mostly likes that. Keep tapping and it gets cross, fumes, and its head catches fire.

@@ -95,3 +95,79 @@ test('phases (for its sounds): told once per change, and null once the cat is go
   d.dispose();
   assert.equal(log.phases.length, 8, 'no second null');
 });
+
+test('petted (the idle story): from its nap it walks up close, is petted for a while, then naps again', () => {
+  const { clock, d, log, last } = setup();
+  assert.equal(d.cuddle(), false, 'no cat yet');
+  d.call();
+  assert.equal(d.cuddle(), false, 'still walking in');
+  clock.tick(last().walkMs);
+  clock.tick(T.playMs);
+  clock.tick(last().walkMs);
+  assert.equal(last().phase, 'nap');
+  d.setGeometry({ play: 60, nap: 150, width: 200, cuddle: 18 });
+  log.cues.length = 0;
+  assert.equal(d.cuddle(), true);
+  assert.equal(last().phase, 'cuddle');
+  assert.equal(last().off, 18, 'close to the main character');
+  assert.equal(last().face, 'in');
+  assert.ok(last().walkMs > 0);
+  assert.deepEqual(log.cues, [], 'petted once it is there');
+  assert.equal(d.cuddle(), false, 'already on its way');
+  clock.tick(last().walkMs);
+  assert.equal(last().walkMs, 0);
+  assert.deepEqual(log.cues, [['cuddle', true]]);
+  clock.tick(T.cuddleMs);
+  assert.deepEqual(log.cues, [['cuddle', true], ['cuddle', false]]);
+  assert.equal(last().phase, 'aside');
+  clock.tick(last().walkMs);
+  assert.equal(last().phase, 'nap');
+  assert.deepEqual(log.phases, ['enter', 'play', 'aside', 'nap', 'cuddle', 'aside', 'nap']);
+});
+
+test('petted while it plays: the play ends first; work ends the petting at once', () => {
+  const { clock, d, log, last } = setup();
+  d.call();
+  clock.tick(last().walkMs + 1000);
+  assert.equal(d.cuddle(), true);
+  assert.deepEqual(log.cues, [['play', true], ['play', false]]);
+  clock.tick(last().walkMs);
+  assert.deepEqual(log.cues.at(-1), ['cuddle', true]);
+  d.interrupt();
+  assert.deepEqual(log.cues.at(-1), ['cuddle', false]);
+  assert.equal(last().phase, 'aside');
+  // Sent away while petted: the petting ends too.
+  const t = setup();
+  t.d.call();
+  t.clock.tick(t.last().walkMs);
+  t.d.cuddle();
+  t.clock.tick(t.last().walkMs);
+  t.d.dismiss();
+  assert.deepEqual(t.log.cues.at(-1), ['cuddle', false]);
+  assert.equal(t.last().phase, 'leave');
+});
+
+test('asked to come and be petted from its own phase change (as it starts to play): it comes', () => {
+  const clock = new FakeClock();
+  const cues = [];
+  const phases = [];
+  let d = null;
+  d = new PetDirector({
+    clock,
+    onUpdate: () => {},
+    onCue: (name, on) => cues.push([name, on]),
+    onPhase: (phase) => {
+      phases.push(phase);
+      if (phase === 'play') d.cuddle();
+    },
+  });
+  d.setGeometry({ play: 60, nap: 150, width: 200, cuddle: -20 });
+  d.call();
+  clock.tick(d.pet.walkMs);
+  assert.equal(d.pet.phase, 'cuddle');
+  assert.deepEqual(cues, [], 'no play cue for a play that never happened');
+  clock.tick(d.pet.walkMs);
+  assert.deepEqual(cues, [['cuddle', true]]);
+  clock.tick(T.cuddleMs);
+  assert.deepEqual(phases, ['enter', 'play', 'cuddle', 'aside']);
+});

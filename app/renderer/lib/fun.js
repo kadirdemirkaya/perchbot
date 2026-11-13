@@ -6,7 +6,7 @@
  *   Temper            anger that builds up over unwelcome taps: cross, fuming, blazing
  *   Fury              its head on fire twice in five minutes: a rampage
  *   FocusMeter        intense work: a screen of light instead of the laptop
- *   IdleStory         a long idle spell: a book, the cat, a visitor, then a nap
+ *   IdleStory         a long idle spell: a few things (a book, the cat, bubbles...), then a nap
  *   AmbientScheduler  ambient life: short plays and trips, every 15-60 s
  *   pickCheer      a different celebration for "done" now and then
  *   Duel           the sword fight started from the right-click menu
@@ -230,15 +230,19 @@
     sneeze: 2700,
     moonwalk: 3400,
     sit: 4200,
-    /** Takes the book out of its pocket, reads a few pages, puts it away (also the idle story's first beat). */
+    /** Takes the book out of its pocket, reads a few pages, puts it away (an idle story beat). */
     read: 9000,
+    /** Blows soap bubbles through a little wand (an idle story beat). */
+    bubbles: 7000,
+    /** Throws a paper plane: it loops round and comes back to its hand (an idle story beat). */
+    plane: 6000,
   });
 
   /** Plays that need the ground under its feet (not while it hovers or hangs). */
   const GROUND_PLAYS = Object.freeze(['sit']);
 
   /** Plays only the idle story (or a demo) starts: never picked at random. */
-  const STORY_PLAYS = Object.freeze(['read']);
+  const STORY_PLAYS = Object.freeze(['read', 'bubbles', 'plane']);
 
   /**
    * Trips around the screen (main.js plans them, see app/roam.js). It does not
@@ -368,18 +372,28 @@
   // ------------------------------------------------------------------ the idle story
 
   /**
-   * A long idle spell, before it naps: it reads a little, the cat comes over
-   * (if the cat is on), a visitor (a little robot like its helpers) drops by
-   * to sit and chat and to practise with swords, and then it gets sleepy.
-   * Beats come in this order, `gapMs` apart (the first `firstMs` after the
-   * spell began); the page plays each one and says how it went:
+   * A long idle spell, before it naps: it does a few things by itself, picked
+   * at random each time from `beats` (each one at most once), `count` of
+   * them, and then it gets sleepy (`last`):
+   *   read     reads a little (the 'read' play)
+   *   cat      the cat comes over and plays (if the cat is on)
+   *   pat      it pets the cat (the cat comes for it, if the cat is on)
+   *   bubbles  blows soap bubbles (the 'bubbles' play)
+   *   plane    throws a paper plane that loops back to it (the 'plane' play)
+   *   guest    a visitor (a little robot like its helpers) drops by to sit
+   *            and chat and to practise with swords
+   * Beats come `gapMs` apart (the first `firstMs` after the spell began);
+   * the page plays each one and says how it went:
    *   'busy'   started: call done() when it is over
-   *   'skip'   not possible (the cat is off, helpers are around...): the next one
+   *   'skip'   not possible (the cat is off, helpers are around...): another one
    *   'later'  not now (the pointer is on it, it is on a trip...): try again soon
-   * stop() ends it (work came in); it plays once per idle spell.
+   * Skipped beats do not count. stop() ends it (work came in); it plays once
+   * per idle spell.
    */
   const STORY = Object.freeze({
-    beats: Object.freeze(['read', 'cat', 'guest', 'sleep']),
+    beats: Object.freeze(['read', 'cat', 'pat', 'bubbles', 'plane', 'guest']),
+    count: 3,
+    last: 'sleep',
     firstMs: 20000,
     gapMinMs: 15000,
     gapMaxMs: 25000,
@@ -387,13 +401,26 @@
     retries: 5,
   });
 
+  /** A shuffled copy (Fisher-Yates). */
+  function shuffled(list, random) {
+    const out = [...list];
+    for (let i = out.length - 1; i > 0; i -= 1) {
+      const k = Math.min(i, Math.floor(random() * (i + 1)));
+      [out[i], out[k]] = [out[k], out[i]];
+    }
+    return out;
+  }
+
   class IdleStory {
     constructor({ clock = realClock, random = Math.random, onBeat = () => 'skip', ...options } = {}) {
       this.clock = clock;
       this.random = random;
       this.onBeat = onBeat;
       this.o = { ...STORY, ...options };
+      /** This spell's beats, in order (the shuffled ones, then `last`). */
+      this.list = [];
       this.index = -1;
+      this.played = 0;
       this.timer = null;
       this.tries = 0;
       /** The beat that is playing now (waiting for done()). */
@@ -401,19 +428,21 @@
     }
 
     get running() {
-      return this.index >= 0 && this.index < this.o.beats.length;
+      return this.index >= 0 && this.index < this.list.length;
     }
 
     /** It already played this spell (start() does nothing until stop()). */
     get finished() {
-      return this.index >= this.o.beats.length;
+      return this.list.length > 0 && this.index >= this.list.length;
     }
 
     /** A new idle spell began (fast: the demo, all waits a tenth as long). */
     start({ fast = false } = {}) {
       if (this.running || this.finished) return;
       this.speed = fast ? 0.1 : 1;
+      this.list = [...shuffled(this.o.beats, this.random), this.o.last];
       this.index = 0;
+      this.played = 0;
       this.tries = 0;
       this.wait(this.o.firstMs);
     }
@@ -422,6 +451,7 @@
     stop() {
       this.cancel();
       this.index = -1;
+      this.list = [];
       this.playing = null;
     }
 
@@ -429,18 +459,22 @@
     done() {
       if (!this.running || !this.playing) return;
       this.playing = null;
-      this.next();
+      this.next(true);
     }
 
-    next() {
+    /** On to the next beat (after a gap when one was played; at once after a skip). */
+    next(afterPlay = false) {
       this.index += 1;
       this.tries = 0;
-      if (this.index >= this.o.beats.length) {
+      // Enough done: straight to the last one (sleepy).
+      if (this.played >= this.o.count && this.index < this.list.length - 1) this.index = this.list.length - 1;
+      if (this.index >= this.list.length) {
         this.cancel();
         this.playing = null;
         return;
       }
-      this.wait(this.o.gapMinMs + this.random() * (this.o.gapMaxMs - this.o.gapMinMs));
+      if (afterPlay) this.wait(this.o.gapMinMs + this.random() * (this.o.gapMaxMs - this.o.gapMinMs));
+      else this.wait(0);
     }
 
     wait(ms) {
@@ -452,13 +486,15 @@
     }
 
     fire() {
-      const name = this.o.beats[this.index];
+      const name = this.list[this.index];
       const how = this.onBeat(name);
-      if (how === 'busy') this.playing = name;
-      else if (how === 'later' && this.tries < this.o.retries) {
+      if (how === 'busy') {
+        this.playing = name;
+        this.played += 1;
+      } else if (how === 'later' && this.tries < this.o.retries) {
         this.tries += 1;
         this.wait(this.o.retryMs);
-      } else this.next();
+      } else this.next(false);
     }
 
     cancel() {

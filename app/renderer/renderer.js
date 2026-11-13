@@ -301,14 +301,27 @@
   const pet = window.BuddyPetView.createPetView({
     actors,
     sanitizeSvg,
-    // The cat plays: the main character joins in (data-pet="play").
+    // The cat plays: the main character joins in (data-pet="play"); or it
+    // came to be petted (data-pet="cuddle", the idle story).
     onCue: (name, on) => {
       flag('pet', on && motionAllowed() ? name : null);
+      if (name === 'cuddle') onCuddle(on);
     },
     // Its sounds: hello on the way in, the ball while it plays, a purr as it dozes off.
     onPhase: (phase) => {
       catPhase = phase;
       if (phase) playCues(`cat-${phase}`, CUES.cat[phase], () => catPhase === phase);
+      // Called for the story's petting: it comes over as soon as it has walked in
+      // (a moment later: not from inside the cat's own phase change).
+      if (phase === 'play' && patPending) {
+        patPending = false;
+        later('pat-come', PAT_COME_MS, () => {
+          // Work came in meanwhile: it stays where it is.
+          const ok = ambientOn() && AMBIENT_STATES.has(view.state) && motionAllowed() && pet.cuddle();
+          if (!ok && story.playing === 'pat') story.done();
+        });
+      }
+      if (phase === null) patPending = false;
     },
     trace,
   });
@@ -1582,8 +1595,8 @@
     onPlay: (name) => {
       if (name) trace(`ambient: ${name}`);
       perfMark(name ? `ambient ${name}` : 'ambient end');
-      if (!name && storyReading) {
-        storyReading = false;
+      if (!name && storyPlay) {
+        storyPlay = null;
         story.done();
       }
       // Cut short (work came in): ease out of it instead of jumping back.
@@ -1593,6 +1606,8 @@
       if (name) playCues(`play-${name}`, CUES.play[name], () => holder.dataset.play === name);
       // "Achoo!" right when it sneezes (not if the play was cut short before).
       if (name === 'sneeze') later('sneeze', SNEEZE_AT_MS, () => holder.dataset.play === 'sneeze' && quip('sneeze', 1000));
+      // "Gotcha!" when the paper plane is back in its hand.
+      if (name === 'plane') later('plane-catch', PLANE_CATCH_MS, () => holder.dataset.play === 'plane' && quip('gotYou', 1200));
     },
     onTrip: (kind) => {
       trace(`ambient: trip ${kind}`);
@@ -1603,6 +1618,8 @@
 
   /** robot.css rb-sneeze-head: the "choo" at ~50 % of 2.6 s. */
   const SNEEZE_AT_MS = 1300;
+  /** The paper plane is back in its hand (robot.css rb-plane-fly: 86 % of 5.6 s). */
+  const PLANE_CATCH_MS = 4850;
 
   /**
    * Ambient life runs in short bursts, only while nothing else goes on: idle
@@ -1614,7 +1631,7 @@
     // Helpers may roam the screen: ambient life on (with motion), awake, not paused.
     crew.setRoam(ambientOn() && !rest.resting);
     const calm =
-      ambientOn() && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen && !raging && !guest;
+      ambientOn() && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen && !raging && !guest && !cuddling && !guestPending;
     // The idle story runs while it is idle with ambient life on; anything else ends it.
     if (ambientOn() && AMBIENT_STATES.has(view.state)) story.start();
     else if (story.running || story.finished) story.stop();
@@ -2292,20 +2309,39 @@
 
   /**
    * A long idle spell, before it naps (ambient life on, once per idle spell):
-   *   read   it takes the book out and reads a few pages (the 'read' play)
-   *   cat    the cat comes over and plays with it (only with the Cat switch on)
-   *   guest  a visitor drops by, a little robot like its helpers: they sit and
-   *          chat, then practise with toy swords, bow, and it flies off (the
-   *          cat the story brought goes first, to make room)
-   *   sleep  a big yawn, and it naps soon after
+   * three of these, picked at random each time (lib/fun.js STORY), then sleep:
+   *   read     it takes the book out and reads a few pages (the 'read' play)
+   *   cat      the cat comes over and plays with it (only with the Cat switch on)
+   *   pat      it pets the cat: the cat comes close (called first if it is not
+   *            here; only with the Cat switch on), purrs, then naps again
+   *   bubbles  it blows soap bubbles (the 'bubbles' play)
+   *   plane    it throws a paper plane that loops back to its hand (the 'plane' play)
+   *   guest    a visitor drops by, a little robot like its helpers: they sit and
+   *            chat, then practise with toy swords, bow, and it flies off (the
+   *            cat the story brought goes first, to make room)
+   *   sleep    a big yawn, and it naps soon after
    * Work, a drag, a trip, helpers arriving: the visitor leaves at once.
    */
   const STORY_CAT_MS = 11000;
+  /** The petting beat ends with the cuddle; this is a backstop (the cat never came). */
+  const STORY_PAT_MS = 20000;
+  /** Called in for the petting: it looks round a moment before it comes over. */
+  const PAT_COME_MS = 500;
+  /** The story's own plays (each one ends the beat when it is over). */
+  const STORY_PLAY_BEATS = new Set(['read', 'bubbles', 'plane']);
   const SLEEPY_MS = 9000;
   const GUEST_LEAVE_MS = 900;
   const story = new IdleStory({ onBeat: storyBeat });
-  /** The read play is the story's beat (its end is the beat's end). */
-  let storyReading = false;
+  /** The story's play that is on now (its end is the beat's end). */
+  let storyPlay = null;
+  /** The cat was called for the story's petting: it comes close once it is in. */
+  let patPending = false;
+  /** The cat is being petted (data-pet="cuddle"). */
+  let cuddling = false;
+  /** The story called the visitor: it is on its way (main makes room first). */
+  let guestPending = false;
+  /** A backstop: the visitor never came. */
+  const GUEST_PENDING_MS = 6000;
   /** The story brought the cat: it may send it away again to make room. */
   let storyCat = false;
   /** At the end of the story: it naps soon (see syncRest). */
@@ -2335,11 +2371,12 @@
     if (!ambientOn() || !AMBIENT_STATES.has(view.state)) return 'skip';
     if (!storyFree()) return 'later';
     trace(`story: ${name}`);
-    if (name === 'read') {
-      storyReading = true;
-      ambient.run('read');
+    if (STORY_PLAY_BEATS.has(name)) {
+      storyPlay = name;
+      ambient.run(name);
       return 'busy';
     }
+    if (name === 'pat') return startPat() ? 'busy' : 'skip';
     if (name === 'cat') {
       if (!settings.cat || !character || !character.pet || pet.here) return 'skip';
       storyCat = true;
@@ -2351,6 +2388,13 @@
       if (crewCount > 0 || !character || !character.mini) return 'skip';
       // The user's own cat stays; then there is no room for a visitor.
       if (pet.here && !storyCat) return 'skip';
+      // Nothing of its own (a stroll...) until the visitor is here: it would send it away again.
+      guestPending = true;
+      ambient.stop();
+      later('guest-pending', GUEST_PENDING_MS, () => {
+        guestPending = false;
+        updateFun();
+      });
       if (pet.here) {
         storyCat = false;
         window.buddy.fun('cat-away');
@@ -2358,10 +2402,53 @@
       } else {
         window.buddy.fun('guest');
       }
+      updateFun();
       return 'busy';
     }
     if (name === 'sleep') getSleepy();
     return 'skip';
+  }
+
+  /**
+   * It pets the cat: the cat comes close (from its nap, or called in first:
+   * then it comes over as soon as it has walked in). True when it started.
+   */
+  function startPat() {
+    if (!settings.cat || !character || !character.pet || crewCount > 0 || !motionAllowed()) return false;
+    ambient.stop();
+    if (pet.here) {
+      if (!pet.cuddle()) return false;
+    } else {
+      storyCat = true;
+      patPending = true;
+      window.buddy.fun('cat');
+    }
+    later('story-pat', STORY_PAT_MS, () => {
+      patPending = false;
+      if (story.playing === 'pat') story.done();
+    });
+    return true;
+  }
+
+  /** The cat arrived to be petted (on) or goes back to its nap (off). */
+  function onCuddle(on) {
+    cuddling = Boolean(on);
+    if (on) {
+      trace('cat: petted');
+      // It turns to the cat (on the helpers' side, like the visitor).
+      if (!hunt.active && !duel.active && !moving) flag('face', layout.side !== 'right' ? 'left' : null);
+      quip('petCat', 1800);
+      floatHearts();
+      later('pat-hearts', 2600, floatHearts);
+    } else {
+      cancel('pat-hearts');
+      if (!hunt.active && !duel.active && !moving) flag('face', null);
+      if (story.playing === 'pat') {
+        cancel('story-pat');
+        story.done();
+      }
+    }
+    updateFun();
   }
 
   /** The end of the story: a big yawn, "nap time", and it rests soon. */
@@ -2377,6 +2464,8 @@
 
   /** The main process made room ({ on: true }) or refused / took it back. */
   function onGuest(msg) {
+    guestPending = false;
+    cancel('guest-pending');
     if (msg && msg.on) startGuest();
     else if (!guest && story.playing === 'guest') story.done();
   }
@@ -2835,6 +2924,9 @@
       // A visitor right now (normally the idle story's third beat).
       if (crewCount > 0 || guest) trace('guest: not now');
       else window.buddy.fun('guest');
+    } else if (name === 'pat') {
+      // It pets the cat (normally an idle story beat; the Cat switch must be on).
+      if (!startPat()) trace('cat: not now');
     } else if (name === 'story') {
       // The whole idle story, every wait a tenth as long.
       story.stop();
