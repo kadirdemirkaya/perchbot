@@ -4,7 +4,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { planTrip, positionAt, CURSOR_GAP, FLEE_GAP } = require('../app/roam');
+const { planTrip, positionAt, tripDisplay, pickTrip, planCrossing, SCREEN_CHANCE, CURSOR_GAP, FLEE_GAP } = require('../app/roam');
 const { SLOT, cornerAnchor } = require('../app/placement');
 
 const workArea = { x: 0, y: 0, width: 1536, height: 912 };
@@ -126,4 +126,79 @@ test('positions along a trip: steady walk, arced flight, exact ends; scaled size
     const trip = planTrip({ kind: 'hop', from, home: from, workArea, scale, random: randoms(9) });
     assert.ok(inside(trip.to, scale), `scale ${scale}`);
   }
+});
+
+// Two screens side by side, like a laptop at 125 % and a monitor next to it.
+const left = { id: 1, workArea: { x: 0, y: 0, width: 1536, height: 912 } };
+const right = { id: 2, workArea: { x: 1920, y: 0, width: 1920, height: 1032 } };
+const screens = [left, right];
+
+test('two screens: inspect follows the cursor, home goes home, "screen" picks the other one', () => {
+  const here = left;
+  assert.equal(tripDisplay({ kind: 'inspect', here, displays: screens, cursor: { x: 2500, y: 400 } }), right);
+  assert.equal(tripDisplay({ kind: 'inspect', here, displays: screens, cursor: { x: 300, y: 400 } }), left);
+  assert.equal(tripDisplay({ kind: 'home', here: right, displays: screens, home }), left);
+  assert.equal(tripDisplay({ kind: 'screen', here, displays: screens }), right);
+  assert.equal(tripDisplay({ kind: 'screen', here: right, displays: screens }), left);
+  assert.equal(tripDisplay({ kind: 'stroll', here, displays: screens }), left, 'walks stay on their screen');
+  // One screen: everything stays, and there is no other screen to visit.
+  assert.equal(tripDisplay({ kind: 'inspect', here, displays: [left], cursor: { x: 2500, y: 400 } }), left);
+  assert.equal(tripDisplay({ kind: 'screen', here, displays: [left] }), null);
+});
+
+test('two screens: now and then a walk or a hop becomes a visit to the other screen', () => {
+  assert.equal(pickTrip('hop', 2, () => SCREEN_CHANCE / 2), 'screen');
+  assert.equal(pickTrip('stroll', 2, () => SCREEN_CHANCE / 2), 'screen');
+  assert.equal(pickTrip('hop', 2, () => 0.99), 'hop');
+  assert.equal(pickTrip('hop', 1, () => 0), 'hop', 'never with one screen');
+  for (const kind of ['inspect', 'home', 'flee']) assert.equal(pickTrip(kind, 2, () => 0), kind, kind);
+  assert.ok(SCREEN_CHANCE > 0.1 && SCREEN_CHANCE < 0.5);
+});
+
+test('crossing: out at the edge that faces the other screen, in at its facing edge, same relative height', () => {
+  const from = { x: 700, y: 912 };
+  const c = planCrossing({ from, fromArea: left.workArea, toArea: right.workArea });
+  assert.equal(c.face, 'right');
+  assert.equal(c.exit.y, 912, 'on the ground it leaves along the ground');
+  assert.equal(c.exit.x, 1536 - SLOT.width / 2 - 8, 'at the right edge, the whole slot still inside');
+  assert.equal(c.entry.x, 1920 + SLOT.width / 2 + 8, 'comes in at the left edge of the other screen');
+  assert.equal(c.entry.y, 1032, 'and on its ground');
+  // Back the other way, from up in the air: the same height (relative) on the other side.
+  const high = planCrossing({ from: { x: 3000, y: 300 }, fromArea: right.workArea, toArea: left.workArea });
+  assert.equal(high.face, 'left');
+  assert.equal(high.exit.x, 1920 + SLOT.width / 2 + 8);
+  assert.equal(high.exit.y, 300);
+  assert.equal(high.entry.x, 1536 - SLOT.width / 2 - 8);
+  assert.ok(high.entry.y < 912 && high.entry.y > SLOT.height, `up in the air: ${high.entry.y}`);
+  // "Always stand": on the ground at both ends.
+  const stand = planCrossing({ from: { x: 3000, y: 300 }, fromArea: right.workArea, toArea: left.workArea, hoverMode: 'stand' });
+  assert.equal(stand.exit.y, 1032);
+  assert.equal(stand.entry.y, 912);
+  // A screen above: out at the top, in at the bottom... of the one above (it drops in from below).
+  const above = { x: 0, y: -1080, width: 1920, height: 1040 };
+  const up = planCrossing({ from: { x: 700, y: 912 }, fromArea: left.workArea, toArea: above });
+  assert.equal(up.exit.y, SLOT.height, 'the top of this screen');
+  assert.equal(up.entry.y, -1080 + 1040, 'the ground of the one above');
+});
+
+test('goto: the first leg flies straight to the given point (inside the screen); stand walks', () => {
+  const to = { x: 1536 - SLOT.width / 2 - 8, y: 600 };
+  const leg = planTrip({ kind: 'goto', from: home, home, workArea, to, cursor: to });
+  assert.equal(leg.mode, 'fly');
+  assert.deepEqual(leg.to, to, 'even with the cursor right there: it only passes through');
+  assert.equal(planTrip({ kind: 'goto', from: home, home, workArea }), null, 'needs a point');
+  const walk = planTrip({ kind: 'goto', from: { x: 300, y: 912 }, home, workArea, to: { x: 1200, y: 912 }, hoverMode: 'stand' });
+  assert.equal(walk.mode, 'walk');
+});
+
+test('walks and hops now reach much further across the screen', () => {
+  let far = 0;
+  for (let seed = 1; seed < 60; seed += 1) {
+    const from = { x: 768, y: 912 };
+    const hop = planTrip({ kind: 'hop', from, home, workArea, random: randoms(seed) });
+    const walk = planTrip({ kind: 'stroll', from, home, workArea, random: randoms(seed + 100) });
+    far = Math.max(far, Math.abs(hop.to.x - from.x), Math.abs(walk.to.x - from.x));
+    assert.ok(inside(hop.to) && inside(walk.to), `seed ${seed}`);
+  }
+  assert.ok(far > 500, `the longest trip: ${far} px`);
 });

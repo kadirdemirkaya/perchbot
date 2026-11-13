@@ -930,9 +930,34 @@
 
   // ---------------------------------------------------------------- rest, sway, confetti
 
+  /**
+   * Resting: after a quiet minute it rests (nothing moves, almost no CPU). With
+   * ambient life on it is livelier: it stays up for three minutes, and while it
+   * rests it gets up by itself every two to four minutes for a while (a walk,
+   * a flight, a play), then rests again.
+   */
+  const REST_MS = 60000;
+  const REST_LIVELY_MS = 180000;
+  const NAP_MIN_MS = 120000;
+  const NAP_MAX_MS = 240000;
+
+  function syncRest() {
+    rest.setDelay(ambientOn() ? REST_LIVELY_MS : REST_MS);
+  }
+
   const rest = new RestTimer({
+    delay: REST_MS,
     onChange: (resting) => {
       trace(resting ? 'resting' : 'awake');
+      if (resting && ambientOn()) {
+        later('nap', NAP_MIN_MS + Math.random() * (NAP_MAX_MS - NAP_MIN_MS), () => {
+          if (!rest.resting || !ambientOn()) return;
+          trace('rested enough: up again');
+          rest.activity();
+        });
+      } else {
+        cancel('nap');
+      }
       perfMark(resting ? 'rest' : 'wake');
       flag('rest', resting ? true : null);
       crew.setRest(resting || paused);
@@ -1102,7 +1127,6 @@
   let crewCount = 0;
   /** The helpers as the main process last sent them ({ id, status, ... }). */
   let crewList = [];
-  let away = false;
 
   const meter = new TapMeter();
   const ambient = new AmbientScheduler({
@@ -1140,9 +1164,10 @@
    * no duel, not already on a trip. Trips only without helpers or the cat.
    */
   function updateFun() {
+    syncRest();
     const calm =
       ambientOn() && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen;
-    ambient.update({ enabled: calm && AMBIENT_STATES.has(view.state), trips: crewCount === 0 && !pet.here, away });
+    ambient.update({ enabled: calm && AMBIENT_STATES.has(view.state), trips: crewCount === 0 && !pet.here });
   }
 
   /**
@@ -1556,13 +1581,30 @@
    * The menu column switches sides: main moves the window under the page, which
    * can only redraw a moment later. Hidden for that moment ('hide': answer
    * once the hidden frame is on screen; 'show': back once the new layout is drawn).
+   * 'warp': off to another screen. It fades out (with a little zip upwards),
+   * then main moves the window over there and sends 'show': it fades in.
    */
+  const WARP_FADE_MS = 240;
   function onFlip(phase) {
     if (phase === 'hide') {
       stage.classList.add('flipping');
       requestAnimationFrame(() => requestAnimationFrame(() => window.buddy.flipReady()));
+    } else if (phase === 'warp') {
+      cancel('warp-in');
+      stage.classList.remove('warp-in');
+      stage.classList.add('warping');
+      later('warp', motionAllowed() ? WARP_FADE_MS : 0, () => requestAnimationFrame(() => window.buddy.flipReady()));
     } else if (phase === 'show') {
-      requestAnimationFrame(() => requestAnimationFrame(() => stage.classList.remove('flipping')));
+      const warped = stage.classList.contains('warping');
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          stage.classList.remove('flipping', 'warping');
+          if (warped && motionAllowed()) {
+            stage.classList.add('warp-in');
+            later('warp-in', WARP_FADE_MS + 60, () => stage.classList.remove('warp-in'));
+          }
+        }),
+      );
     }
     trace(`layout: flip ${phase}`);
   }
@@ -1598,7 +1640,6 @@
       trace(`trip: ${m.kind} (${m.mode})`);
     } else {
       moving = null;
-      away = Boolean(m.away);
       flag('move', null);
       flag('face', null);
       crew.setTravel(null);

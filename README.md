@@ -138,18 +138,27 @@ Three switches, in the tray menu and in the right-click menu:
 | **Play mode** | off | *Play: sword duel* and the whip. The sword button in the hover menu is always there and turns this on by itself |
 | **Cat** | off | *Call the cat* / *Send the cat away*. The cat button in the hover menu is always there and turns this on by itself |
 
-**Ambient life.** While the buddy is idle (or on standby) and awake, every 20 to 90 seconds
-it does one short thing, never the same twice in a row: stretch and yawn, look around, a
-little hop, bounce a ball, play with its antenna, hum a tune, peek at its laptop, a backflip,
-reboot itself (the screen goes blank, a power sign blinks, a jolt and it is back), polish its
-face screen with a little cloth, sneeze ("Achoo!"), moonwalk on the spot, walk along
-the taskbar, take a short flight on its boot thrusters, fly over to your cursor for a look
-through its glasses (keeping its distance), or go back home. It stops at once when Claude
-Code needs it (a tool, a permission prompt, the end of a turn), when you hover or drag it,
-while it rests after a quiet minute, while the screen is locked, and with reduced motion.
-Trips only happen while no helpers and no cat are around. Where a trip took it is not
-saved; it returns home sooner or later. "done" is celebrated with a jump, a pirouette, a
-little dance or fist pumps.
+**Ambient life.** While the buddy is idle (or on standby) and awake, every 15 to 60 seconds
+it does one short thing, never the same twice in a row, and about half of the time it goes
+somewhere: stretch and yawn, look around, a little hop, bounce a ball, play with its antenna,
+hum a tune, peek at its laptop, a backflip, reboot itself (the screen goes blank, a power sign
+blinks, a jolt and it is back), polish its face screen with a little cloth, sneeze ("Achoo!"),
+moonwalk on the spot; or a walk along the taskbar, a flight on its boot thrusters (anywhere
+from a short hop to across much of the screen, high up now and then), or a flight over to
+your cursor for a look through its glasses (keeping its distance). It does not go home by
+itself: it keeps wandering (*Back to the corner* in its menu brings it home, and so does
+turning ambient life off). Where a trip took it is not saved.
+
+**One screen or two.** With more than one screen it uses them all: now and then a walk or a
+flight goes over to another screen, and when your cursor is on the other screen, the look at
+it goes there. It flies to the edge that faces that screen, fades out and comes in at the
+facing edge of the other one, then goes on there. With one screen nothing of this happens.
+
+It stops at once when Claude Code needs it (a tool, a permission prompt, the end of a turn),
+when you hover or drag it, while the screen is locked, and with reduced motion. With ambient
+life on it rests after three quiet minutes (one without), and while resting it gets up by
+itself every two to four minutes for a while. Trips only happen while no helpers and no cat
+are around. "done" is celebrated with a jump, a pirouette, a little dance or fist pumps.
 
 **Tap it.** How it takes a few quick taps depends on its mood, picked anew for every streak
 of taps. While idle it mostly loves it: happy hops with both arms up, rosy cheeks, little

@@ -85,6 +85,10 @@ const CALM_STATES = new Set(['idle', 'standby', 'greeting']);
 const PET_EXIT_MS = 2200;
 /** Switching sides: the longest wait for the page to hide before the window moves anyway. */
 const FLIP_WAIT_MS = 150;
+/** Going to another screen: the page fades out (overlay.css .stage.warping), then the window jumps. */
+const WARP_WAIT_MS = 400;
+/** ...and fades in on the other screen before the trip goes on there. */
+const WARP_IN_MS = 260;
 /** The side column while the chat panel is open (CSS px; see overlay.css .chat). */
 const CHAT_WIDTH = 176;
 
@@ -123,7 +127,7 @@ const PERF = isDev && process.env.AGENT_BUDDY_PERF === '1';
  */
 const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers', 'menu', 'chat']);
 const demo = isDev && DEMOS.has(process.env.AGENT_BUDDY_DEMO) ? process.env.AGENT_BUDDY_DEMO : null;
-const DEMO_TRIPS = ['stroll', 'hop', 'inspect', 'home'];
+const DEMO_TRIPS = ['stroll', 'hop', 'screen', 'inspect', 'home'];
 /** Short lines in the speech bubble when it is hit or fights (locales: "quip"). */
 const QUIPS = ['ouch', 'hey', 'enough', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
 
@@ -178,8 +182,10 @@ function start() {
   let flight = { airborne: false, boost: false, tilt: 0 };
   /** Sub-agents from the core (AgentRegistry.list()), in arrival order. */
   let crew = [];
-  /** The trip in progress: { plan, start, side, timer } (see roam.js). */
+  /** The trip in progress: { plan, start, side, timer, then } (see roam.js). */
   let trip = null;
+  /** On the way to another screen, faded out: { point, then, timer } (see warpTo). */
+  let warping = null;
   /** Where a trip left the character (this run only); null = at home. */
   let roamAnchor = null;
   let demoIndex = -1;
@@ -336,7 +342,8 @@ function start() {
     if (!fromPage(event) || !FUN_ACTIONS.has(action)) return;
     if (action === 'context') popUpFunMenu();
     else if (action === 'whip-off') whipOn = false;
-    else if (action === 'home' || settings.ambientLife) startTrip(action);
+    // With two screens, now and then a walk or a hop goes over to the other one.
+    else if (action === 'home' || settings.ambientLife) startTrip(roam.pickTrip(action, displays().length));
   });
 
   // A mini finished its exit scene: forget the agent (the window may shrink).
@@ -347,7 +354,9 @@ function start() {
 
   // Switching sides: the page is hidden now (see flipSides).
   ipcMain.on('buddy:flip-ready', (event) => {
-    if (fromPage(event)) finishFlip();
+    if (!fromPage(event)) return;
+    if (warping) finishWarp();
+    else finishFlip();
   });
 
   // The chat panel (app/chat.js): open / close, typing on / off, a question (its intent only).
@@ -626,7 +635,7 @@ function start() {
   }
 
   function placeWindow() {
-    if (!win || win.isDestroyed() || drag || trip || flipping) return;
+    if (!win || win.isDestroyed() || drag || trip || flipping || warping) return;
     const next = computePlacement();
     // The menu column changes sides: the window moves under the character, and the
     // page redraws its new layout a frame or two later. Hide the page for that
@@ -840,24 +849,51 @@ function start() {
     return placement.resolveAnchor(settings, displays(), primaryDisplay(), scale()).anchor;
   }
 
-  function startTrip(kind) {
-    if (!win || win.isDestroyed() || drag || trip || paused || !anchor || !pageLayout) return;
-    const workArea = placement.nearestDisplay(anchor, displays()).workArea;
+  /**
+   * A trip (roam.js). One that is for another screen (inspect with the cursor
+   * over there, home from over there, 'screen') goes in two legs: to the edge
+   * that faces it, a fade, and on from the facing edge of the other screen.
+   */
+  function startTrip(kind, { stayHere = false } = {}) {
+    if (!win || win.isDestroyed() || drag || trip || warping || paused || !anchor || !pageLayout) return;
+    const all = displays();
+    const here = placement.nearestDisplay(anchor, all);
+    const cursor = screen.getCursorScreenPoint();
+    const home = homeAnchor();
     const b = win.getBounds();
+    // The whole window (helpers, the cat) must stay on the screen, not only the slot.
+    const spans = { spanLeft: anchor.x - b.x, spanRight: b.x + b.width - anchor.x };
+    // The second leg stays on the screen it came to (no ping-pong after a cursor that moved on).
+    const target = stayHere ? here : roam.tripDisplay({ kind, here, displays: all, cursor, home });
+    if (!target) return; // 'screen' with only one screen
+    if (target.id !== here.id) {
+      const way = roam.planCrossing({ from: anchor, fromArea: here.workArea, toArea: target.workArea, scale: scale(), hoverMode: settings.hoverMode, ...spans });
+      if (!way) return;
+      // Over there it goes on as it would on that screen ('screen': a flight somewhere).
+      const onward = kind === 'screen' ? 'hop' : kind;
+      const goOn = () => warpTo(way.entry, () => startTrip(onward, { stayHere: true }));
+      const leg = roam.planTrip({ kind: 'goto', to: way.exit, from: anchor, home, workArea: here.workArea, cursor, scale: scale(), hoverMode: settings.hoverMode, ...spans });
+      log.devOnly(`trip: ${kind} to another screen`);
+      if (leg) beginTrip(leg, kind, goOn);
+      else goOn();
+      return;
+    }
     const plan = roam.planTrip({
       kind,
       from: anchor,
-      home: homeAnchor(),
-      workArea,
-      cursor: screen.getCursorScreenPoint(),
+      home,
+      workArea: here.workArea,
+      cursor,
       scale: scale(),
       hoverMode: settings.hoverMode,
-      // The whole window (helpers, the cat) must stay on the screen, not only the slot.
-      spanLeft: anchor.x - b.x,
-      spanRight: b.x + b.width - anchor.x,
+      ...spans,
     });
-    if (!plan) return;
-    log.devOnly(`trip: ${kind} by ${plan.mode}, ${plan.ms} ms`);
+    if (plan) beginTrip(plan, kind);
+  }
+
+  /** then: what comes after arriving (the second leg of a trip to another screen). */
+  function beginTrip(plan, kind, then = null) {
+    log.devOnly(`trip: ${plan.kind} by ${plan.mode}, ${plan.ms} ms`);
     // Never hold the mouse while the window moves under a cursor that does not.
     setCapture(false);
     if (canSend()) win.webContents.send('buddy:released');
@@ -868,6 +904,7 @@ function start() {
       lastStep: Date.now(),
       timer: setInterval(() => trip && Date.now() - trip.lastStep >= TRIP_FALLBACK_MS && stepTrip(), TRIP_FALLBACK_MS),
       stats: moveStats(),
+      then,
     };
     if (canSend()) win.webContents.send('buddy:move', { mode: plan.mode, face: plan.face, kind });
     if (plan.mode === 'fly') {
@@ -903,7 +940,7 @@ function start() {
     if (!trip) return;
     clearInterval(trip.timer);
     if (PERF) log.devOnly(`[perf] trip ${trip.plan.kind}: setBounds ${trip.stats.summary()}`);
-    const { plan } = trip;
+    const { plan, then } = trip;
     trip = null;
     const home = homeAnchor();
     roamAnchor = Math.hypot(anchor.x - home.x, anchor.y - home.y) < 3 ? null : { ...anchor };
@@ -917,7 +954,6 @@ function start() {
         kind: plan.kind,
         arrived: !cancelled,
         look: cursor.x < anchor.x ? 'left' : 'right',
-        away: Boolean(roamAnchor),
       });
     }
     if (moved && plan.kind === 'fling') {
@@ -926,11 +962,42 @@ function start() {
       const patch = placement.dropPlacement(anchor, displays(), primaryDisplay(), scale());
       log.info('moved after being hit: new place saved');
       updateSettings(patch, placeWindow);
+    } else if (!cancelled && then) {
+      then(); // at the edge: on to the other screen
+      return;
     } else if (!cancelled) {
       placeWindow();
     }
     if (demo === 'trips' && demoIndex >= 0) setTimeout(() => nextDemoTrip(demoIndex + 1), 4500);
   }
+
+  /**
+   * To another screen: the page fades out, the window jumps to `point` (an
+   * anchor on the other screen), the page fades in there, then `then`. Work
+   * that comes in meanwhile keeps it where it lands (no second leg).
+   */
+  function warpTo(point, then) {
+    if (!win || win.isDestroyed() || !canSend()) return;
+    warping = { point, then, timer: setTimeout(finishWarp, WARP_WAIT_MS) };
+    win.webContents.send('buddy:flip', 'warp');
+  }
+
+  function finishWarp() {
+    if (!warping) return;
+    const { point, then, timer } = warping;
+    clearTimeout(timer);
+    warping = null;
+    if (!win || win.isDestroyed()) return;
+    roamAnchor = { ...point };
+    applyPlacement(computePlacement());
+    log.devOnly('trip: now on the other screen');
+    if (canSend()) win.webContents.send('buddy:flip', 'show');
+    setTimeout(() => {
+      if (!warping && !trip && !drag && !paused && CALM_STATES.has(core.state)) then();
+      else placeWindow();
+    }, WARP_IN_MS);
+  }
+
 
   /** The right-click menu: play (duel, whip), walk, fly, home, the cat, the three switches. */
   function popUpFunMenu() {
@@ -993,7 +1060,7 @@ function start() {
 
   /** The simulator (scripts/simulate.js "life") asks for one behaviour. */
   function onDemo(name) {
-    const trips = { walk: 'stroll', fly: 'hop', inspect: 'inspect', home: 'home' };
+    const trips = { walk: 'stroll', fly: 'hop', inspect: 'inspect', home: 'home', screen: 'screen' };
     if (trips[name]) startTrip(trips[name]);
     else if (name === 'fling') demoFling();
     else if (name === 'cat') setPet(true, true); // the simulator shows it even with the setting off

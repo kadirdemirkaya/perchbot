@@ -220,3 +220,21 @@ test('Replay: quick repeats queue one more round instead of restarting mid-way',
   clock.tick(2000);
   assert.deepEqual(log, ['start', 'end']);
 });
+
+test('rest: the wait can change (livelier with ambient life); it counts from the next activity', () => {
+  const clock = new FakeClock();
+  const changes = [];
+  const r = new RestTimer({ clock, delay: 60000, onChange: (v) => changes.push(v) });
+  r.setIdle(true);
+  r.setDelay(180000);
+  clock.tick(60000);
+  assert.deepEqual(changes, [true], 'the countdown already running keeps its minute');
+  r.activity();
+  clock.tick(179999);
+  assert.deepEqual(changes, [true, false], 'awake again, now for three minutes');
+  clock.tick(1);
+  assert.deepEqual(changes, [true, false, true]);
+  r.setDelay(-5);
+  r.setDelay(Number.NaN);
+  assert.equal(r.delay, 180000, 'nonsense is ignored');
+});

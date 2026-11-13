@@ -61,6 +61,25 @@ body {
   transition: none;
 }
 
+/* Off to another screen (main.js warpTo): it zips up and fades, then comes in on the other one. */
+.stage.warping {
+  opacity: 0;
+  transform: translateY(-14px) scale(0.92);
+  transform-origin: 50% 100%;
+  transition:
+    opacity 0.24s ease-in,
+    transform 0.24s ease-in;
+}
+
+.stage.warp-in {
+  animation: buddy-warp-in 0.3s ease-out;
+}
+
+@keyframes buddy-warp-in {
+  from { opacity: 0; transform: translateY(-14px) scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+
 .slot {
   position: absolute;
   top: 0;

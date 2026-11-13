@@ -9,6 +9,8 @@ const {
   tapMood,
   TAP_LIKES,
   AmbientScheduler,
+  AMBIENT_GAP: G,
+  WEIGHTS,
   PLAYS,
   TRIPS,
   pickCheer,
@@ -138,39 +140,41 @@ test('every ambient play is drawn by the robot, can be demoed, and its CSS ends 
   }
 });
 
-test('ambient life: one behaviour every 20-90 s, never the same twice in a row', () => {
+test('ambient life: one behaviour every 15-60 s, never the same twice in a row', () => {
   let r = 0;
   const { clock, a, log } = ambient(() => ((r = (r + 0.377) % 1), r));
   clock.tick(120000);
   assert.deepEqual(log, [], 'nothing until allowed');
-  a.update({ enabled: true, trips: true, away: true });
+  a.update({ enabled: true, trips: true });
   clock.tick(3600000);
   const starts = log.filter(([, name]) => name !== null);
   assert.ok(starts.length > 40, `${starts.length} behaviours in an hour`);
   const names = starts.map(([kind, name]) => (kind === 'trip' ? Object.keys(TRIPS).find((k) => TRIPS[k] === name) : name));
   for (let i = 1; i < names.length; i += 1) assert.notEqual(names[i], names[i - 1], `repeat at ${i}`);
   assert.deepEqual([...new Set(names)].sort(), [...Object.keys(PLAYS), ...Object.keys(TRIPS)].sort(), 'every behaviour turns up');
-  // Gaps between behaviours: at least 20 s after the previous one ended (or since enabling), at most 90 s.
+  // Gaps between behaviours: at least 15 s after the previous one ended (or since enabling), at most 60 s.
   let end = 120000;
   for (const [kind, name, at] of log) {
     if (name === null) {
       end = at;
       continue;
     }
-    assert.ok(at - end >= 20000 && at - end <= 90000 + 1, `gap ${at - end}`);
+    assert.ok(at - end >= G.minMs && at - end <= G.maxMs + 1, `gap ${at - end}`);
     if (kind === 'trip') end = at;
   }
 });
 
-test('ambient life: trips only when allowed, "home" only when away; disabling ends a play at once', () => {
+test('ambient life: trips only when allowed, never home by itself (it keeps wandering); disabling ends a play at once', () => {
   const { clock, a, log } = ambient(() => 0.999);
   a.update({ enabled: true, trips: false });
   clock.tick(3600000);
   assert.ok(log.every(([kind]) => kind === 'play'), 'no trips while helpers or the cat are around');
   log.length = 0;
-  a.update({ enabled: true, trips: true, away: false });
+  a.update({ enabled: true, trips: true });
   clock.tick(3600000);
-  assert.ok(!log.some(([, name]) => name === 'home'), 'not when already home');
+  assert.ok(log.some(([kind]) => kind === 'trip'), 'it gets around');
+  assert.ok(!log.some(([, name]) => name === 'home'), 'and never goes home by itself');
+  assert.ok(!('home' in TRIPS));
   a.update({ enabled: false });
   a.run('stretch');
   a.update({ enabled: true });
@@ -184,24 +188,38 @@ test('ambient life: trips only when allowed, "home" only when away; disabling en
 });
 
 test('ambient life and resting: nothing while it rests, a fresh countdown when it wakes', () => {
-  const { clock, a, log } = ambient(() => 0); // always the shortest wait: 20 s
+  const { clock, a, log } = ambient(() => 0); // always the shortest wait
   a.update({ enabled: true });
-  clock.tick(15000);
+  clock.tick(G.minMs - 5000);
   // The page disables it the moment the character rests (a quiet minute)...
   a.update({ enabled: false });
   clock.tick(10 * 60 * 1000);
   assert.deepEqual(log, [], 'no behaviour during a long rest');
   // ...and enables it again when an event or the pointer wakes it: the wait starts over.
   a.update({ enabled: true });
-  clock.tick(19999);
+  clock.tick(G.minMs - 1);
   assert.deepEqual(log, [], 'not after the 5 s that were left before resting');
   clock.tick(1);
   assert.equal(log.length, 1);
   // Further updates while awake do not restart the countdown.
   a.update({ enabled: true });
   a.update({ enabled: true, trips: true });
-  clock.tick(20000 + PLAYS[log[0][1]]);
+  clock.tick(G.minMs + PLAYS[log[0][1]]);
   assert.ok(log.length >= 3, 'the next one follows on schedule');
+});
+
+test('ambient life: it likes to get around, about half of what it does by itself is a trip', () => {
+  const playWeight = Object.keys(PLAYS).length;
+  const atHome = WEIGHTS.walk + WEIGHTS.fly + WEIGHTS.inspect;
+  const share = atHome / (atHome + playWeight);
+  assert.ok(share > 0.4 && share < 0.6, `trips at home: ${Math.round(share * 100)} %`);
+  assert.ok(G.maxMs <= 60000, 'something happens at least once a minute');
+  const { clock, a, log } = ambient(seeded(11));
+  a.update({ enabled: true, trips: true });
+  clock.tick(6 * 3600000);
+  const trips = log.filter(([kind]) => kind === 'trip').length;
+  const plays = log.filter(([kind, name]) => kind === 'play' && name !== null).length;
+  assert.ok(trips / (trips + plays) > 0.35, `${trips} trips, ${plays} plays`);
 });
 
 test('cheers: the classic jump about half of the time, the others otherwise', () => {

@@ -64,6 +64,8 @@ const DEMOS = new Set([
   'fly',
   'inspect',
   'home',
+  // A trip to another screen (with only one screen: nothing).
+  'screen',
   'anger',
   // Five quick taps it loves (happy hops, hearts).
   'glee',

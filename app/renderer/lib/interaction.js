@@ -172,6 +172,11 @@
       this.timer = null;
     }
 
+    /** A different wait before resting; counts from the next activity on. */
+    setDelay(ms) {
+      if (Number.isFinite(ms) && ms > 0) this.delay = ms;
+    }
+
     /**
      * Back from a pause (screen unlocked): resting stays resting (only an event
      * or the pointer wakes it); awake and idle, the countdown starts again.

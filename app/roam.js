@@ -14,14 +14,21 @@
  *   home     back to the place the user chose (corner or dragged position)
  *   flee     it was hit (clicked) too often: off to a random spot elsewhere on
  *            the screen, well away from where it was hit
+ *   goto     fly (or walk) to a given point: the first leg of a trip to
+ *            another screen, to the edge that faces it
  *
  * All positions are ANCHORS (bottom-centre of the slot, screen DIP), as in
- * placement.js. A trip never leaves the work area of the display it starts
- * on: not the target, not any point on the way (flights arc upwards, and the
- * whole window counts, helpers and the cat included: spanLeft / spanRight).
+ * placement.js. A single trip never leaves the work area of the display it
+ * starts on: not the target, not any point on the way (flights arc upwards,
+ * and the whole window counts, helpers and the cat included: spanLeft /
+ * spanRight). Another screen is reached in two legs (main.js): goto the edge
+ * that faces it (planCrossing().exit), fade out, appear at the facing edge of
+ * the other screen (entry), fade in, then the trip goes on there. tripDisplay()
+ * says which screen a trip is for; pickTrip() now and then turns a walk or a
+ * hop into a visit to another screen ('screen').
  */
 
-const { SLOT } = require('./placement');
+const { SLOT, nearestDisplay } = require('./placement');
 
 const WALK_SPEED = 0.09; // DIP per ms (90 px/s)
 const RUN_SPEED = 0.22; // fleeing on foot ("Always stand" hover mode)
@@ -30,7 +37,9 @@ const MIN_TRIP_MS = 700;
 const EDGE = 8;
 /** Distance kept between the character's slot and the cursor (DIP at medium size). */
 const CURSOR_GAP = 60;
-const KINDS = new Set(['stroll', 'hop', 'inspect', 'home', 'flee']);
+const KINDS = new Set(['stroll', 'hop', 'inspect', 'home', 'flee', 'goto']);
+/** With more than one screen: the share of walks and hops that become a visit to another screen. */
+const SCREEN_CHANCE = 0.3;
 /** A flight lands at least this far (DIP at medium size) from where it was hit. */
 const FLEE_GAP = 320;
 
@@ -70,7 +79,8 @@ function covers(anchor, cursor, b, margin) {
 
 /**
  * @param {object} p
- * @param {string} p.kind  stroll | hop | inspect | home | flee
+ * @param {string} p.kind  stroll | hop | inspect | home | flee | goto
+ * @param {{x:number,y:number}} [p.to]  goto: where to
  * @param {{x:number,y:number}} p.from  current anchor
  * @param {{x:number,y:number}} p.home  the user's chosen anchor
  * @param {{x,y,width,height}} p.workArea  of the display the character is on
@@ -82,7 +92,7 @@ function covers(anchor, cursor, b, margin) {
  * @param {() => number} [p.random]
  * @returns {null | { kind, from, to, mode: 'walk'|'fly', ms, face: 'left'|'right', limits }}
  */
-function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverMode = 'auto', spanLeft = 0, spanRight = 0, random = Math.random }) {
+function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverMode = 'auto', spanLeft = 0, spanRight = 0, random = Math.random, to: goal = null }) {
   if (!KINDS.has(kind) || !from || !workArea) return null;
   const b = bounds(workArea, scale, spanLeft, spanRight);
   const canFly = hoverMode !== 'stand';
@@ -93,7 +103,7 @@ function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverM
 
   switch (kind) {
     case 'stroll': {
-      const distance = (140 + random() * 320) * scale;
+      const distance = (180 + random() * 540) * scale;
       let dir = random() < 0.5 ? -1 : 1;
       if (from.x + dir * distance < b.minX || from.x + dir * distance > b.maxX) dir = -dir;
       to = { x: from.x + dir * distance, y: b.ground };
@@ -102,7 +112,8 @@ function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverM
     }
     case 'hop': {
       if (!canFly) return planTrip({ kind: 'stroll', from, home, workArea, cursor, scale, hoverMode, spanLeft, spanRight, random });
-      to = { x: from.x + (random() - 0.5) * 700 * scale, y: b.ground - (60 + random() * 260) * scale };
+      // Anywhere from a short hop to across much of the screen, and high up now and then.
+      to = { x: from.x + (random() - 0.5) * 1100 * scale, y: b.ground - (60 + random() * 380) * scale };
       break;
     }
     case 'inspect': {
@@ -118,6 +129,12 @@ function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverM
       to = { x: home.x, y: home.y };
       const sameGround = onGround && Math.abs(home.y - from.y) < 2;
       mode = sameGround && Math.abs(home.x - from.x) < 500 * scale ? 'walk' : canFly ? 'fly' : 'walk';
+      break;
+    }
+    case 'goto': {
+      if (!goal) return null;
+      to = { x: goal.x, y: goal.y };
+      mode = canFly ? 'fly' : 'walk';
       break;
     }
     case 'flee': {
@@ -138,7 +155,7 @@ function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverM
   to = { x: Math.round(clamp(to.x, b.minX, b.maxX)), y: Math.round(clamp(to.y, b.minY, b.ground)) };
   if (!canFly) to.y = b.ground;
   // Never park right under the cursor: the user may be about to click there.
-  if (kind !== 'home' && covers(to, cursor, b, gap / 2)) {
+  if (kind !== 'home' && kind !== 'goto' && covers(to, cursor, b, gap / 2)) {
     const shift = cursor.x > to.x ? -1 : 1;
     to.x = Math.round(clamp(cursor.x + shift * (b.half + gap), b.minX, b.maxX));
     if (covers(to, cursor, b, gap / 2)) to.x = Math.round(clamp(cursor.x - shift * (b.half + gap), b.minX, b.maxX));
@@ -179,4 +196,70 @@ function positionAt(trip, t) {
   return point;
 }
 
-module.exports = { planTrip, positionAt, TRIP_KINDS: KINDS, CURSOR_GAP, FLEE_GAP, WALK_SPEED, FLY_SPEED };
+/**
+ * Which screen a trip is for: inspect goes where the cursor is, home where
+ * home is, 'screen' to one of the other screens (null when there is none),
+ * everything else stays on the screen it starts on.
+ * @param {{ kind: string, here: {id, workArea}, displays: Array<{id, workArea}>, cursor?, home?, random? }} p
+ */
+function tripDisplay({ kind, here, displays, cursor = null, home = null, random = Math.random }) {
+  if (!here || !Array.isArray(displays) || displays.length < 2) return kind === 'screen' ? null : here;
+  if (kind === 'inspect' && cursor) return nearestDisplay(cursor, displays);
+  if (kind === 'home' && home) return nearestDisplay(home, displays);
+  if (kind === 'screen') {
+    const others = displays.filter((d) => d.id !== here.id);
+    return others.length ? others[Math.floor(random() * others.length) % others.length] : null;
+  }
+  return here;
+}
+
+/** With more than one screen, now and then a walk or a hop becomes a visit to another screen. */
+function pickTrip(kind, displayCount, random = Math.random) {
+  if ((kind === 'stroll' || kind === 'hop') && displayCount > 1 && random() < SCREEN_CHANCE) return 'screen';
+  return kind;
+}
+
+/**
+ * The way from one screen to another: exit = where to go on this screen (the
+ * edge that faces the other one, about the same height), entry = where it
+ * shows up on the other screen (its facing edge, at the same relative height).
+ * Both keep the whole window inside its screen (spans as in planTrip).
+ */
+function planCrossing({ from, fromArea, toArea, scale = 1, spanLeft = 0, spanRight = 0, hoverMode = 'auto' }) {
+  if (!from || !fromArea || !toArea) return null;
+  const a = bounds(fromArea, scale, spanLeft, spanRight);
+  const b = bounds(toArea, scale, spanLeft, spanRight);
+  const dx = toArea.x + toArea.width / 2 - (fromArea.x + fromArea.width / 2);
+  const dy = toArea.y + toArea.height / 2 - (fromArea.y + fromArea.height / 2);
+  const level = (y, box) => (hoverMode === 'stand' ? box.ground : clamp(y, box.minY, box.ground));
+  // How high it is on this screen (0 = ground, 1 = top), kept on the other one.
+  const rise = a.ground > a.minY ? (a.ground - clamp(from.y, a.minY, a.ground)) / (a.ground - a.minY) : 0;
+  let exit;
+  let entry;
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    const right = dx > 0;
+    exit = { x: right ? a.maxX : a.minX, y: level(from.y, a) };
+    entry = { x: right ? b.minX : b.maxX, y: level(b.ground - rise * (b.ground - b.minY), b) };
+  } else {
+    const down = dy > 0;
+    const across = (clamp(from.x, a.minX, a.maxX) - a.minX) / Math.max(1, a.maxX - a.minX);
+    exit = { x: clamp(from.x, a.minX, a.maxX), y: level(down ? a.ground : a.minY, a) };
+    entry = { x: Math.round(b.minX + across * (b.maxX - b.minX)), y: level(down ? b.minY : b.ground, b) };
+  }
+  const round = (p) => ({ x: Math.round(p.x), y: Math.round(p.y) });
+  return { exit: round(exit), entry: round(entry), face: (exit.x === from.x ? dx : exit.x - from.x) < 0 ? 'left' : 'right' };
+}
+
+module.exports = {
+  planTrip,
+  positionAt,
+  tripDisplay,
+  pickTrip,
+  planCrossing,
+  TRIP_KINDS: KINDS,
+  SCREEN_CHANCE,
+  CURSOR_GAP,
+  FLEE_GAP,
+  WALK_SPEED,
+  FLY_SPEED,
+};

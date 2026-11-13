@@ -3,7 +3,7 @@
  * the same file runs in the renderer (window.BuddyFun) and in node:test.
  *
  *   TapMeter          quick taps in a row: happy or cross, by mood and by work (tapMood)
- *   AmbientScheduler  ambient life: short plays and trips, every 20-90 s
+ *   AmbientScheduler  ambient life: short plays and trips, every 15-60 s
  *   pickCheer      a different celebration for "done" now and then
  *   Duel           the sword fight started from the right-click menu
  *   BugFight       the bug hunt: the robot fights a failing check's bug
@@ -101,41 +101,52 @@
     moonwalk: 3400,
   });
 
-  /** Trips around the screen (main.js plans them, see app/roam.js). */
-  const TRIPS = Object.freeze({ walk: 'stroll', fly: 'hop', inspect: 'inspect', home: 'home' });
+  /**
+   * Trips around the screen (main.js plans them, see app/roam.js). It does not
+   * go home by itself: it just keeps wandering (home is in the menu, and it
+   * goes home when ambient life is switched off).
+   */
+  const TRIPS = Object.freeze({ walk: 'stroll', fly: 'hop', inspect: 'inspect' });
 
-  /** Relative chances. Every play counts 1. */
-  const WEIGHTS = Object.freeze({ walk: 1.6, fly: 1.1, inspect: 0.8, home: 1.4 });
+  /**
+   * Relative chances. Every play counts 1, so with the twelve plays about half
+   * of what it does by itself is a trip (it likes to get around: a walk, a
+   * flight, a look at what the user does; main.js turns some of them into a
+   * trip to another screen).
+   */
+  const WEIGHTS = Object.freeze({ walk: 4, fly: 4.5, inspect: 2.5 });
+  /** The wait between two behaviours (ms). */
+  const AMBIENT_GAP = Object.freeze({ minMs: 15000, maxMs: 60000 });
 
   /**
    * Ambient life: while allowed (idle, awake, nothing else going on), every
-   * 20-90 s one short behaviour, never the same one twice in a row:
+   * 15-60 s one short behaviour, never the same one twice in a row:
    *   a play on the spot   onPlay(name), then onPlay(null) when it is over
    *   a trip               onTrip(kind) asks the main process to move
    * update() with enabled = false (an event, the pointer, rest, a drag, a
    * duel...) ends a play at once and cancels the next one.
    */
   class AmbientScheduler {
-    constructor({ clock = realClock, random = Math.random, minMs = 20000, maxMs = 90000, onPlay = () => {}, onTrip = () => {} } = {}) {
+    constructor({ clock = realClock, random = Math.random, minMs = AMBIENT_GAP.minMs, maxMs = AMBIENT_GAP.maxMs, onPlay = () => {}, onTrip = () => {} } = {}) {
       this.clock = clock;
       this.random = random;
       this.minMs = minMs;
       this.maxMs = maxMs;
       this.onPlay = onPlay;
       this.onTrip = onTrip;
-      this.allowed = { enabled: false, trips: false, away: false };
+      this.allowed = { enabled: false, trips: false };
       this.playing = null;
       this.last = null;
       this.timer = null;
     }
 
     /**
-     * @param {{ enabled: boolean, trips?: boolean, away?: boolean }} next
-     *   trips: moving around is allowed (no helpers, no cat); away: not at home
+     * @param {{ enabled: boolean, trips?: boolean }} next
+     *   trips: moving around is allowed (no helpers, no cat)
      */
-    update({ enabled, trips = false, away = false }) {
+    update({ enabled, trips = false }) {
       const was = this.allowed.enabled;
-      this.allowed = { enabled: Boolean(enabled), trips: Boolean(trips), away: Boolean(away) };
+      this.allowed = { enabled: Boolean(enabled), trips: Boolean(trips) };
       if (!this.allowed.enabled) {
         this.stop();
         this.cancel();
@@ -148,10 +159,7 @@
     choices() {
       const out = Object.keys(PLAYS).map((name) => [name, 1]);
       if (this.allowed.trips) {
-        for (const kind of Object.keys(TRIPS)) {
-          if (kind === 'home' && !this.allowed.away) continue;
-          out.push([kind, WEIGHTS[kind]]);
-        }
+        for (const kind of Object.keys(TRIPS)) out.push([kind, WEIGHTS[kind]]);
       }
       return out.filter(([name]) => name !== this.last);
     }
@@ -453,6 +461,8 @@
     tapMood,
     TAP_LIKES,
     AmbientScheduler,
+    AMBIENT_GAP,
+    WEIGHTS,
     PLAYS,
     TRIPS,
     pickCheer,
