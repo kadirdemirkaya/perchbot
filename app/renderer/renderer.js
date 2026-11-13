@@ -166,10 +166,20 @@
    * on. Only for what the user does and the buddy's own play: never for
    * Claude Code's work, and work silences them at once. Nothing while the
    * screen is locked or the buddy rests.
+   *
+   * Switched off for now (app/features.js): index.html does not load
+   * lib/sound.js, and this silent board stands in (no AudioContext at all).
    */
-  const sound = new window.BuddySound.SoundBoard({
-    createContext: () => new AudioContext({ latencyHint: 'interactive' }),
+  const SILENT_BOARD = Object.freeze({
+    play: () => false,
+    tapPitch: () => 1,
+    stopAll() {},
+    setEnabled() {},
+    setVolume() {},
   });
+  const sound = window.BuddySound
+    ? new window.BuddySound.SoundBoard({ createContext: () => new AudioContext({ latencyHint: 'interactive' }) })
+    : SILENT_BOARD;
   /** The simulator's sound demos play even with the setting off. */
   let soundDemo = false;
 
@@ -1583,7 +1593,9 @@
   function onDemo(name) {
     trace(`demo: ${name}`);
     rest.activity();
-    if (name === 'sound') {
+    if (name === 'sound' && sound === SILENT_BOARD) {
+      trace('sound: switched off (app/features.js)');
+    } else if (name === 'sound') {
       soundDemo = true;
       syncSound();
       const list = [

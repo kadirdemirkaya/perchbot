@@ -45,11 +45,13 @@ const ITEMS = [
     icon: () => 'chat',
     label: (s, x) => (x.chatOpen ? 'chatClose' : 'chat'),
   },
-  // Sounds on / off (the volume is in the full settings menu).
+  // Sounds on / off (the volume is in the full settings menu). Only while the
+  // sound feature is switched on (app/features.js).
   {
     id: 'sound',
     icon: (s) => (s.sound ? 'sound' : 'sound-off'),
     label: (s) => (s.sound ? 'soundOff' : 'soundOn'),
+    visible: (s, x) => x.soundAvailable === true,
   },
   {
     id: 'corner',
@@ -65,8 +67,9 @@ const MENU_IDS = new Set(ITEMS.map((item) => item.id));
 
 /**
  * @param {object} settings
- * @param {{ catHere?: boolean, pet?: boolean, chatOpen?: boolean }} [extra]  runtime state:
- *   the cat is on screen; the character has a pet (default true); the chat panel is open
+ * @param {{ catHere?: boolean, pet?: boolean, chatOpen?: boolean, soundAvailable?: boolean }} [extra]
+ *   runtime state: the cat is on screen; the character has a pet (default true); the chat
+ *   panel is open; the sound feature is switched on (default false, see app/features.js)
  * @returns {Array<{ id: string, icon: string, label: string, activeLabel?: string }>}
  */
 function buildMenuItems(settings, extra = {}) {

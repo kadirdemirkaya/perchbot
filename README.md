@@ -177,14 +177,17 @@ main process releases the mouse whenever the cursor is outside the window.
 | Leave it alone for a minute while idle | It rests: eyes half closed, no animation. Any event or hover wakes it |
 
 The hover menu, two columns of round buttons: show/hide speech bubble, eyes on/off, Play
-(sword duel; click it again to stop), call or send away the cat, chat, sound on/off, back
-to the corner (after a drag), more settings (the full tray menu), quit. Play and the cat
-switch on what they need.
+(sword duel; click it again to stop), call or send away the cat, chat, back to the corner
+(after a drag), more settings (the full tray menu), quit. Play and the cat switch on what
+they need.
 
 ### Sounds
 
-Off by default: turn them on with the speaker button in the hover menu or *Sound* in the
-tray menu (with a volume: low, medium, high). Then a tap on the buddy goes *bonk* (quick
+**Switched off in this version** while they get another pass: there is no speaker button
+or *Sound* entry, the `sound` setting is ignored and the page loads no audio code at all.
+The code stays in `app/renderer/lib/sound.js`; `app/features.js` explains how to switch it
+back on. When it is on, the speaker button in the hover menu or *Sound* in the tray menu
+(with a volume: low, medium, high) turns them on. Then a tap on the buddy goes *bonk* (quick
 taps climb higher; the third one gets a grumpy "hm-hmph"), swords clang in a duel, the
 whip cracks, the ball bounces, and the cat scratches and purrs. Helpers bonk a little
 higher.
@@ -298,7 +301,7 @@ Windows it may be under the `^` overflow arrow):
 | Hover mode | Auto (hover when placed above the ground) / Always stand |
 | Account | All accounts, or only one Claude account (see [Several Claude accounts](#several-claude-accounts)) |
 | Ambient life / Play mode / Cat | See [Ambient life, play mode and the cat](#ambient-life-play-mode-and-the-cat) |
-| Sound / Volume | Little sounds, off by default (see [Sounds](#sounds)); volume low / medium / high |
+| Sound / Volume | Little sounds (see [Sounds](#sounds)); not shown while sounds are switched off |
 | Character | Any character found in `characters/` or `~/.agent-buddy/characters/` |
 | Language | English / Türkçe |
 | Quiet mode | Hides the speech bubble (handy while screen sharing) |
@@ -351,7 +354,7 @@ Everything is stored in `~/.agent-buddy/settings.json`
 | `ambientLife` | `true` / `false` | Idle behaviours, cheers, getting cross when poked (was `funMode` before 0.3) |
 | `playMode` | `true` / `false` | The sword duel and the whip |
 | `cat` | `true` / `false` | The cat can be called from the menus |
-| `sound` | `true` / `false` | Little sounds made in code. Off by default |
+| `sound` | `true` / `false` | Little sounds made in code. Off by default; ignored while sounds are switched off (see [Sounds](#sounds)) |
 | `soundVolume` | `low`, `medium`, `high` | |
 
 Environment variables (optional): `AGENT_BUDDY_HOME` (another settings folder),

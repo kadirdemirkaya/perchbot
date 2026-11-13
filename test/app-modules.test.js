@@ -150,19 +150,33 @@ test('characters written before a state existed fall back to an older state', ()
 });
 
 test('hover menu items come from settings and are localised', () => {
-  const ids = (s) => buildMenuItems({ ...DEFAULTS, ...s }).map((i) => i.id);
-  assert.deepEqual(ids({}), ['quiet', 'eyes', 'play', 'cat', 'chat', 'sound', 'settings', 'quit']);
-  assert.deepEqual(ids({ position: { x: 1, y: 2 } }), ['quiet', 'eyes', 'play', 'cat', 'chat', 'sound', 'corner', 'settings', 'quit']);
+  const ids = (s, x) => buildMenuItems({ ...DEFAULTS, ...s }, x).map((i) => i.id);
+  assert.deepEqual(ids({}), ['quiet', 'eyes', 'play', 'cat', 'chat', 'settings', 'quit']);
+  assert.deepEqual(ids({ position: { x: 1, y: 2 } }), ['quiet', 'eyes', 'play', 'cat', 'chat', 'corner', 'settings', 'quit']);
+  const most = ids({ position: { x: 1, y: 2 } }, { soundAvailable: true });
+  assert.deepEqual(most, ['quiet', 'eyes', 'play', 'cat', 'chat', 'sound', 'corner', 'settings', 'quit']);
   // Two columns of 30 px buttons, rows 36 px apart from y = 70: five rows (to y = 244) fit the 270 px window.
-  assert.ok(Math.ceil(ids({ position: { x: 1, y: 2 } }).length / 2) <= 5, 'at most five rows');
+  assert.ok(Math.ceil(most.length / 2) <= 5, 'at most five rows');
   const quiet = buildMenuItems({ ...DEFAULTS, quiet: true, language: 'tr' }).find((i) => i.id === 'quiet');
   assert.deepEqual(quiet, { id: 'quiet', icon: 'bubble-off', label: 'Baloncuğu göster' });
-  for (const id of ids({ position: { x: 1, y: 2 } })) assert.ok(MENU_IDS.has(id));
+  for (const id of most) assert.ok(MENU_IDS.has(id));
   // Every icon used by the menu exists in the page's sprite.
   const html = fs.readFileSync(path.join(ROOT, 'app', 'renderer', 'index.html'), 'utf8');
-  for (const s of [{}, { quiet: true, eyeTracking: false, position: { x: 1, y: 2 } }]) {
-    for (const item of buildMenuItems({ ...DEFAULTS, ...s })) assert.ok(html.includes(`id="i-${item.icon}"`), item.icon);
+  for (const s of [{}, { quiet: true, eyeTracking: false, sound: true, position: { x: 1, y: 2 } }]) {
+    for (const item of buildMenuItems({ ...DEFAULTS, ...s }, { soundAvailable: true })) assert.ok(html.includes(`id="i-${item.icon}"`), item.icon);
   }
+});
+
+test('features: sounds are switched off, and the page agrees', () => {
+  const FEATURES = require('../app/features');
+  assert.equal(FEATURES.sound, false, 'sounds stay off until they get another pass');
+  // The page loads lib/sound.js exactly when the feature is on (comments do not count).
+  const html = fs.readFileSync(path.join(ROOT, 'app', 'renderer', 'index.html'), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+  assert.equal(/<script[^>]+src="lib\/sound\.js"/.test(html), FEATURES.sound);
+  // No menu entry for it while it is off, even with the setting on.
+  assert.equal(buildMenuItems({ ...DEFAULTS, sound: true }, { soundAvailable: FEATURES.sound }).find((i) => i.id === 'sound'), undefined);
+  const tray = buildTrayTemplate({ settings: { ...DEFAULTS, sound: true }, characters: new Map(), sessionCount: 0, soundAvailable: FEATURES.sound, on: {} });
+  assert.ok(!tray.some((item) => item.label === 'Sound' || item.label === 'Volume'));
 });
 
 test('settings: normalisation, missing and broken files, atomic save', () => {
@@ -216,11 +230,14 @@ test('tray menu reflects settings and calls back', () => {
   const tr = buildTrayTemplate({ settings: { ...DEFAULTS, language: 'tr' }, characters, sessionCount: 1, on });
   assert.equal(tr.at(-1).label, 'Şimdi kapat');
 
-  // Sound: off by default; a volume submenu.
+  // Sound (only while the feature is switched on): off by default; a volume submenu.
+  assert.equal(byLabel('Sound'), undefined, 'no sound entries while the feature is off');
   calls.length = 0;
-  assert.equal(byLabel('Sound').checked, false);
-  byLabel('Sound').click({ checked: true });
-  const volume = byLabel('Volume').submenu;
+  const withSound = buildTrayTemplate({ settings: { ...DEFAULTS }, characters, sessionCount: 2, soundAvailable: true, on });
+  const soundEntry = (label) => withSound.find((item) => item.label === label);
+  assert.equal(soundEntry('Sound').checked, false);
+  soundEntry('Sound').click({ checked: true });
+  const volume = soundEntry('Volume').submenu;
   assert.deepEqual(volume.map((i) => i.label), ['Low', 'Medium', 'High']);
   assert.equal(volume.find((i) => i.checked).label, 'Low');
   volume[2].click();
@@ -267,7 +284,7 @@ test('ambient life, play mode and the cat: settings, tray, right-click and hover
   assert.equal(normalizeSettings({ sound: true, soundVolume: 'high' }).soundVolume, 'high');
   assert.equal(normalizeSettings({ sound: 'yes', soundVolume: 11 }).sound, false);
   assert.equal(normalizeSettings({ soundVolume: 11 }).soundVolume, 'low');
-  const soundItem = (s) => buildMenuItems({ ...DEFAULTS, ...s }).find((i) => i.id === 'sound');
+  const soundItem = (s) => buildMenuItems({ ...DEFAULTS, ...s }, { soundAvailable: true }).find((i) => i.id === 'sound');
   assert.deepEqual(soundItem({}), { id: 'sound', icon: 'sound-off', label: 'Turn sounds on' });
   assert.deepEqual(soundItem({ sound: true, language: 'tr' }), { id: 'sound', icon: 'sound', label: 'Sesleri kapat' });
   assert.equal(normalizeSettings({}).cat, false, 'no cat by default');

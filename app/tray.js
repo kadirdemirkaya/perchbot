@@ -13,11 +13,12 @@ const { translate, languageOptions } = require('./i18n');
  * @param {Map<string, object>} p.characters
  * @param {number} p.sessionCount
  * @param {(account: string) => boolean} [p.seenAccount]  did that account send events in this run?
+ * @param {boolean} [p.soundAvailable]  the sound feature is switched on (app/features.js)
  * @param {object} p.on  callbacks: setCorner, setSize, setHoverMode, setCharacter, setLanguage,
- *   setQuiet, setEyeTracking, setAmbientLife, setPlayMode, setCat, setAccount, backToCorner,
- *   openSettings, quit
+ *   setQuiet, setEyeTracking, setAmbientLife, setPlayMode, setCat, setSound, setSoundVolume,
+ *   setAccount, backToCorner, openSettings, quit
  */
-function buildTrayTemplate({ settings, characters, sessionCount, seenAccount = () => true, on }) {
+function buildTrayTemplate({ settings, characters, sessionCount, seenAccount = () => true, soundAvailable = false, on }) {
   const t = (key, vars) => translate(settings.language, 'menu', key, vars);
   const radio = (label, checked, click) => ({ label, type: 'radio', checked, click });
 
@@ -76,18 +77,7 @@ function buildTrayTemplate({ settings, characters, sessionCount, seenAccount = (
       click: (item) => on.setEyeTracking(Boolean(item && item.checked)),
     },
     ...lifeToggles(settings, t, on),
-    {
-      label: t('sound'),
-      type: 'checkbox',
-      checked: Boolean(settings.sound),
-      click: (item) => on.setSound(Boolean(item && item.checked)),
-    },
-    {
-      label: t('soundVolume'),
-      submenu: ['low', 'medium', 'high'].map((level) =>
-        radio(t(`volume_${level}`), (settings.soundVolume || 'low') === level, () => on.setSoundVolume(level)),
-      ),
-    },
+    ...(soundAvailable ? soundItems(settings, t, radio, on) : []),
     ...(settings.position ? [{ label: t('backToCorner'), click: () => on.backToCorner() }] : []),
     { type: 'separator' },
     { label: t('openSettings'), click: () => on.openSettings() },
@@ -110,6 +100,24 @@ function accountMenu(settings, seenAccount, t, radio, on) {
     items.push({ type: 'separator' }, { label: t('noAccountEvents'), enabled: false });
   }
   return items;
+}
+
+/** Sound on / off and the volume (only while the sound feature is switched on). */
+function soundItems(settings, t, radio, on) {
+  return [
+    {
+      label: t('sound'),
+      type: 'checkbox',
+      checked: Boolean(settings.sound),
+      click: (item) => on.setSound(Boolean(item && item.checked)),
+    },
+    {
+      label: t('soundVolume'),
+      submenu: ['low', 'medium', 'high'].map((level) =>
+        radio(t(`volume_${level}`), (settings.soundVolume || 'low') === level, () => on.setSoundVolume(level)),
+      ),
+    },
+  ];
 }
 
 /** The three switches for the buddy's own life, shared by the tray and the right-click menu. */

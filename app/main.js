@@ -49,6 +49,7 @@ const fling = require('./fling');
 const { buildTrayTemplate, buildFunMenuTemplate } = require('./tray');
 const { buildMenuItems, MENU_IDS, switchFor } = require('./menu-items');
 const chat = require('./chat');
+const FEATURES = require('./features');
 const { createLogger } = require('./log');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -552,9 +553,9 @@ function start() {
         sandbox: true,
         webSecurity: true,
         spellcheck: false,
-        // Sounds (off by default) are made in the page; they follow a click, the
-        // duel or a play, often a moment after the last user gesture.
-        autoplayPolicy: 'no-user-gesture-required',
+        // Sounds (when switched on) are made in the page; they follow a click,
+        // the duel or a play, often a moment after the last user gesture.
+        ...(FEATURES.sound ? { autoplayPolicy: 'no-user-gesture-required' } : {}),
         webgl: false,
         devTools: isDev,
         navigateOnDragDrop: false,
@@ -1134,14 +1135,15 @@ function start() {
       eyeTracking: settings.eyeTracking,
       ambientLife: settings.ambientLife,
       playMode: settings.playMode,
-      sound: settings.sound,
+      // Switched off (app/features.js): off whatever settings.json says.
+      sound: FEATURES.sound && settings.sound,
       soundVolume: settings.soundVolume,
       strings: pageStrings(),
     };
   }
 
   function menuItems() {
-    return buildMenuItems(settings, { catHere: petOn, pet: hasPet(), chatOpen });
+    return buildMenuItems(settings, { catHere: petOn, pet: hasPet(), chatOpen, soundAvailable: FEATURES.sound });
   }
 
   function canSend() {
@@ -1228,7 +1230,7 @@ function start() {
         setChat(!chatOpen);
         break;
       case 'sound':
-        actions.setSound(!settings.sound);
+        if (FEATURES.sound) actions.setSound(!settings.sound);
         break;
       case 'settings':
         popUpSettings();
@@ -1263,6 +1265,7 @@ function start() {
       characters,
       sessionCount: core.sessionCount,
       seenAccount: (name) => core.hasSeenAccount(name),
+      soundAvailable: FEATURES.sound,
       on: actions,
     });
   }

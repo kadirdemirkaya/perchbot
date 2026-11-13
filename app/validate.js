@@ -68,7 +68,8 @@ const DEMOS = new Set([
   'fling',
   // The chat panel opens, two questions are asked and answered.
   'chat',
-  // Every sound once (also with the Sound setting off), and ten seconds of quick taps.
+  // Every sound once (also with the Sound setting off; nothing while sounds are switched
+  // off in app/features.js), and ten seconds of quick taps (taps without sound then).
   'sound',
   'tap-spam',
 ]);
