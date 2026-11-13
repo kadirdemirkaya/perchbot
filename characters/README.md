@@ -148,7 +148,7 @@ The app wraps each copy in `<div class="buddy-mini">` and sets:
 
 | Attribute | Meaning |
 |---|---|
-| `data-phase` | `arrive` (drops in), `brief`, `walk`, `work` (laptop open), `chat`, `look` (looks around), `play` (a little show, see `data-play`), `prank` (pokes the main character), `held` (picked up by the user), `land`, `huff` (hit too often, about to stomp off), `done`, `report`, `leave` |
+| `data-phase` | `arrive` (drops in), `brief`, `walk`, `work` (laptop open), `chat`, `look` (looks around), `play` (a little show, see `data-play`), `prank` (pokes the main character), `held` (picked up by the user), `land`, `huff` (hit too often, about to stomp off), `done`, `report`, `leave`, `outing` (takes off out of the window to roam the screen: like a flying `leave`), `away` (out roaming: hide it). While it roams, the app draws the same mini SVG and CSS in a little window of its own (152 px, the 132 px box 10 px in) with `data-phase` `walk` / `look` / `play`, `data-fly`, `data-travel="walk"`, `data-flip` and `data-tint` |
 | `data-play` | during `play`, ~2 s: `spin`, `jump`, `wave` or `dance` |
 | `data-tint` | `0` … `tints - 1`: which colour variant to wear; neighbours always differ |
 | `data-fly` | thrusters on (dropping in, flying off, hopping over others, or the whole buddy hovers) |

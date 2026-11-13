@@ -8,6 +8,8 @@
  *
  * Attributes set on each mini (the character's mini CSS may use any):
  *   data-phase  data-tint  data-fly  data-hop  data-talk  data-skill  data-give
+ *   (phase "outing": off out of the window to roam the screen; "away": out roaming,
+ *   hidden, its spot kept; app/outings.js flies it round in a window of its own)
  *   data-boop   data-ouch  data-annoyed  data-rest
  *   data-flip   (app CSS mirrors it to face the other way)
  * Positioning (--off, --lift, --walk) and mirroring are done by the app
@@ -127,6 +129,24 @@
     function setTravel(mode, face) {
       travel = mode ? { mode, face: face === 'left' ? 'left' : 'right' } : null;
       for (const view of views.values()) render(view);
+    }
+
+    /** Roaming the screen allowed (ambient life on, motion allowed, awake)? */
+    function setRoam(value) {
+      director.setRoam(value);
+    }
+
+    /** The simulator: the first helper quietly at work goes off to roam now. */
+    function demoRoam() {
+      const mini = director.idleWorkers()[0];
+      if (!mini) return false;
+      director.roam(mini);
+      return true;
+    }
+
+    /** A roaming helper is back (its window is gone): it drops in at its spot. */
+    function comeBack(id) {
+      director.comeBack(id);
     }
 
     /** Resting / paused: every mini stops moving, no chats. */
@@ -256,6 +276,14 @@
     }
 
     function cue(name, data) {
+      // Off to roam the screen: where its feet were (page px), so the app's window starts there.
+      if (name === 'outing') {
+        const el = els.get(data.id);
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        o.onCue('outing', { ...data, x: r.left + r.width * 0.44, y: r.top + r.height * 0.91 });
+        return;
+      }
       if (name === 'handoff') {
         give(data.from);
         if (data.to) give(data.to, GIVE_MS / 2);
@@ -352,6 +380,9 @@
       setCharacter,
       setLayout,
       setAgents,
+      setRoam,
+      comeBack,
+      demoRoam,
       setHover,
       setTravel,
       setRest,

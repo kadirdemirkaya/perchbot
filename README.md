@@ -98,6 +98,14 @@ the buddy itself never moves.
   word with the buddy, strolls around and looks about, puts on a little show (a spin, a jump,
   a wave, a dance), zooms to the far end of the row on its thrusters and back, or sneaks up
   to the buddy, pokes it and runs back.
+- **Roaming:** with ambient life on, the most common of those moments: a helper takes off out
+  of the row and roams the screen on its own, more scattered than the buddy: it flies or
+  walks anywhere on the screen, peeks at your cursor, puts on a little show, and with two
+  screens it hops over to the other one. After two to four legs it flies back over its spot
+  and drops in again. At most two are out at once; one whose agent finishes comes straight
+  back to report. While out it flies in a little window of its own that never takes the mouse
+  (about 100 MB more memory per helper out, gone when it is back). Locking the screen or
+  turning ambient life off brings everyone home.
 - **Done:** a happy face, then it walks to the buddy, salutes, hands over its note and flies
   off. A helper whose session ends, or that has sent no event for 30 minutes, just fades.
 - Up to four helpers are shown when there is room; the rest wait behind a "+N" badge. The
@@ -572,6 +580,7 @@ agent-buddy/
 │   ├── agents.js        sub-agent registry (the helpers)
 │   ├── bugs.js          bug hunt: a failing check opens a bug, the same check passing fixes it
 │   ├── roam.js          trips around the screen (ambient life, being poked)
+│   ├── outings.js       helpers roaming the screen in little windows of their own
 │   ├── placement.js     corners, dragging, snapping, monitor fallback
 │   ├── menu-items.js    the hover menu (add features here)
 │   ├── chat.js          the chat panel's answers, from what the overlay already knows

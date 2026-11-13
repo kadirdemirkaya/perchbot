@@ -40,6 +40,12 @@ const CURSOR_GAP = 60;
 const KINDS = new Set(['stroll', 'hop', 'inspect', 'home', 'flee', 'goto']);
 /** With more than one screen: the share of walks and hops that become a visit to another screen. */
 const SCREEN_CHANCE = 0.3;
+/**
+ * A helper out roaming (main.js outings) is more scattered than the buddy:
+ * each leg goes anywhere on the screen ('flee': well away from where it is),
+ * a hop, a peek at the cursor, or (with two screens) over to the other one.
+ */
+const OUTING_LEGS = Object.freeze({ flee: 0.45, hop: 0.2, inspect: 0.2, screen: 0.15 });
 /** A flight lands at least this far (DIP at medium size) from where it was hit. */
 const FLEE_GAP = 320;
 
@@ -219,6 +225,16 @@ function pickTrip(kind, displayCount, random = Math.random) {
   return kind;
 }
 
+/** The next leg of a helper's roam (see OUTING_LEGS); inspect only with the cursor on its screen. */
+function pickOutingLeg({ displayCount = 1, cursorHere = false, random = Math.random } = {}) {
+  const legs = Object.entries(OUTING_LEGS).filter(
+    ([kind]) => (kind !== 'screen' || displayCount > 1) && (kind !== 'inspect' || cursorHere),
+  );
+  let pick = random() * legs.reduce((sum, [, w]) => sum + w, 0);
+  for (const [kind, w] of legs) if ((pick -= w) < 0) return kind;
+  return legs[legs.length - 1][0];
+}
+
 /**
  * The way from one screen to another: exit = where to go on this screen (the
  * edge that faces the other one, about the same height), entry = where it
@@ -255,7 +271,9 @@ module.exports = {
   positionAt,
   tripDisplay,
   pickTrip,
+  pickOutingLeg,
   planCrossing,
+  OUTING_LEGS,
   TRIP_KINDS: KINDS,
   SCREEN_CHANCE,
   CURSOR_GAP,

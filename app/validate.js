@@ -66,6 +66,8 @@ const DEMOS = new Set([
   'home',
   // A trip to another screen (with only one screen: nothing).
   'screen',
+  // A helper off to roam the screen in a window of its own (needs a helper at work).
+  'roam',
   'anger',
   // Five quick taps it loves (happy hops, hearts).
   'glee',

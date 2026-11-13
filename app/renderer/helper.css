@@ -1,0 +1,59 @@
+/*
+ * A helper roaming the screen in a little window of its own (main.js outings).
+ * The mini box (132 px) sits 10 px in from the window's edges, its feet at
+ * (68, 130): the anchor main.js moves (placement.helperWindow). The window
+ * never takes the mouse. The character's mini.css animates the body.
+ */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  pointer-events: none;
+  user-select: none;
+}
+
+.buddy-mini {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  width: 132px;
+  height: 132px;
+  transition:
+    opacity 0.24s ease,
+    transform 0.24s ease;
+}
+
+.buddy-mini > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  transform-origin: 44% 50%;
+}
+
+/* The artwork faces right; mirrored to face the other way. */
+.buddy-mini[data-flip] > svg {
+  transform: scaleX(-1);
+}
+
+/* Fading out (to another screen, or home at the end): a little zip upwards. */
+body.faded .buddy-mini {
+  opacity: 0;
+  transform: translateY(-12px) scale(0.9);
+  transition:
+    opacity 0.24s ease-in,
+    transform 0.24s ease-in;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .buddy-mini,
+  body.faded .buddy-mini {
+    transition: none;
+  }
+}

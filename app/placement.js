@@ -260,6 +260,25 @@ function bugSpot(side, offset = 0.5) {
   return { x, width: x + BUG.tail, size: BUG.size };
 }
 
+/**
+ * A helper out roaming the screen (main.js outings) flies in a little window
+ * of its own: the 132 px mini box with a 10 px margin. Its anchor is the
+ * mini's feet (x = 88 / 200, y = 182 / 200 of the box), in screen DIP.
+ */
+const HELPER = Object.freeze({ size: 152, footX: 68, footY: 130 });
+
+function helperWindow(feet, scale = 1) {
+  const s = Number(scale) || 1;
+  const size = Math.round(HELPER.size * s);
+  return {
+    bounds: { x: Math.round(feet.x - HELPER.footX * s), y: Math.round(feet.y - HELPER.footY * s), width: size, height: size },
+    /** For roam.planTrip: how far the window reaches left / right of the feet, and below them. */
+    spanLeft: HELPER.footX * s,
+    spanRight: (HELPER.size - HELPER.footX) * s,
+    below: (HELPER.size - HELPER.footY) * s,
+  };
+}
+
 function petSpots(crewCount, side) {
   const play = CREW.report[side === 'right' ? 'right' : 'left'] + PET.play;
   const nap = crewCount > 0 ? crewWidth(crewCount, side) + PET.nap / 2 : play + PET.nap;
@@ -312,6 +331,8 @@ module.exports = {
   petSpots,
   BUG,
   bugSpot,
+  HELPER,
+  helperWindow,
   crewSpot,
   crewWidth,
   crewCapacity,

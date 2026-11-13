@@ -4,8 +4,8 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { planTrip, positionAt, tripDisplay, pickTrip, planCrossing, SCREEN_CHANCE, CURSOR_GAP, FLEE_GAP } = require('../app/roam');
-const { SLOT, cornerAnchor } = require('../app/placement');
+const { planTrip, positionAt, tripDisplay, pickTrip, pickOutingLeg, planCrossing, OUTING_LEGS, SCREEN_CHANCE, CURSOR_GAP, FLEE_GAP } = require('../app/roam');
+const { SLOT, cornerAnchor, helperWindow } = require('../app/placement');
 
 const workArea = { x: 0, y: 0, width: 1536, height: 912 };
 const home = cornerAnchor(workArea, 'bottom-right', 1);
@@ -201,4 +201,27 @@ test('walks and hops now reach much further across the screen', () => {
     assert.ok(inside(hop.to) && inside(walk.to), `seed ${seed}`);
   }
   assert.ok(far > 500, `the longest trip: ${far} px`);
+});
+
+test('helpers roaming: scattered legs, a peek only with the cursor on their screen, other screens only with two', () => {
+  const seen = (opts) => {
+    const out = new Set();
+    let r = 0;
+    for (let i = 0; i < 200; i += 1) out.add(pickOutingLeg({ ...opts, random: () => ((r = (r + 0.137) % 1), r) }));
+    return [...out].sort();
+  };
+  assert.deepEqual(seen({ displayCount: 2, cursorHere: true }), Object.keys(OUTING_LEGS).sort());
+  assert.deepEqual(seen({ displayCount: 1, cursorHere: true }), ['flee', 'hop', 'inspect']);
+  assert.deepEqual(seen({ displayCount: 2, cursorHere: false }), ['flee', 'hop', 'screen']);
+  assert.ok(OUTING_LEGS.flee >= 0.4, 'mostly anywhere on the screen: more scattered than the buddy');
+});
+
+test('helpers roaming: the little window sits around the feet of the mini and scales', () => {
+  const w = helperWindow({ x: 500, y: 900 }, 1);
+  assert.deepEqual(w.bounds, { x: 432, y: 770, width: 152, height: 152 });
+  assert.equal(w.spanLeft + w.spanRight, 152);
+  assert.equal(w.below, 22);
+  const big = helperWindow({ x: 500, y: 900 }, 1.25);
+  assert.equal(big.bounds.width, 190);
+  assert.equal(big.bounds.x, Math.round(500 - 68 * 1.25));
 });

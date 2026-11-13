@@ -3,7 +3,10 @@
  *
  * The app wraps each mini SVG in <div class="buddy-mini" data-phase="...">:
  *   data-phase  arrive | brief | walk | work | chat | look | play | prank |
- *               held | land | huff | done | report | leave
+ *               held | land | huff | done | report | leave | outing | away
+ *               (outing: off out of the window to roam the screen, like a
+ *               flying leave; away: out roaming, hidden. The app flies it
+ *               round in a little window of its own and drops it in again)
  *   data-play   during "play": spin | jump | wave | dance
  *   data-tint   0..4: which colour this kid wears (neighbours differ)
  *   data-fly    thrusters on: dropping in, flying off, hopping over other
@@ -624,15 +627,20 @@
 
 /* ------------------------------------------------------------ leave: off it goes */
 
-.buddy-mini[data-phase='leave'] .rbm-figure {
+.buddy-mini:is([data-phase='leave'], [data-phase='outing']) .rbm-figure {
   opacity: 0;
   transition:
     transform 0.9s cubic-bezier(0.5, 0, 0.8, 0.6),
     opacity 0.6s ease 0.3s;
 }
 
-.buddy-mini[data-phase='leave'][data-fly] .rbm-figure {
+.buddy-mini:is([data-phase='leave'], [data-phase='outing'])[data-fly] .rbm-figure {
   transform: translateY(-120px);
+}
+
+/* Out roaming the screen: not here (its spot is kept). */
+.buddy-mini[data-phase='away'] .rbm-figure {
+  opacity: 0;
 }
 
 /* ------------------------------------------------------------ flying */

@@ -45,6 +45,7 @@ const { discoverCharacters } = require('./characters');
 const { translate } = require('./i18n');
 const placement = require('./placement');
 const roam = require('./roam');
+const outingsLib = require('./outings');
 const fling = require('./fling');
 const { buildTrayTemplate, buildFunMenuTemplate } = require('./tray');
 const { buildMenuItems, MENU_IDS, switchFor } = require('./menu-items');
@@ -366,6 +367,21 @@ function start() {
     if (req) onChat(req);
   });
 
+  // A helper flew out of the window to roam the screen (crew "roam"): give it a window of its own.
+  ipcMain.on('buddy:outing', (event, msg) => {
+    if (!fromPage(event)) return;
+    const req = outingsLib.parseOuting(msg);
+    if (req) startOuting(req);
+  });
+
+  // The crew calls one back (its agent finished, ambient life off, resting...).
+  ipcMain.on('buddy:outing-end', (event, id) => {
+    if (!fromPage(event) || typeof id !== 'string' || !AGENT_ID_RE.test(id)) return;
+    const o = outings.get(id);
+    if (o) outingHome(o);
+    else outingBack(id);
+  });
+
   ipcMain.on('buddy:crew-left', (event, id) => {
     if (fromPage(event) && typeof id === 'string' && AGENT_ID_RE.test(id)) core.crew.release(id);
   });
@@ -601,6 +617,7 @@ function start() {
     win.webContents.on('did-finish-load', () => applyZoom(true));
     win.webContents.on('render-process-gone', (_event, details) => {
       rendererReady = false;
+      endAllOutings();
       setCapture(false);
       stopTyping();
       chatOpen = false;
@@ -623,6 +640,7 @@ function start() {
       if (canSend()) win.webContents.send('buddy:chat', { typing: false });
     });
     win.on('closed', () => {
+      endAllOutings();
       win = null;
       rendererReady = false;
       stopWatchdog();
@@ -999,6 +1017,204 @@ function start() {
   }
 
 
+  // ------------------------------------------------------------------ helpers out roaming
+
+  /**
+   * Helpers roaming the screen (outings.js): a mini flies out of the buddy's
+   * window, gets a little click-through window of its own (renderer/helper.html)
+   * and flies, walks and peeks round the screen(s) for a few legs, more
+   * scattered than the buddy; then it flies back over its spot, fades and the
+   * page drops it in again ('buddy:outing-back'). id -> outing.
+   */
+  const outings = new Map();
+
+  /** The page's mini may come back (refused, or the roam is over). */
+  function outingBack(id) {
+    if (canSend()) win.webContents.send('buddy:outing-back', id);
+  }
+
+  function startOuting(req) {
+    const payload = characterPayload();
+    const mini = payload && payload.mini;
+    if (!win || win.isDestroyed() || quitting || paused || !settings.ambientLife || !mini || outings.has(req.id) || outings.size >= outingsLib.OUTING.max) {
+      outingBack(req.id);
+      return;
+    }
+    const feet = outingsLib.toScreen({ x: req.x, y: req.y }, win.getBounds(), scale());
+    const hw = new BrowserWindow({
+      ...placement.helperWindow(feet, scale()).bounds,
+      show: false,
+      transparent: true,
+      frame: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      focusable: false,
+      hasShadow: false,
+      resizable: false,
+      movable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      ...(process.platform === 'win32' ? { type: 'toolbar' } : {}),
+      backgroundColor: '#00000000',
+      title: 'Agent Buddy helper',
+      webPreferences: {
+        preload: path.join(__dirname, 'helper-preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        webSecurity: true,
+        spellcheck: false,
+        webgl: false,
+        devTools: false,
+        navigateOnDragDrop: false,
+      },
+    });
+    hw.setIgnoreMouseEvents(true);
+    const o = { id: req.id, off: req.off, hw, feet, face: 'right', legs: outingsLib.pickLegs(), timer: null, step: null, ending: false };
+    o.limit = setTimeout(() => outingHome(o), outingsLib.OUTING.maxMs);
+    outings.set(req.id, o);
+    log.devOnly(`outing: ${req.id.slice(0, 4)} out for ${o.legs} legs`);
+    hw.on('closed', () => {
+      o.hw = null;
+    });
+    hw.webContents.once('did-finish-load', () => {
+      if (!o.hw || o.ending) return;
+      o.hw.webContents.setZoomFactor(scale());
+      o.hw.webContents.send('helper:init', { mini: { svgUrl: mini.svgUrl, cssUrl: mini.cssUrl }, tint: req.tint });
+      o.hw.showInactive();
+      o.timer = setTimeout(() => outingLeg(o), 350);
+    });
+    hw.loadURL(`${ORIGIN}/renderer/helper.html`);
+  }
+
+  /** Where a helper may be on its screen: the work area, less what its window reaches below its feet. */
+  function outingArea(display, geo) {
+    return { ...display.workArea, height: display.workArea.height - geo.below };
+  }
+
+  function outingLeg(o) {
+    if (!o.hw || o.ending) return;
+    if (o.legs <= 0) {
+      outingHome(o);
+      return;
+    }
+    o.legs -= 1;
+    const all = displays();
+    const here = placement.nearestDisplay(o.feet, all);
+    const cursor = screen.getCursorScreenPoint();
+    const cursorHere = placement.nearestDisplay(cursor, all).id === here.id;
+    const geo = placement.helperWindow(o.feet, scale());
+    const spans = { spanLeft: geo.spanLeft, spanRight: geo.spanRight };
+    let kind = roam.pickOutingLeg({ displayCount: all.length, cursorHere });
+    if (kind === 'screen') {
+      const target = roam.tripDisplay({ kind, here, displays: all });
+      const way =
+        target &&
+        roam.planCrossing({ from: o.feet, fromArea: outingArea(here, geo), toArea: outingArea(target, geo), scale: scale(), hoverMode: settings.hoverMode, ...spans });
+      if (way) {
+        const go = () => outingWarp(o, way.entry, () => outingLeg(o));
+        const leg = roam.planTrip({ kind: 'goto', to: way.exit, from: o.feet, workArea: outingArea(here, geo), cursor, scale: scale(), hoverMode: settings.hoverMode, ...spans });
+        if (leg) outingMove(o, leg, go);
+        else go();
+        return;
+      }
+      kind = 'flee';
+    }
+    const plan = roam.planTrip({ kind, from: o.feet, home: o.feet, workArea: outingArea(here, geo), cursor, scale: scale(), hoverMode: settings.hoverMode, ...spans });
+    if (plan) outingMove(o, plan, () => outingPause(o));
+    else outingPause(o);
+  }
+
+  /** Along a planned leg (roam.positionAt), one step per ~16 ms. */
+  function outingMove(o, plan, then) {
+    clearInterval(o.step);
+    o.face = plan.face;
+    if (o.hw) o.hw.webContents.send('helper:pose', { move: plan.mode, face: plan.face });
+    const start = Date.now();
+    o.step = setInterval(() => {
+      if (!o.hw) {
+        clearInterval(o.step);
+        return;
+      }
+      const t = Date.now() - start;
+      o.feet = roam.positionAt(plan, t);
+      o.hw.setBounds(placement.helperWindow(o.feet, scale()).bounds);
+      if (t >= plan.ms) {
+        clearInterval(o.step);
+        o.step = null;
+        then();
+      }
+    }, 16);
+  }
+
+  /** A look round, or a little show, before the next leg. */
+  function outingPause(o) {
+    if (!o.hw || o.ending) return;
+    const p = outingsLib.pickPause();
+    o.hw.webContents.send('helper:pose', { move: null, face: o.face, pose: p.pose, play: p.play });
+    o.timer = setTimeout(() => outingLeg(o), p.ms);
+  }
+
+  /** To another screen: fade out, jump to `entry` (feet, screen DIP), fade in, then. */
+  function outingWarp(o, entry, then) {
+    if (!o.hw) return;
+    o.hw.webContents.send('helper:fade', 'out');
+    o.timer = setTimeout(() => {
+      if (!o.hw) return;
+      o.feet = { ...entry };
+      o.hw.setBounds(placement.helperWindow(o.feet, scale()).bounds);
+      o.hw.webContents.send('helper:fade', 'in');
+      o.timer = setTimeout(then, outingsLib.OUTING.fadeMs + 40);
+    }, outingsLib.OUTING.fadeMs + 20);
+  }
+
+  /** Back to the buddy: over its spot, fade, gone; the page drops the mini in. */
+  function outingHome(o) {
+    if (o.ending) return;
+    o.ending = true;
+    clearTimeout(o.timer);
+    clearTimeout(o.limit);
+    clearInterval(o.step);
+    if (!o.hw || !win || win.isDestroyed() || !pageLayout) {
+      endOuting(o);
+      return;
+    }
+    const all = displays();
+    const target = outingsLib.returnPoint(win.getBounds(), pageLayout.side, o.off, scale());
+    const fadeAndEnd = () => {
+      if (o.hw) o.hw.webContents.send('helper:fade', 'out');
+      o.timer = setTimeout(() => endOuting(o), outingsLib.OUTING.fadeMs + 20);
+    };
+    // Not on the buddy's screen: it just fades where it is.
+    if (placement.nearestDisplay(target, all).id !== placement.nearestDisplay(o.feet, all).id) {
+      fadeAndEnd();
+      return;
+    }
+    const geo = placement.helperWindow(o.feet, scale());
+    const area = outingArea(placement.nearestDisplay(o.feet, all), geo);
+    const plan = roam.planTrip({ kind: 'goto', to: target, from: o.feet, workArea: area, scale: scale(), hoverMode: settings.hoverMode, spanLeft: geo.spanLeft, spanRight: geo.spanRight });
+    if (plan) outingMove(o, plan, fadeAndEnd);
+    else fadeAndEnd();
+  }
+
+  function endOuting(o) {
+    clearTimeout(o.timer);
+    clearTimeout(o.limit);
+    clearInterval(o.step);
+    o.ending = true;
+    outings.delete(o.id);
+    if (o.hw && !o.hw.isDestroyed()) o.hw.destroy();
+    o.hw = null;
+    log.devOnly(`outing: ${o.id.slice(0, 4)} back`);
+    outingBack(o.id);
+  }
+
+  /** Screen locked, quitting: everyone home at once, no flight. */
+  function endAllOutings() {
+    for (const o of [...outings.values()]) endOuting(o);
+  }
+
   /** The right-click menu: play (duel, whip), walk, fly, home, the cat, the three switches. */
   function popUpFunMenu() {
     const template = buildFunMenuTemplate({
@@ -1170,6 +1386,7 @@ function start() {
   function setPaused(value) {
     paused = value;
     if (value) setCapture(false);
+    if (value) endAllOutings();
     if (canSend()) win.webContents.send('buddy:paused', value);
   }
 
@@ -1473,6 +1690,7 @@ function start() {
     if (quitting) return;
     quitting = true;
     if (trip) clearInterval(trip.timer);
+    endAllOutings();
     stopWatchdog();
     core.dispose();
     if (server) server.close();

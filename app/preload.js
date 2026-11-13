@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('buddy', {
   onFlip: on('buddy:flip'),
   onChat: on('buddy:chat'),
   onBug: on('buddy:bug'),
+  onOutingBack: on('buddy:outing-back'),
   ready: () => ipcRenderer.send('buddy:ready'),
   capture: (wanted) => ipcRenderer.send('buddy:capture', wanted === true),
   drag: (phase) => {
@@ -51,6 +52,18 @@ contextBridge.exposeInMainWorld('buddy', {
   },
   tripFrame: () => ipcRenderer.send('buddy:trip-frame'),
   flipReady: () => ipcRenderer.send('buddy:flip-ready'),
+  /** A helper flew out to roam the screen: who, its colour, its spot and where it stood (page px). */
+  outing: (msg) => {
+    if (!msg || typeof msg !== 'object' || typeof msg.id !== 'string' || !AGENT_ID_RE.test(msg.id)) return;
+    const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+    const out = { id: msg.id, tint: num(msg.tint), off: num(msg.off), x: num(msg.x), y: num(msg.y) };
+    if (Object.values(out).some((v) => v === null)) return;
+    ipcRenderer.send('buddy:outing', out);
+  },
+  /** Call a roaming helper back. */
+  outingEnd: (id) => {
+    if (typeof id === 'string' && AGENT_ID_RE.test(id)) ipcRenderer.send('buddy:outing-end', id);
+  },
   chat: (op, intent) => {
     if (!CHAT_OPS.has(op)) return;
     if (op !== 'ask') ipcRenderer.send('buddy:chat', { op });

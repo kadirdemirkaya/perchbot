@@ -24,6 +24,13 @@
  *                     a look round, and back
  *              prank  sneaks up to the main character, pokes it ("poke" cue)
  *                     and runs back, quickly
+ *              roam   (when the page allows it: ambient life on) off out of
+ *                     the window on its thrusters ("outing"), then "away":
+ *                     cue 'outing' and the app flies it around the screen(s)
+ *                     in a little window of its own; comeBack(id) drops it
+ *                     in at its spot again. At most two are out at once; one
+ *                     whose agent finishes meanwhile is called back (cue
+ *                     'recall'), and none stays out longer than awayMaxMs
  *   held     the user picked it up; when dropped it lands there and makes that
  *            place its new spot
  *   shooed   hit too often: it huffs, then walks (or hops) off to a random new
@@ -87,6 +94,12 @@
     /** Shooed away: the huff, and how far it goes at least. */
     huffMs: 700,
     shooGap: 60,
+    /** Off out of the window for a roam (mini CSS: data-phase="outing"). */
+    outingMs: 900,
+    /** A roam never lasts longer than this: back it comes anyway. */
+    awayMaxMs: 60000,
+    /** At most this many out roaming at once. */
+    maxOut: 2,
   });
 
   const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
@@ -94,7 +107,7 @@
    * Relative weights of the social moments (when each is possible). The kids are a
    * bit naughty: they show off, zoom about on their thrusters and poke the main character.
    */
-  const SOCIAL_WEIGHTS = { chat: 3, visit: 2, stroll: 2, play: 4, zoom: 3, prank: 2 };
+  const SOCIAL_WEIGHTS = { chat: 3, visit: 2, stroll: 2, play: 4, zoom: 3, prank: 2, roam: 6 };
   /** Their little shows (mini CSS: data-phase="play" with data-play). */
   const MINI_PLAYS = ['spin', 'jump', 'wave', 'dance'];
   /** A zoom needs at least this much room in the crew area (CSS px). */
@@ -136,6 +149,8 @@
       this.quiet = false;
       this.socialTimer = null;
       this.disposed = false;
+      /** The page lets them roam the screen (ambient life on, motion allowed). */
+      this.roamAllowed = false;
     }
 
     // ---------------------------------------------------------------- input
@@ -154,8 +169,36 @@
     }
 
     /** Quiet (main character resting, screen locked): nobody gets up. */
+    /** Roaming the screen allowed? Off: those out are called back. */
+    setRoam(allowed) {
+      const next = Boolean(allowed);
+      if (next === this.roamAllowed) return; // the page asks often; only a change counts
+      this.roamAllowed = next;
+      if (!next) for (const mini of this.minis.values()) if (this.isOut(mini)) this.onCue('recall', { id: mini.id });
+    }
+
+    isOut(mini) {
+      return mini.phase === 'outing' || mini.phase === 'away';
+    }
+
+    outCount() {
+      return [...this.minis.values()].filter((m) => this.isOut(m)).length;
+    }
+
+    /** Back from a roam (the app's little window is gone): it drops in at its spot. */
+    comeBack(id) {
+      const mini = this.minis.get(id);
+      if (!mini || !this.isOut(mini)) return;
+      mini.off = this.spotOf(mini);
+      mini.fly = false;
+      this.setPhase(mini, 'arrive', 'in');
+      this.after(mini, this.t.arriveMs, () => this.work(mini));
+    }
+
     setQuiet(quiet) {
       this.quiet = Boolean(quiet);
+      // Resting or the screen locked: those out roaming come home.
+      if (this.quiet) for (const mini of this.minis.values()) if (this.isOut(mini)) this.onCue('recall', { id: mini.id });
       this.scheduleSocial();
     }
 
@@ -268,6 +311,8 @@
         if (agent.status !== 'active' && !mini.finishing) {
           mini.finishing = agent.status;
           if (mini.phase === 'work') this.finish(mini);
+          // Out roaming: called back; it finishes once it is home (work() -> finish()).
+          else if (this.isOut(mini)) this.onCue('recall', { id: mini.id });
         } else if (mini.phase === 'work' && mini.off !== this.spotOf(mini)) {
           // A neighbour left: slide along towards the main character.
           if (relayout) this.place(mini, this.spotOf(mini), 'in');
@@ -416,6 +461,7 @@
 
     /** Taken off the page at once (the app forgot it, or it no longer fits). */
     drop(mini) {
+      if (this.isOut(mini)) this.onCue('recall', { id: mini.id });
       this.clearTimer(mini);
       this.reportQueue = this.reportQueue.filter((id) => id !== mini.id);
       this.minis.delete(mini.id);
@@ -467,6 +513,7 @@
       options.push('play');
       if (this.maxOff() - (this.geo.report + this.t.strollMargin) >= ZOOM_ROOM) options.push('zoom');
       options.push('stroll');
+      if (this.roamAllowed && this.outCount() < this.t.maxOut) options.push('roam');
       const kind = this.pickKind(options);
       const any = () => workers[Math.floor(this.random() * workers.length)];
       if (kind === 'chat') this.chat(...pairs[Math.floor(this.random() * pairs.length)]);
@@ -474,6 +521,7 @@
       else if (kind === 'prank') this.prank(any());
       else if (kind === 'play') this.play(any());
       else if (kind === 'zoom') this.zoom(any());
+      else if (kind === 'roam') this.roam(any());
       else this.stroll(any());
     }
 
@@ -510,6 +558,24 @@
         },
         { fly: true, speed: this.t.flySpeed },
       );
+    }
+
+    /**
+     * Off out of the window on its thrusters, then away: the app flies it round the
+     * screen (cue 'outing' with where it stood) until comeBack(id), or awayMaxMs.
+     */
+    roam(mini) {
+      this.leavePartner(mini);
+      mini.fly = true;
+      this.setPhase(mini, 'outing', 'out');
+      this.after(mini, this.t.outingMs, () => {
+        this.setPhase(mini, 'away', mini.face);
+        this.onCue('outing', { id: mini.id, tint: mini.tint, off: mini.off });
+        this.after(mini, this.t.awayMaxMs, () => {
+          this.onCue('recall', { id: mini.id });
+          this.comeBack(mini.id);
+        });
+      });
     }
 
     /** It sneaks up to the main character, pokes it (cue 'poke') and runs back, quickly. */
@@ -653,7 +719,7 @@
       mini.phase = phase;
       mini.face = face;
       if (phase !== 'play') mini.play = null;
-      if (phase !== 'leave') mini.fly = false;
+      if (phase !== 'leave' && phase !== 'outing') mini.fly = false;
       mini.walkMs = 0;
       this.emit(mini);
     }
@@ -717,7 +783,7 @@
  * @property {number} slot  index among the visible minis (0 = next to the report point)
  * @property {number|null} home  where the user dropped it (overrides the slot's spot)
  * @property {number} tint  colour variant
- * @property {string} phase  arrive | brief | walk | work | chat | look | play | prank | held | land | huff | done | report | leave
+ * @property {string} phase  arrive | brief | walk | work | chat | look | play | prank | held | land | huff | done | report | leave | outing | away
  * @property {string|null} play  during phase "play": spin | jump | wave | dance
  * @property {number} off  outward offset of its feet (CSS px)
  * @property {'in'|'out'} face

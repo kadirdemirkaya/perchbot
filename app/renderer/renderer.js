@@ -274,7 +274,7 @@
   const crew = window.BuddyCrewView.createCrewView({
     actors,
     sanitizeSvg,
-    onCue: (name) => onCrewCue(name),
+    onCue: (name, data) => onCrewCue(name, data),
     onRelease: (id) => window.buddy.crewLeft(id),
     trace,
   });
@@ -1092,7 +1092,12 @@
    * Cues from the crew for the main character: it explains the task to a new
    * mini ("brief") and takes the note of one that reports back ("receive").
    */
-  function onCrewCue(name) {
+  function onCrewCue(name, data = {}) {
+    // Roaming is bookkeeping with main: never skipped (a recall must always reach it).
+    if (name === 'outing' || name === 'recall') {
+      onRoamCue(name, data);
+      return;
+    }
     if (!motionAllowed()) return;
     const towards = layout.side === 'right' ? 'right' : 'left';
     // A mini came over for a word: the main character talks back like in a briefing.
@@ -1107,6 +1112,20 @@
       boop();
       sfx('bonk', 1.3);
       if (CALM.has(view.state) && !quipText) quip('hey', 900);
+    }
+  }
+
+  /**
+   * A helper flew out of the window to roam the screen ('outing': main gives it
+   * a little window of its own, app/outings.js), or it is called back ('recall').
+   */
+  function onRoamCue(name, data) {
+    if (!data || typeof data.id !== 'string') return;
+    if (name === 'outing') {
+      trace(`crew: ${data.id.slice(0, 4)} out roaming`);
+      window.buddy.outing({ id: data.id, tint: data.tint, off: data.off, x: data.x, y: data.y });
+    } else {
+      window.buddy.outingEnd(data.id);
     }
   }
 
@@ -1165,6 +1184,8 @@
    */
   function updateFun() {
     syncRest();
+    // Helpers may roam the screen: ambient life on (with motion), awake, not paused.
+    crew.setRoam(ambientOn() && !rest.resting);
     const calm =
       ambientOn() && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen;
     ambient.update({ enabled: calm && AMBIENT_STATES.has(view.state), trips: crewCount === 0 && !pet.here });
@@ -1843,7 +1864,10 @@
   function onDemo(name) {
     trace(`demo: ${name}`);
     rest.activity();
-    if (name === 'sound' && sound === SILENT_BOARD) {
+    if (name === 'roam') {
+      // A helper off to roam the screen right now (normally one of the crew's naughty moments).
+      if (!crew.demoRoam()) trace('demo: no helper at work to send out');
+    } else if (name === 'sound' && sound === SILENT_BOARD) {
       trace('sound: switched off (app/features.js)');
     } else if (name === 'sound') {
       soundDemo = true;
@@ -1987,6 +2011,11 @@
   window.buddy.onFlip((phase) => onFlip(phase));
   window.buddy.onChat((msg) => applyChat(msg));
   window.buddy.onBug((bug) => applyBug(bug));
+  window.buddy.onOutingBack((id) => {
+    if (typeof id !== 'string') return;
+    trace(`crew: ${id.slice(0, 4)} back from roaming`);
+    crew.comeBack(id);
+  });
   window.buddy.onFun((msg) => {
     if (msg && msg.action === 'duel') startDuel();
     if (msg && msg.action === 'whip') setWeapon(msg.on ? 'whip' : 'hand');

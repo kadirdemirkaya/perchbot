@@ -808,6 +808,16 @@ html[data-duel] .duel-pad {
   transform-origin: 44% 50%;
 }
 
+/* Out roaming the screen in a window of its own (app/outings.js): gone from here,
+   and it does not take the mouse while it is away. */
+.buddy-mini:is([data-phase='away'], [data-phase='outing']) {
+  visibility: hidden;
+}
+
+.buddy-mini[data-phase='outing'] .rbm-figure {
+  visibility: visible;
+}
+
 /* The artwork faces right; the app mirrors it to face the other way. */
 .buddy-mini[data-flip] > svg {
   transform: scaleX(-1);

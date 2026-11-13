@@ -366,3 +366,80 @@ test('naughty kids: a prank pokes the main character, then it runs back quickly'
   clock.tick(v.walkMs);
   assert.equal(views.get(ID(2)).phase, 'work');
 });
+
+test('roaming: off out of the window, away (cue "outing"), and back at its spot when called', () => {
+  const { clock, d, log, views } = working(2);
+  d.setRoam(true);
+  d.roam(d.minis.get(ID(2)));
+  let v = views.get(ID(2));
+  assert.equal(v.phase, 'outing');
+  assert.equal(v.fly, true, 'thrusters on, up and away');
+  clock.tick(T.outingMs);
+  v = views.get(ID(2));
+  assert.equal(v.phase, 'away');
+  const outing = log.cues.find(([name]) => name === 'outing');
+  assert.deepEqual(outing[1], { id: ID(2), tint: v.tint, off: GEO.spots[1] }, 'the app learns who left and from where');
+  assert.equal(d.outCount(), 1);
+  // Nobody counts it as working meanwhile (no chats with it, no other moments for it).
+  assert.ok(!d.idleWorkers().some((m) => m.id === ID(2)));
+  d.comeBack(ID(2));
+  v = views.get(ID(2));
+  assert.equal(v.phase, 'arrive', 'drops in');
+  assert.equal(v.off, GEO.spots[1], 'at its own spot');
+  clock.tick(T.arriveMs);
+  assert.equal(views.get(ID(2)).phase, 'work');
+  d.comeBack(ID(2)); // not out: nothing happens
+  assert.equal(views.get(ID(2)).phase, 'work');
+});
+
+test('roaming: only when allowed, at most two out; it is part of the naughty moments', () => {
+  const { clock, d, views } = working(4, () => 0.97); // 0.97: the last option, roaming
+  clock.tick(30000);
+  assert.ok([...views.values()].every((v) => v.phase !== 'outing' && v.phase !== 'away'), 'not while not allowed');
+  d.setRoam(true);
+  clock.tick(120000);
+  const out = [...views.values()].filter((v) => v.phase === 'outing' || v.phase === 'away').length;
+  assert.equal(out, T.maxOut, 'two out, no more');
+});
+
+test('roaming: called back when its agent finishes, when roaming is switched off, or when resting', () => {
+  const { clock, d, log, views } = working(3);
+  d.setRoam(true);
+  for (const n of [1, 2]) d.roam(d.minis.get(ID(n)));
+  clock.tick(T.outingMs);
+  const recalls = () => log.cues.filter(([name]) => name === 'recall').map(([, data]) => data.id);
+  // Its agent finishes while it is out: called back, and it reports once it is home.
+  d.setAgents([agent(ID(1), 'done'), agent(ID(2)), agent(ID(3))]);
+  assert.deepEqual(recalls(), [ID(1)]);
+  d.comeBack(ID(1));
+  clock.tick(T.arriveMs);
+  assert.notEqual(views.get(ID(1)).phase, 'work', 'home, then on to its report');
+  // Roaming switched off (ambient life off, reduced motion): the other one is called back too.
+  d.setRoam(false);
+  assert.deepEqual(recalls(), [ID(1), ID(2)]);
+  d.setRoam(false); // no change: no second call
+  assert.equal(recalls().length, 2);
+  d.comeBack(ID(2));
+  // Resting / screen locked: anyone out comes home.
+  d.setRoam(true);
+  clock.tick(T.arriveMs + 100);
+  d.roam(d.minis.get(ID(3)));
+  clock.tick(T.outingMs);
+  d.setQuiet(true);
+  assert.equal(recalls().at(-1), ID(3));
+});
+
+test('roaming: never out for longer than awayMaxMs; taken off the page while out, its window is closed', () => {
+  const { clock, d, log, views } = working(2);
+  d.setRoam(true);
+  d.roam(d.minis.get(ID(1)));
+  clock.tick(T.outingMs + T.awayMaxMs);
+  assert.equal(views.get(ID(1)).phase, 'arrive', 'back by itself');
+  assert.ok(log.cues.some(([name, data]) => name === 'recall' && data.id === ID(1)), 'and the app is told to close its window');
+  clock.tick(T.arriveMs);
+  d.roam(d.minis.get(ID(2)));
+  clock.tick(T.outingMs);
+  log.cues.length = 0;
+  d.setAgents([agent(ID(1))]); // the app forgot agent 2
+  assert.deepEqual(log.cues, [['recall', { id: ID(2) }]]);
+});
