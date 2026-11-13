@@ -50,7 +50,7 @@ const roam = require('./roam');
 const outingsLib = require('./outings');
 const rampageLib = require('./rampage');
 const fistLib = require('./fist');
-const { DwellWatch, FOLLOW } = require('./follow');
+const { DwellWatch, FOLLOW, FOLLOW_STATES } = require('./follow');
 const fling = require('./fling');
 const { buildTrayTemplate, buildFunMenuTemplate } = require('./tray');
 const { buildMenuItems, MENU_IDS, switchFor } = require('./menu-items');
@@ -256,7 +256,7 @@ function start() {
     log.devOnly(`bubble: ${bubbleText(snap) || '(none)'}`);
     // Work comes first: a trip stops where it is the moment Claude Code needs the buddy.
     // (Not a throw: it only takes a moment, and the bubble shows the work at once anyway.)
-    if (trip && trip.plan.kind !== 'fling' && trip.plan.kind !== 'reach' && !CALM_STATES.has(snap.state)) {
+    if (trip && trip.plan.kind !== 'fling' && trip.plan.kind !== 'reach' && !trip.peek && !CALM_STATES.has(snap.state)) {
       log.devOnly(`trip: stopped by ${snap.state}`);
       endTrip(true);
       placeWindow();
@@ -582,11 +582,25 @@ function start() {
 
   /**
    * One look at where the cursor is (its position only). Quiet unless it has
-   * rested somewhere new for a while (only calm time counts; the spots it has
-   * been to stay seen).
+   * rested somewhere new for a while (idle or at work, not while Claude Code
+   * waits for the user; the spots it has seen stay seen).
    */
   function followTick() {
-    if (!settings.ambientLife || settings.stayPut || paused || quitting || !win || win.isDestroyed() || drag || trip || rampage || !CALM_STATES.has(core.snapshot().state)) {
+    if (
+      !settings.ambientLife ||
+      settings.stayPut ||
+      paused ||
+      quitting ||
+      !win ||
+      win.isDestroyed() ||
+      drag ||
+      trip ||
+      rampage ||
+      fist ||
+      handsBusy ||
+      peekBack ||
+      !FOLLOW_STATES.has(core.snapshot().state)
+    ) {
       dwell.hold();
       return;
     }
@@ -607,8 +621,8 @@ function start() {
 
   /**
    * The page wants a look: fly over beside that spot (same screen only) with
-   * the magnifier. Once per spot: it is marked as seen (on another screen too,
-   * where it does not go).
+   * the magnifier, then back to where it came from. Once per spot: it is
+   * marked as seen (on another screen too, where it does not go).
    */
   function peekAtDwell() {
     const spot = dwellSpot;
@@ -617,7 +631,36 @@ function start() {
     dwell.visited(spot);
     const all = displays();
     if (placement.nearestDisplay(spot, all).id !== placement.nearestDisplay(anchor, all).id) return;
-    startTrip('inspect', { at: { x: spot.x, y: spot.y }, lens: true });
+    const from = roamAnchor ? { ...roamAnchor } : null;
+    startTrip('inspect', { at: { x: spot.x, y: spot.y }, lens: true, peek: true, then: () => lookThenBack(from) });
+  }
+
+  /** The way back after a look at the cursor (a timer), or null. */
+  let peekBack = null;
+
+  /**
+   * It has arrived and looks (the page's magnifier pose); after the look it
+   * flies back: home, or to where it was out on the screen (`from`). Not if
+   * something else moved it meanwhile (a drag, a trip, hands).
+   */
+  function lookThenBack(from) {
+    placeWindow();
+    clearTimeout(peekBack);
+    const there = anchor ? { ...anchor } : null;
+    peekBack = setTimeout(() => {
+      peekBack = null;
+      if (!there || !anchor || drag || trip || warping || paused || fist || handsBusy) return;
+      if (Math.hypot(anchor.x - there.x, anchor.y - there.y) > 3) return;
+      if (!from) return startTrip('home', { peek: true });
+      const all = displays();
+      const here = placement.nearestDisplay(anchor, all);
+      if (placement.nearestDisplay(from, all).id !== here.id) return startTrip('home', { peek: true });
+      const b = win.getBounds();
+      const spans = { spanLeft: anchor.x - b.x, spanRight: b.x + b.width - anchor.x };
+      const plan = roam.planTrip({ kind: 'goto', to: from, from: anchor, home: homeAnchor(), workArea: here.workArea, scale: scale(), hoverMode: settings.hoverMode, ...spans });
+      if (plan) beginTrip(plan, 'goto', null, { peek: true });
+      return undefined;
+    }, FOLLOW.backAfterMs);
   }
 
   const presence = new PresenceWatch();
@@ -1075,7 +1118,7 @@ function start() {
    * over there, home from over there, 'screen') goes in two legs: to the edge
    * that faces it, a fade, and on from the facing edge of the other screen.
    */
-  function startTrip(kind, { stayHere = false, style = null, at = null, lens = false } = {}) {
+  function startTrip(kind, { stayHere = false, style = null, at = null, lens = false, peek = false, then = null } = {}) {
     if (!win || win.isDestroyed() || drag || trip || warping || paused || !anchor || !pageLayout) return;
     const all = displays();
     const here = placement.nearestDisplay(anchor, all);
@@ -1113,7 +1156,7 @@ function start() {
       style,
       ...spans,
     });
-    if (plan) beginTrip(plan, kind, null, { lens: lens && at ? at : null });
+    if (plan) beginTrip(plan, kind, then, { lens: lens && at ? at : null, peek });
   }
 
   // ------------------------------------------------------------------ hands: Chrome (opt-in)
@@ -1531,7 +1574,7 @@ function start() {
   }
 
   /** then: what comes after arriving (the second leg of a trip to another screen). */
-  function beginTrip(plan, kind, then = null, { lens = null } = {}) {
+  function beginTrip(plan, kind, then = null, { lens = null, peek = false } = {}) {
     // Off on a trip: it no longer sits on a window.
     if (perching || pendingPerch) stopPerch();
     log.devOnly(`trip: ${plan.kind} by ${plan.mode}, ${plan.ms} ms`);
@@ -1548,6 +1591,8 @@ function start() {
       then,
       // A look through the magnifier on arrival, at this spot (screen DIP).
       lens,
+      // A look at where the cursor rests, or the way back: work does not stop it.
+      peek,
     };
     // A loop-the-loop: the page turns the figure once while the window flies the circle.
     const path = plan.path || {};
@@ -2637,6 +2682,7 @@ function start() {
     if (trip) clearInterval(trip.timer);
     clearInterval(presenceTimer);
     clearInterval(followTimer);
+    clearTimeout(peekBack);
     stopPerch();
     scanner.stop();
     hands.stop();

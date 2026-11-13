@@ -37,8 +37,8 @@ Open Claude Code sessions pick up the hooks after a restart (VS Code: *Developer
 - **Several Claude accounts** (`CLAUDE_CONFIG_DIR`)? Tray > Account > **One buddy per account**
   gives each account a buddy of its own, side by side, each with a small name tag.
 - **Ambient life** (tray) lets it and its helpers roam your screens when idle; switch it off to keep it still.
-  Leave the cursor resting somewhere for ten seconds and it flies over and peers at that spot through
-  a magnifier (once per spot).
+  Leave the cursor resting somewhere for thirty seconds and now and then it flies over, peers at that
+  spot through a magnifier and flies back (once per spot, also while Claude Code works).
   **Stay here** (tray or right-click) keeps it on its spot: it still plays there, but no trips, no fleeing.
 - Left **idle** for a while it does three things, picked at random each time: it reads a little, blows
   soap bubbles, throws a paper plane that loops back to its hand, plays with the cat or pets it (if the cat

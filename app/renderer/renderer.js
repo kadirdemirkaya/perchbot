@@ -2670,26 +2670,30 @@
   // ---------------------------------------------------------------- following the cursor (app/follow.js)
 
   /**
-   * The cursor moved somewhere and rested there for ten seconds (main.js
-   * samples its position, nothing else): the user is probably looking at that
-   * spot. Idle, awake and free to move, it flies over and peers at it through
-   * a big magnifier, held up to its eye on the side of the spot (data-lens;
-   * the figure turns to put that side towards it). Once per spot (main.js
-   * offers the spot again while it is busy, until it has been), at most every
-   * 15 s. Never with "Stay here".
+   * The cursor moved somewhere and rested there for thirty seconds (main.js
+   * samples its position, nothing else), and the dice said yes: the user is
+   * probably looking at that spot. Free to move (idle, or at work: it leaves
+   * the laptop for a moment; napping, it wakes up), it flies over and peers at
+   * it through a big magnifier, held up to its eye on the side of the spot
+   * (data-lens; the figure turns to put that side towards it), then flies back
+   * (main.js). Once per spot, at most every two minutes. Never with "Stay here".
    */
-  const FOLLOW_GAP_MS = 15000;
+  const FOLLOW_GAP_MS = 120000;
+  /** As app/follow.js FOLLOW_STATES (a test keeps them equal). */
+  const FOLLOW_STATES = new Set(['idle', 'standby', 'greeting', 'typing', 'reading', 'running', 'working', 'thinking', 'done']);
   const LENS_MS = 5200;
   let lastFollow = -Infinity;
 
   function onFollow(msg) {
     if (!msg || !msg.dwell) return;
     const demo = Boolean(msg.demo);
-    if (settings.stayPut || !ambientOn() || raging || moving || drag || duel.active || hunt.active || chatOpen || rest.resting || guest) return;
-    // As for its own trips: idle, nobody else around, the pointer not on it.
-    if (!AMBIENT_STATES.has(view.state) || crewCount > 0 || pet.here || zone !== null) return;
+    if (settings.stayPut || !ambientOn() || raging || moving || drag || duel.active || hunt.active || chatOpen || guest || fisting) return;
+    // Nobody else around, the pointer not on it; idle or at work, not while Claude Code waits for the user.
+    if (!FOLLOW_STATES.has(view.state) || crewCount > 0 || pet.here || zone !== null) return;
     if (!demo && Date.now() - lastFollow < FOLLOW_GAP_MS) return;
     lastFollow = Date.now();
+    // Napping: it wakes up for a look.
+    if (rest.resting) rest.activity();
     trace('follow: off to look at where the cursor rests');
     window.buddy.fun('peek');
   }
