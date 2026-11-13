@@ -3,8 +3,8 @@
 /**
  * The chat's answers, as pure functions.
  *
- * The user picks a ready-made question in the chat panel (or types one, which
- * the page maps to the same questions: renderer/lib/chat-match.js). The answer
+ * The user picks a ready-made question in the chat panel (buttons only, there
+ * is no text field). The answer
  * is built only from what the overlay already knows from the hook events
  * (BuddyCore.facts()): the state, the current tool with its file name or
  * shortened command, the turn's start time and tool count, the active
@@ -21,8 +21,13 @@ const { translate } = require('./i18n');
 /** The ready-made questions, in panel order. */
 const INTENTS = Object.freeze(['doing', 'duration', 'tools', 'agents', 'skill', 'waiting', 'done']);
 const INTENT_SET = new Set(INTENTS);
-/** Hands (app/hands.js): commands, not questions. Only offered while the setting is on. */
-const HAND_INTENTS = Object.freeze(['newtab', 'closetab']);
+/**
+ * Hands (app/hands.js): commands, not questions, in groups (a row each at the
+ * top of the panel, Windows only). With the Hands setting off, a command asks
+ * to turn it on first.
+ */
+const HAND_GROUPS = Object.freeze([Object.freeze({ id: 'tab', items: Object.freeze(['newtab', 'closetab']) })]);
+const HAND_INTENTS = Object.freeze(HAND_GROUPS.flatMap((g) => g.items));
 const HAND_SET = new Set(HAND_INTENTS);
 
 const FILE_WRITE = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
@@ -149,13 +154,12 @@ function answer(intent, facts, lang) {
   return t(key, vars);
 }
 
-/** What the page may ask (renderer -> main): open / close the panel, start / stop typing, a question. */
-const CHAT_OPS = new Set(['open', 'close', 'type', 'untype', 'ask']);
+/** What the page may ask (renderer -> main): open / close the panel, a question or a command. */
+const CHAT_OPS = new Set(['open', 'close', 'ask']);
 
 /**
  * A request from the page, checked: { op } or { op: 'ask', intent }, else null.
- * A question carries only its intent (a typed one was matched in the page, and
- * 'unknown' when it matched nothing); never any text.
+ * A question carries only its intent; never any text.
  */
 function parseChatRequest(msg) {
   if (!msg || typeof msg !== 'object' || !CHAT_OPS.has(msg.op)) return null;
@@ -165,18 +169,20 @@ function parseChatRequest(msg) {
 }
 
 /**
- * The panel's labels in `lang`: the questions in order (with hands on, the two
- * commands first), the "Type…" button, the input's hint.
+ * The panel's labels in `lang`: the questions in order and, where hands work
+ * (`commands`: Windows), the command rows above them: a group name and its
+ * short buttons, each with its full name (tooltip).
  */
-function panelStrings(lang, { hands = false } = {}) {
+function panelStrings(lang, { commands = false } = {}) {
   const t = (key) => translate(lang, 'chat', key);
   return {
-    questions: [...(hands ? HAND_INTENTS : []), ...INTENTS].map((id) => ({ id, label: t(`q_${id}`) })),
-    type: t('type'),
-    placeholder: t('placeholder'),
+    commands: commands
+      ? HAND_GROUPS.map((g) => ({ label: t(`g_${g.id}`), items: g.items.map((id) => ({ id, label: t(`c_${id}`), title: t(`q_${id}`) })) }))
+      : [],
+    questions: INTENTS.map((id) => ({ id, label: t(`q_${id}`) })),
     title: t('title'),
     close: t('close'),
   };
 }
 
-module.exports = { INTENTS, INTENT_SET, HAND_INTENTS, HAND_SET, CHAT_OPS, answer, answerKey, formatDuration, typeList, panelStrings, parseChatRequest };
+module.exports = { INTENTS, INTENT_SET, HAND_GROUPS, HAND_INTENTS, HAND_SET, CHAT_OPS, answer, answerKey, formatDuration, typeList, panelStrings, parseChatRequest };

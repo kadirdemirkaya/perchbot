@@ -15,14 +15,13 @@
  *   crew       [{ id, type, tool, file, skill, status }] sub-agents (crew-view.js draws them)
  *   move       { mode: 'walk' | 'fly' | null, face, kind, arrived, look } a trip around the screen
  *   fun        { action: 'duel' } from the right-click menu
- *   chat       { open, strings } the panel opens / closes; { answer, intent } an answer;
- *              { typing: false } the window lost the keyboard
+ *   chat       { open, strings } the panel opens / closes; { answer, intent } an answer
  *   bug        { id, phase: 'open' | 'fixed' | 'escaped', agent } or null: the bug hunt
  *              (app/bugs.js); agent = the helper that found it, or null
  *
  * To the main process (window.buddy): ready(), capture(bool), drag(phase), menu(id),
  * crewLeft(id), fun(action) (a trip, or the right-click menu), chat(op, intent)
- * (the panel; a typed question is matched to an intent here and never sent).
+ * (the panel: buttons only, a question or a command goes as its intent).
  *
  * Attributes this page sets on the character wrapper (the character's CSS
  * may use any of them; see characters/README.md):
@@ -68,8 +67,7 @@
   const chatTitle = document.getElementById('chat-title');
   const chatList = document.getElementById('chat-list');
   const chatClose = document.getElementById('chat-close');
-  const chatType = document.getElementById('chat-type');
-  const chatInput = document.getElementById('chat-input');
+  const chatCmds = document.getElementById('chat-cmds');
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   const CONFETTI_COLORS = ['#FFC857', '#FF8FA3', '#7EE0D2', '#8AB6FF', '#B49CFF', '#9BE564'];
@@ -97,9 +95,8 @@
   let paused = false;
   let loadToken = 0;
   let dev = false;
-  /** The chat panel is open; the user is typing in it; the answer in the bubble (see the chat section). */
+  /** The chat panel is open; the answer in the bubble (see the chat section). */
   let chatOpen = false;
-  let chatTyping = false;
   let answerText = null;
   let chatHold = false;
 
@@ -706,10 +703,7 @@
 
   document.addEventListener('mousemove', (e) => onPointerMove(e.clientX, e.clientY), { passive: true });
   document.addEventListener('mouseleave', onPointerLeave);
-  window.addEventListener('blur', (e) => {
-    endTyping(true);
-    onPointerLeave(e);
-  });
+  window.addEventListener('blur', (e) => onPointerLeave(e));
 
   window.buddy.onReleased(() => {
     capture.released();
@@ -1291,7 +1285,8 @@
    */
   const HANDS_ASK_MS = 12000;
   function askHandsOn(ask) {
-    if (!ask || typeof ask.text !== 'string' || (ask.intent !== 'newtab' && ask.intent !== 'closetab')) return;
+    // Main sends only its own commands (app/chat.js HAND_INTENTS); the bridge checks them again.
+    if (!ask || typeof ask.text !== 'string' || typeof ask.intent !== 'string' || !/^[a-z]{2,12}$/.test(ask.intent)) return;
     dropAnswer();
     dropQuip();
     if (curious) dropCurious();
@@ -2711,17 +2706,15 @@
   // ---------------------------------------------------------------- chat
 
   /**
-   * The chat panel (main.js opens it from the hover menu): ready-made
+   * The chat panel (main.js opens it from the hover menu): on Windows the
+   * hands commands in rows at the top (app/hands.js), then ready-made
    * questions; main answers from what the overlay already knows (app/chat.js)
-   * and the character says it in the bubble. "Type…" turns into a text field:
-   * only then may the window take the keyboard. A typed question is matched to
-   * one of the questions right here (lib/chat-match.js) and the field is
-   * emptied at once: the text is not kept, logged or sent anywhere.
+   * and the character says it in the bubble. Buttons only: the window never
+   * takes the keyboard.
    *
-   * It closes with its x, Esc while typing, or when the pointer has been away
-   * for a moment (not while typing).
+   * It closes with its x, or when the pointer has been away for a moment.
    */
-  const { matchIntent, answerMs } = window.BuddyChatMatch;
+  const { answerMs } = window.BuddyChatMatch;
   const CHAT_AWAY_MS = 2500;
   const NUDGE_MS = 1400;
   const TALK_MAX_MS = 1800;
@@ -2735,26 +2728,46 @@
     // The simulator opens it with no pointer around: it does not close by itself then.
     if (msg.open === true) chatHold = msg.hold === true;
     if (typeof msg.open === 'boolean') setChatOpen(msg.open);
-    if (msg.typing === false) endTyping(false);
+  }
+
+  function chatButton(id, label, extra = '') {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.tabIndex = -1;
+    button.className = `chat-q${extra}`;
+    button.textContent = label;
+    button.addEventListener('click', () => ask(id));
+    return button;
   }
 
   function renderChat(strings) {
     chatTitle.textContent = strings.title || '';
     chatClose.setAttribute('aria-label', strings.close || '');
-    chatType.textContent = strings.type || '';
-    chatInput.placeholder = strings.placeholder || '';
-    const questions = Array.isArray(strings.questions) ? strings.questions : [];
-    chatList.replaceChildren(
-      ...questions.map((q) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.tabIndex = -1;
-        button.className = 'chat-q';
-        button.textContent = q.label;
-        button.addEventListener('click', () => ask(q.id));
-        return button;
+    // "Chrome  [Open] [Close]": a group's name, then its short buttons (full name as tooltip).
+    const groups = Array.isArray(strings.commands) ? strings.commands : [];
+    chatCmds.replaceChildren(
+      ...groups.map((g) => {
+        const row = document.createElement('div');
+        row.className = 'chat-cmd-row';
+        const name = document.createElement('span');
+        name.className = 'chat-cmd-name';
+        name.textContent = g.label;
+        const items = Array.isArray(g.items) ? g.items : [];
+        row.append(
+          name,
+          ...items.map((c) => {
+            const button = chatButton(c.id, c.label, ' chat-cmd');
+            button.title = c.title || '';
+            button.setAttribute('aria-label', c.title || c.label);
+            return button;
+          }),
+        );
+        return row;
       }),
     );
+    chatCmds.hidden = groups.length === 0;
+    const questions = Array.isArray(strings.questions) ? strings.questions : [];
+    chatList.replaceChildren(...questions.map((q) => chatButton(q.id, q.label)));
   }
 
   function setChatOpen(open) {
@@ -2768,7 +2781,6 @@
       hover.closeNow();
       hideTooltip();
     } else {
-      endTyping(false);
       chatEl.classList.remove('nudge');
     }
     trace(`chat ${open ? 'open' : 'closed'}`);
@@ -2788,15 +2800,13 @@
     window.buddy.chat('close');
   }
 
-  /** The pointer left the panel (and the character): close after a moment, unless typing. */
+  /** The pointer left the panel (and the character): close after a moment. */
   function chatAway(next) {
     if (!chatOpen || chatHold) return;
-    if (chatTyping || next === 'chat' || next === 'bubble' || next === 'character' || next === 'mini') {
+    if (next === 'chat' || next === 'bubble' || next === 'character' || next === 'mini') {
       cancel('chat-away');
     } else if (!timers.has('chat-away')) {
-      later('chat-away', CHAT_AWAY_MS, () => {
-        if (!chatTyping) closeChat('pointer away');
-      });
+      later('chat-away', CHAT_AWAY_MS, () => closeChat('pointer away'));
     }
   }
 
@@ -2860,48 +2870,6 @@
   });
 
   chatClose.addEventListener('click', () => closeChat('x'));
-
-  chatType.addEventListener('click', () => {
-    if (!chatOpen || chatTyping) return;
-    chatTyping = true;
-    chatEl.classList.add('typing');
-    cancel('chat-away');
-    chatInput.value = '';
-    window.buddy.chat('type');
-    chatInput.focus();
-    trace('chat: typing');
-  });
-
-  // The window got the keyboard (main focused it): straight into the field.
-  window.addEventListener('focus', () => {
-    if (chatTyping) chatInput.focus();
-  });
-
-  chatInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      closeChat('esc');
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      // "Open" / "close" are always taken as the hands commands: with hands off, main says
-      // how to turn them on (instead of "I don't know that").
-      const intent = matchIntent(chatInput.value, { hands: true });
-      chatInput.value = ''; // not kept, not even in the field
-      ask(intent || 'unknown');
-    }
-  });
-
-  /** Typing is over (Esc, closed, or the user clicked another window). */
-  function endTyping(tellMain) {
-    if (!chatTyping) return;
-    chatTyping = false;
-    chatInput.value = '';
-    chatInput.blur();
-    chatEl.classList.remove('typing');
-    trace('chat: typing done');
-    if (tellMain) window.buddy.chat('untype');
-    chatAway(zone);
-  }
 
   // ---------------------------------------------------------------- wiring
 

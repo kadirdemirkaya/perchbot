@@ -37,17 +37,36 @@ test('typed commands: short "aç" / "kapat" style texts, only with hands on', ()
   assert.equal(matchIntent('ne yapıyorsun', { hands: true }), 'doing');
 });
 
-test('chat: the two commands are accepted, and offered first in the panel while hands are on', () => {
+test('chat: the commands are accepted, and shown in rows above the questions where hands work', () => {
   assert.deepEqual(chat.parseChatRequest({ op: 'ask', intent: 'newtab' }), { op: 'ask', intent: 'newtab' });
   assert.deepEqual(chat.parseChatRequest({ op: 'ask', intent: 'closetab' }), { op: 'ask', intent: 'closetab' });
   assert.equal(chat.parseChatRequest({ op: 'ask', intent: 'rmrf' }), null);
-  const off = chat.panelStrings('tr').questions.map((q) => q.id);
-  assert.ok(!off.includes('newtab'));
-  const on = chat.panelStrings('tr', { hands: true }).questions;
-  assert.deepEqual(on.slice(0, 2).map((q) => q.id), ['newtab', 'closetab']);
-  assert.deepEqual(on.slice(0, 2).map((q) => q.label), ['Yeni sekme aç', 'Son sekmeyi kapat']);
-  // Intent ids pass the page bridge's check (lower case letters only).
+  // Not on Windows: no command rows, the questions as before.
+  const elsewhere = chat.panelStrings('tr');
+  assert.deepEqual(elsewhere.commands, []);
+  assert.deepEqual(elsewhere.questions.map((q) => q.id), [...chat.INTENTS]);
+  // Windows: the rows (hands on or off: with them off, a command asks to turn them on).
+  const rows = chat.panelStrings('tr', { commands: true }).commands;
+  assert.deepEqual(rows.map((r) => r.items.map((c) => c.id)), chat.HAND_GROUPS.map((g) => [...g.items]));
+  const tab = rows.find((r) => r.label === 'Sekme');
+  assert.deepEqual(tab.items, [
+    { id: 'newtab', label: '+ Yeni', title: 'Yeni sekme aç' },
+    { id: 'closetab', label: '× Son', title: 'Son sekmeyi kapat' },
+  ]);
+  assert.deepEqual(chat.panelStrings('tr', { commands: true }).questions.map((q) => q.id), [...chat.INTENTS], 'questions unchanged');
+  // Intent ids pass the page bridge's check (lower case letters only), and the bridge knows them all.
   for (const id of chat.HAND_INTENTS) assert.match(id, /^[a-z]{2,12}$/);
+  const preload = fs.readFileSync(path.join(ROOT, 'app', 'preload.js'), 'utf8');
+  const listed = preload.match(/const HAND_INTENTS = new Set\((\[[^\]]*\])\);/);
+  assert.ok(listed, 'preload lists the commands');
+  assert.deepEqual(JSON.parse(listed[1].replace(/'/g, '"')), [...chat.HAND_INTENTS]);
+  for (const group of chat.HAND_GROUPS) {
+    for (const lang of ['en', 'tr']) {
+      const strings = JSON.parse(fs.readFileSync(path.join(ROOT, 'app', 'locales', `${lang}.json`), 'utf8')).chat;
+      assert.ok(strings[`g_${group.id}`], `${lang}: g_${group.id}`);
+      for (const id of group.items) assert.ok(strings[`c_${id}`] && strings[`q_${id}`], `${lang}: ${id}`);
+    }
+  }
 });
 
 test('hands: off by default, a tray switch, words in both languages, the press pose', () => {
@@ -140,10 +159,9 @@ test('a hands demo acts only on a test overlay (--dev); a plain overlay never do
   assert.equal(calls.length, 4, 'defined once, called from the chat, from the "Yes" in the bubble and from the dev demo');
 });
 
-test('typed "open" / "close" always reach main: with hands off it says how to turn them on', () => {
-  const page = fs.readFileSync(path.join(ROOT, 'app', 'renderer', 'renderer.js'), 'utf8');
-  assert.ok(page.includes('const intent = matchIntent(chatInput.value, { hands: true });'));
+test('a command with hands off asks to turn them on first', () => {
   const main = fs.readFileSync(path.join(ROOT, 'app', 'main.js'), 'utf8');
+  assert.ok(main.includes('chat.panelStrings(settings.language, { commands: hands.supported() })'), 'rows on Windows, hands on or off');
   const off = main.indexOf('if (!settings.hands) {');
   const asks = main.indexOf("send('buddy:hands', { ask: { intent, text: t('handsAskOn'), yes: t('handsYes'), no: t('handsNo') } })", off);
   assert.ok(off > 0 && asks > off && asks - off < 400, 'hands off: it asks to turn them on');
@@ -151,7 +169,7 @@ test('typed "open" / "close" always reach main: with hands off it says how to tu
   assert.ok(main.includes("if (!fromPage(event) || !chat.HAND_SET.has(intent)) return;"));
   assert.ok(/actions\.setHands\(true\);\s+runHands\(intent\);/.test(main));
   const preload = fs.readFileSync(path.join(ROOT, 'app', 'preload.js'), 'utf8');
-  assert.ok(preload.includes("if (intent === 'newtab' || intent === 'closetab') ipcRenderer.send('buddy:hands-on', intent);"));
+  assert.ok(preload.includes("if (HAND_INTENTS.has(intent)) ipcRenderer.send('buddy:hands-on', intent);"));
   for (const lang of ['en', 'tr']) {
     const strings = JSON.parse(fs.readFileSync(path.join(ROOT, 'app', 'locales', `${lang}.json`), 'utf8'));
     for (const key of ['handsAskOn', 'handsYes', 'handsNo']) assert.ok(strings.chat[key], `${lang}: ${key}`);

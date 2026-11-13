@@ -226,14 +226,8 @@ function start() {
   let bug = null;
   let bugOffset = 0.5;
   let petTimer = null;
-  /** The chat panel is open: the side column is wider (CHAT_WIDTH). */
+  /** The chat panel is open: the side column is wider (CHAT_WIDTH). The window never takes the keyboard for it. */
   let chatOpen = false;
-  /**
-   * The user is typing a question: only then may the window take the keyboard
-   * (focusable). The rest of the time it never takes focus, also not for the
-   * question buttons.
-   */
-  let chatTyping = false;
 
   // ------------------------------------------------------------------ events
 
@@ -807,7 +801,6 @@ function start() {
       endAllOutings();
       endRampage('renderer gone');
       setCapture(false);
-      stopTyping();
       chatOpen = false;
       log.error(`renderer exited (${details.reason})`);
       if (!quitting && win && rendererRestarts++ < 3) {
@@ -820,12 +813,6 @@ function start() {
     win.once('ready-to-show', () => {
       log.info(`window shown (${Math.round(process.uptime() * 1000)} ms after start)`);
       if (win) win.showInactive();
-    });
-    // The user clicked somewhere else while typing a question: the keyboard is theirs again.
-    win.on('blur', () => {
-      if (!chatTyping) return;
-      stopTyping();
-      if (canSend()) win.webContents.send('buddy:chat', { typing: false });
     });
     win.on('closed', () => {
       endAllOutings();
@@ -1931,12 +1918,6 @@ function start() {
       case 'close':
         setChat(false);
         break;
-      case 'type':
-        startTyping();
-        break;
-      case 'untype':
-        stopTyping();
-        break;
       case 'ask': {
         if (!chatOpen || !canSend()) return;
         // Hands: "open a tab" / "close the tab" are commands, not questions.
@@ -1961,42 +1942,13 @@ function start() {
     if (open === chatOpen || !win || win.isDestroyed()) return;
     chatOpen = open;
     log.devOnly(`chat: ${open ? 'open' : 'closed'}`);
-    if (!open) stopTyping();
     placeWindow();
     sendChat(hold);
     if (canSend()) win.webContents.send('buddy:menu-items', menuItems());
   }
 
   function sendChat(hold = false) {
-    if (canSend()) win.webContents.send('buddy:chat', { open: chatOpen, hold, strings: chat.panelStrings(settings.language, { hands: settings.hands }) });
-  }
-
-  /** "Type…": the window may take the keyboard until the question is done. */
-  function startTyping() {
-    if (!chatOpen || chatTyping || !win || win.isDestroyed()) return;
-    chatTyping = true;
-    log.devOnly('chat: typing on (window focusable)');
-    win.setFocusable(true);
-    win.focus();
-    win.webContents.focus();
-  }
-
-  /**
-   * Typing is over: never focusable again. When the window still has the
-   * keyboard (Esc, the panel closed), hand it back to the window the user came
-   * from: Windows gives it to the next window down when ours lets go, and for
-   * a moment ours is not "always on top", so that is the top normal window
-   * (the one in use before), not the taskbar.
-   */
-  function stopTyping() {
-    if (!chatTyping) return;
-    chatTyping = false;
-    if (!win || win.isDestroyed()) return;
-    log.devOnly('chat: typing off (window not focusable)');
-    const lift = process.platform === 'win32';
-    if (lift) win.setAlwaysOnTop(false);
-    win.setFocusable(false);
-    if (lift) win.setAlwaysOnTop(true, TOP_LEVEL);
+    if (canSend()) win.webContents.send('buddy:chat', { open: chatOpen, hold, strings: chat.panelStrings(settings.language, { commands: hands.supported() }) });
   }
 
   function setPaused(value) {

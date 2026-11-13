@@ -34,7 +34,11 @@ test('chat: every question and answer exists in English and Turkish', () => {
   }
   assert.deepEqual(Object.keys(LOCALES.tr.chat).sort(), Object.keys(LOCALES.en.chat).sort(), 'same keys in both');
   assert.equal(chat.panelStrings('tr').questions[0].label, 'Ne yapıyorsun?');
-  assert.equal(chat.panelStrings('tr').type, 'Yaz…');
+  // Buttons only: no "Type…" field any more.
+  assert.equal(chat.panelStrings('tr').type, undefined);
+  assert.equal(LOCALES.en.chat.placeholder, undefined);
+  const html = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'app', 'renderer', 'index.html'), 'utf8');
+  assert.ok(!/<input\b/.test(html), 'no text field in the page');
 });
 
 test('chat: durations read naturally', () => {
@@ -100,7 +104,8 @@ test('chat: helpers without a known type are still counted', () => {
 test('chat: requests from the page are checked; a question carries only its intent', () => {
   assert.deepEqual(chat.parseChatRequest({ op: 'open' }), { op: 'open' });
   assert.deepEqual(chat.parseChatRequest({ op: 'close', extra: 'x' }), { op: 'close' });
-  assert.deepEqual(chat.parseChatRequest({ op: 'type' }), { op: 'type' });
+  assert.equal(chat.parseChatRequest({ op: 'type' }), null, 'no typing any more');
+  assert.equal(chat.parseChatRequest({ op: 'untype' }), null);
   assert.deepEqual(chat.parseChatRequest({ op: 'ask', intent: 'tools' }), { op: 'ask', intent: 'tools' });
   assert.deepEqual(chat.parseChatRequest({ op: 'ask', intent: 'unknown', text: 'secret' }), { op: 'ask', intent: 'unknown' });
   for (const bad of [null, 'open', {}, { op: 'shout' }, { op: 'ask' }, { op: 'ask', intent: 'what are you doing' }, { op: 'ask', intent: 7 }]) {

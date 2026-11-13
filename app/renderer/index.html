@@ -149,7 +149,7 @@
       <!-- Hits, sparks, whip cracks at the cursor. -->
       <div id="fx-top" class="fx-top" aria-hidden="true"></div>
       <nav id="menu" class="menu" aria-label="Agent Buddy"></nav>
-      <!-- The chat panel: ready-made questions; "Type…" turns into a text field. -->
+      <!-- The chat panel: hands commands (Windows) and ready-made questions, buttons only. -->
       <section id="chat" class="chat" aria-hidden="true">
         <div class="chat-card">
           <div class="chat-head">
@@ -158,9 +158,8 @@
               <svg aria-hidden="true"><use href="#i-close" /></svg>
             </button>
           </div>
+          <div id="chat-cmds" class="chat-cmds" hidden></div>
           <div id="chat-list" class="chat-list"></div>
-          <button id="chat-type" class="chat-q chat-type" type="button" tabindex="-1"></button>
-          <input id="chat-input" class="chat-input" type="text" maxlength="120" autocomplete="off" spellcheck="false" />
         </div>
       </section>
       <div id="tooltip" class="tooltip" role="tooltip"></div>

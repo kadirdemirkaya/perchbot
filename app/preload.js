@@ -7,9 +7,9 @@
  * of a mini that finished its exit scene, a fun-mode request (a trip around
  * the screen, or the right-click menu), a rampage (where its eyes are), "a frame was drawn" during a trip
  * (the window then moves in step with the display), "hidden" while switching
- * sides, and a chat request: open / close the panel, typing on / off, or a
- * question as one of the chat's intents. Typed text never crosses this
- * bridge: the page matches it to an intent itself (lib/chat-match.js).
+ * sides, and a chat request: open / close the panel, or a question (or a
+ * hands command) as one of the chat's intents. The panel has buttons only:
+ * no text crosses this bridge.
  * The main process validates every value again.
  */
 
@@ -19,7 +19,9 @@ const on = (channel) => (callback) => ipcRenderer.on(channel, (_event, data) => 
 const DRAG_PHASES = new Set(['start', 'move', 'end', 'cancel']);
 const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
 const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch', 'peek', 'cat', 'cat-away', 'guest', 'guest-away']);
-const CHAT_OPS = new Set(['open', 'close', 'type', 'untype', 'ask']);
+const CHAT_OPS = new Set(['open', 'close', 'ask']);
+/** The hands commands (app/chat.js HAND_INTENTS; a test keeps the two lists equal). */
+const HAND_INTENTS = new Set(['newtab', 'closetab']);
 const INTENT_RE = /^[a-z]{2,12}$/;
 
 contextBridge.exposeInMainWorld('buddy', {
@@ -37,7 +39,7 @@ contextBridge.exposeInMainWorld('buddy', {
   onHands: on('buddy:hands'),
   /** Hands were off; the user clicked "Yes" in the bubble: turn them on and do `intent`. */
   handsOn: (intent) => {
-    if (intent === 'newtab' || intent === 'closetab') ipcRenderer.send('buddy:hands-on', intent);
+    if (HAND_INTENTS.has(intent)) ipcRenderer.send('buddy:hands-on', intent);
   },
   onPet: on('buddy:pet'),
   onFun: on('buddy:fun'),
