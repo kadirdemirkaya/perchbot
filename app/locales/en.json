@@ -25,7 +25,11 @@
     "notice": "A note for you",
     "done": "Done!",
     "goodbye": "See you!",
-    "noAccountEvents": "No events from this account yet"
+    "noAccountEvents": "No events from this account yet",
+    "greetingMorning": "Good morning!",
+    "greetingEvening": "Good evening!",
+    "greetingNight": "Up late? Let's go!",
+    "doneSummary": "Done! {count} steps in {time}"
   },
   "menu": {
     "title": "Agent Buddy",
@@ -179,6 +183,12 @@
     "busy": "Working, later!",
     "giggle": "Hehe!",
     "sneeze": "Achoo!",
-    "bugFixed": "Bug fixed!"
+    "bugFixed": "Bug fixed!",
+    "commit": "Committed!",
+    "push": "Pushed! Off it goes!",
+    "phew": "Phew!",
+    "squeeze": "Squeezing it all in…",
+    "nudge": "Psst! Claude needs you",
+    "knock": "Knock knock!"
   }
 }

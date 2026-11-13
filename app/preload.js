@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('buddy', {
   onFlight: on('buddy:flight'),
   onCrew: on('buddy:crew'),
   onMove: on('buddy:move'),
+  onMoment: on('buddy:moment'),
   onPet: on('buddy:pet'),
   onFun: on('buddy:fun'),
   onReleased: on('buddy:released'),

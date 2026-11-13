@@ -118,7 +118,9 @@ Use whatever you like; ignore the rest.
 | `data-sway` | `a` or `b` for ~1.2 s after each state change (secondary motion, e.g. an antenna wobble) |
 | `--look-x`, `--look-y` | cursor direction from `lookAnchor`, each from -1 to 1 (0 when the cursor is away) |
 | `--type-line` | while typing: 0-7, advances every few key presses |
-| `data-mood` | `worried` for the rest of a tool's hold time after the tool failed |
+| `data-mood` | `worried` for the rest of a tool's hold time after the tool failed; `sweat` while at work after three failed tools in a row, until one works (app/moments.js) |
+| `data-moment` | `phew` (~1.7 s: a tool worked after a failure streak) or `squeeze` (~1.9 s: the conversation was compacted). The app adds a flag for a `git commit` and a rocket for a `git push` itself |
+| `data-nudge` | Claude Code waits for the user (`waiting` / `asking`): `psst` after ~30 s (a hop), `knock` after ~90 s and then every minute (a knock on the glass; the app adds the rings), ~2.4 s each |
 | `data-fly` | `hover` while the character is placed above the ground (hover mode "auto"), `boost` while it is dragged through the air |
 | `data-land` | present for ~0.9 s when it comes back to the ground |
 | `--fly-tilt` | while flying: -1 to 1, the drag direction (positive = moving right); 0 at rest |

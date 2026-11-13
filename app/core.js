@@ -36,6 +36,7 @@
 
 const { EventEmitter } = require('node:events');
 const { stateForTool, bubbleForTool, stepForTool, isFileTool, TOOL_STATES } = require('./tools');
+const { MomentWatch, doneMessage } = require('./moments');
 const { AgentRegistry } = require('./agents');
 const { LivenessWatch } = require('./liveness');
 const { BugWatch } = require('./bugs');
@@ -88,6 +89,8 @@ const RESTART_REASONS = new Set(['clear', 'resume']);
 const STEP_LIMIT = 4;
 /** States in which a notification is on screen (what it waits for: facts().waiting). */
 const NOTICE_STATES = new Set(['waiting', 'asking', 'standby']);
+/** States in which a failure streak shows (app/moments.js): at work. */
+const SWEAT_STATES = new Set(['thinking', 'typing', 'reading', 'running', 'working']);
 const FINISHED_ID_LIMIT = 256;
 /** Ended sessions remembered, so a late event from one does not bring it back. */
 const ENDED_ID_LIMIT = 64;
@@ -117,6 +120,8 @@ class BuddyCore extends EventEmitter {
     /** The skill the main character holds the book for: { name, session } or null. */
     this.skill = null;
     this.crew = new AgentRegistry({ clock: this.clock, ...(options.crew || {}) });
+    /** Little shows from the work (app/moments.js): a commit, a push, a failure streak, a compaction. */
+    this.moments = new MomentWatch();
     /** 'all' or one account name. */
     this.accountFilter = options.account || 'all';
     /** Accounts that sent at least one event in this run. */
@@ -188,7 +193,8 @@ class BuddyCore extends EventEmitter {
     return {
       state: this.view.state,
       message: this.view.message,
-      mood: this.view.mood || null,
+      // A failure streak at work: it sweats (stronger than worried).
+      mood: this.moments.sweating && SWEAT_STATES.has(this.view.state) ? 'sweat' : this.view.mood || null,
       skill: this.skill ? this.skill.name : null,
       steps: this.steps.slice(),
     };
@@ -309,6 +315,7 @@ class BuddyCore extends EventEmitter {
       case 'SessionStart':
         session.turnActive = false;
         this.show('greeting', { key: 'greeting' }, this.timings.greetingMs, owner);
+        for (const moment of this.moments.sessionStart(evt.source)) this.emit('moment', moment);
         break;
 
       case 'UserPromptSubmit':
@@ -319,6 +326,7 @@ class BuddyCore extends EventEmitter {
         // A new turn: the row of recent steps starts empty.
         this.turn = { session: owner, startedAt: evt.ts || this.now(), tools: 0, last: null, endedAt: null };
         this.steps = [];
+        this.moments.calm();
         this.show('thinking', null, 0, owner);
         break;
 
@@ -339,6 +347,7 @@ class BuddyCore extends EventEmitter {
         this.countTool(owner, evt);
         this.addStep(stepForTool(evt.tool, evt.detail));
         this.bugs.toolStart(owner, evt.id, evt.tool, evt.detail);
+        this.moments.toolStart(owner, evt.id, evt.tool, evt.detail);
         this.show(stateForTool(evt.tool), bubbleForTool(evt.tool, evt.detail), 0, owner);
         break;
 
@@ -352,6 +361,11 @@ class BuddyCore extends EventEmitter {
         }
         if (stale) return;
         this.bugs.toolEnd(owner, evt.id, evt.event === 'PostToolUse');
+        {
+          const wasSweating = this.moments.sweating;
+          for (const moment of this.moments.toolEnd(owner, evt.id, evt.event === 'PostToolUse')) this.emit('moment', moment);
+          if (wasSweating !== this.moments.sweating) this.refresh();
+        }
         // A failed tool gets a worried look for the rest of its hold time.
         if (evt.event === 'PostToolUseFailure' && TOOL_STATES.has(this.view.state)) this.setMood('worried');
         if (session.inflight.size > 0 || session.anonymous > 0) return; // parallel tools still running
@@ -376,7 +390,9 @@ class BuddyCore extends EventEmitter {
         if (this.turn && this.turn.session === owner) this.turn.endedAt = this.lastDoneAt;
         // The turn is over: the book goes back into the pocket. Sub-agents carry on.
         if (this.skill && this.skill.session === owner) this.skill = null;
-        this.show('done', { key: 'done' }, this.timings.doneMs, owner);
+        this.moments.calm();
+        // A longer turn: "Done! 14 steps in 3 min" (app/moments.js doneMessage).
+        this.show('done', doneMessage(this.turn && this.turn.session === owner ? this.turn : null, this.lastDoneAt), this.timings.doneMs, owner);
         break;
 
       default:

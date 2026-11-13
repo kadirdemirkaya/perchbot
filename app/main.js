@@ -53,6 +53,7 @@ const { buildTrayTemplate, buildFunMenuTemplate } = require('./tray');
 const { buildMenuItems, MENU_IDS, switchFor } = require('./menu-items');
 const chat = require('./chat');
 const { taskFor } = require('./tools');
+const { greetingKey } = require('./moments');
 const FEATURES = require('./features');
 const { createLogger } = require('./log');
 
@@ -140,7 +141,7 @@ const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers', 'menu', 'chat']);
 const demo = isDev && DEMOS.has(process.env.AGENT_BUDDY_DEMO) ? process.env.AGENT_BUDDY_DEMO : null;
 const DEMO_TRIPS = ['stroll', 'hop', 'screen', 'inspect', 'home'];
 /** Short lines in the speech bubble when it is hit or fights (locales: "quip"). */
-const QUIPS = ['ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
+const QUIPS = ['commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
 
 // Keep Chromium's own data (caches, the single-instance lock) under
 // ~/.agent-buddy too, so there is exactly one folder to delete on uninstall
@@ -314,6 +315,12 @@ function start() {
     const known = rememberAccount(settings.knownAccounts, name);
     if (known !== settings.knownAccounts) updateSettings({ knownAccounts: known });
     else refreshTray();
+  });
+
+  // A commit, a push, a failure streak over, a compaction: a little show on the page.
+  core.on('moment', (kind) => {
+    log.devOnly(`moment: ${kind}`);
+    if (canSend()) win.webContents.send('buddy:moment', kind);
   });
 
   core.on('gone', (_session, why) => log.info(`session closed: its Claude Code process is gone (${why})`));
@@ -1490,7 +1497,14 @@ function start() {
 
   function bubbleText(snap) {
     const message = snap.message;
-    return message ? translate(settings.language, 'bubble', message.key, message.vars) : '';
+    if (!message) return '';
+    // Hello by the time of day (local clock), and the summary of a longer turn.
+    if (message.key === 'greeting') return translate(settings.language, 'bubble', greetingKey(new Date().getHours()));
+    if (message.key === 'doneSummary' && message.vars) {
+      const t = (key, vars) => translate(settings.language, 'chat', key, vars);
+      return translate(settings.language, 'bubble', 'doneSummary', { count: message.vars.count, time: chat.formatDuration(message.vars.ms, t) });
+    }
+    return translate(settings.language, 'bubble', message.key, message.vars);
   }
 
   function viewPayload() {

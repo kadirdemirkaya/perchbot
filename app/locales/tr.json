@@ -25,7 +25,11 @@
     "notice": "Sana bir bildirim var",
     "done": "Tamamlandı",
     "goodbye": "Görüşürüz!",
-    "noAccountEvents": "Bu hesaptan henüz olay gelmedi"
+    "noAccountEvents": "Bu hesaptan henüz olay gelmedi",
+    "greetingMorning": "Günaydın!",
+    "greetingEvening": "İyi akşamlar!",
+    "greetingNight": "Gece mesaisi mi? Hadi bakalım!",
+    "doneSummary": "Bitti! {time} içinde {count} adım"
   },
   "menu": {
     "title": "Agent Buddy",
@@ -179,6 +183,12 @@
     "busy": "Çalışıyorum, sonra!",
     "giggle": "Hihi!",
     "sneeze": "Hapşu!",
-    "bugFixed": "Hata çözüldü!"
+    "bugFixed": "Hata çözüldü!",
+    "commit": "Commit'lendi!",
+    "push": "Push'landı, uçtu gitti!",
+    "phew": "Oh be!",
+    "squeeze": "Hepsini sığdırıyorum…",
+    "nudge": "Psst! Claude seni bekliyor",
+    "knock": "Tık tık!"
   }
 }

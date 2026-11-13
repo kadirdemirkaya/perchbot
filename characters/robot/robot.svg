@@ -24,6 +24,7 @@
       rb-sword   toy wooden sword in the near hand (duel);  rb-clang  block / parry spark
       rb-ball    a ball to bounce (ambient life)
       rb-anger, rb-dizzy, rb-notes  annoyed mark, dizzy ring, humming notes
+      rb-sweat   a drop of sweat (data-mood="sweat": tools failed again and again)
       rb-find, rb-globe, rb-signal  what it works on (data-task): a magnifier over a list,
                  a turning globe, radio waves from the antenna;  rb-bulb  an idea (data-think)
       rb-fume, rb-steam, rb-blaze  angrier and angrier (data-annoyed 2 / 3): red head,
@@ -205,6 +206,9 @@
             <circle cx="101" cy="66.5" r="9.5" fill="#FFFFFF" fill-opacity=".18"/>
             <path d="M84.5 66 Q88 63.5 91.5 66"/>
           </g>
+
+          <!-- a failure streak: a drop of sweat at the side of the head -->
+          <path class="rb-sweat" data-nohit="" d="M55 40 Q50.5 47.5 52.5 51 Q55 54 57.8 51.2 Q60 47.5 55 40 Z" fill="#8AB6FF" stroke="#2A2650" stroke-width="1.8" stroke-linejoin="round"/>
 
           <!-- annoyed: a little cross-vein mark -->
           <g class="rb-anger" data-nohit="" fill="none" stroke="#E2577A" stroke-width="2.6" stroke-linecap="round">

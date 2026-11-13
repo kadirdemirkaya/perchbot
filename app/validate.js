@@ -65,6 +65,15 @@ const DEMOS = new Set([
   'walk',
   'fly',
   'inspect',
+  // Moments of the work: a flag (commit), a rocket (push), sweat, phew, a squeezed head (compaction),
+  // and the nudges while Claude Code waits for the user.
+  'commit',
+  'push',
+  'sweat',
+  'phew',
+  'squeeze',
+  'psst',
+  'knock',
   // A slow, long, wavy flight; up to the top edge to hang from it; a hop with a loop-the-loop.
   'cruise',
   'hang',

@@ -309,7 +309,7 @@
     // A new state: what the old one was animating eases into the new pose (see blendFrom).
     const parts = holder.dataset.state !== (next.cssState || next.state) ? snapshotAnimated() : null;
     holder.dataset.state = next.cssState || next.state;
-    flag('mood', next.mood === 'worried' ? 'worried' : null);
+    flag('mood', next.mood === 'worried' || next.mood === 'sweat' ? next.mood : null);
     // What it works on: a book, a search, the web (robot.css data-task).
     flag('task', next.task === 'book' || next.task === 'search' || next.task === 'web' ? next.task : null);
     stage.classList.toggle('leaving', next.state === 'goodbye');
@@ -347,6 +347,7 @@
     // Every event wakes the character; idle starts the rest countdown again.
     rest.setIdle(next.state === 'idle');
     updateThinking();
+    if (next.state !== previous.state) updateNudges();
 
     if (next.state !== previous.state) {
       perfMark(`${previous.state}→${next.state}`);
@@ -1093,6 +1094,124 @@
     cancel('pace');
     flag('think', null);
     if (paced && !moving && !hunt.active) flag('face', null);
+  }
+
+  // ---------------------------------------------------------------- moments (app/moments.js)
+
+  /** A commit (a flag), a push (a rocket), a failure streak over (phew), a compaction (squeeze). */
+  const MOMENT_MS = { phew: 1700, squeeze: 1900 };
+  function onMoment(kind) {
+    trace(`moment: ${kind}`);
+    if (kind === 'commit') {
+      plantFlag();
+      if (motionAllowed()) glee.trigger();
+      quip('commit', 1600);
+    } else if (kind === 'push') {
+      launchRocket();
+      quip('push', 1800);
+    } else if (kind === 'phew' || kind === 'squeeze') {
+      if (motionAllowed()) {
+        flag('moment', kind, true);
+        later('moment', MOMENT_MS[kind], () => flag('moment', null));
+      }
+      quip(kind, 1500);
+    }
+  }
+
+  /** The center of the character's feet and the top of its head, in page px. */
+  function figurePoint(x, y) {
+    return { x: CHAR_LEFT + x * CHAR_SIZE, y: SLOT_HEIGHT - CHAR_BOTTOM - CHAR_SIZE + y * CHAR_SIZE };
+  }
+
+  /** A commit: a little flag pops up beside it and waves. */
+  const FLAG_MS = 2600;
+  function plantFlag() {
+    if (!motionAllowed() || !character) return;
+    const at = figurePoint(0.17, 0.93);
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'fx-flag');
+    svg.setAttribute('viewBox', '0 0 24 32');
+    const use = document.createElementNS(SVG_NS, 'use');
+    use.setAttribute('href', '#i-flag');
+    svg.appendChild(use);
+    svg.style.left = `${Math.round(at.x)}px`;
+    svg.style.top = `${Math.round(at.y)}px`;
+    fx.appendChild(svg);
+    setTimeout(() => svg.remove(), FLAG_MS + 200);
+  }
+
+  /** A push: a little rocket takes off beside it, with a puff of smoke. */
+  const ROCKET_MS = 1900;
+  function launchRocket() {
+    if (!motionAllowed() || !character) return;
+    const at = figurePoint(0.8, 0.86);
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'fx-rocket');
+    svg.setAttribute('viewBox', '0 0 24 36');
+    const use = document.createElementNS(SVG_NS, 'use');
+    use.setAttribute('href', '#i-rocket');
+    svg.appendChild(use);
+    svg.style.left = `${Math.round(at.x)}px`;
+    svg.style.top = `${Math.round(at.y)}px`;
+    fx.appendChild(svg);
+    for (let i = 0; i < 4; i += 1) {
+      const puff = document.createElement('i');
+      puff.className = 'fx-puff';
+      puff.style.left = `${Math.round(at.x + (i - 1.5) * 7)}px`;
+      puff.style.top = `${Math.round(at.y + 14)}px`;
+      puff.style.setProperty('--d', `${(0.05 + i * 0.07).toFixed(2)}s`);
+      fx.appendChild(puff);
+      setTimeout(() => puff.remove(), 1400);
+    }
+    setTimeout(() => svg.remove(), ROCKET_MS + 200);
+  }
+
+  // ---------------------------------------------------------------- waiting for the user
+
+  /**
+   * Claude Code waits for the user (a permission, a question): after a while a
+   * "Psst!" with a hop, later "Knock knock!" on the glass, again every minute.
+   */
+  const NUDGE_STATES = new Set(['waiting', 'asking']);
+  const NUDGE = Object.freeze({ firstMs: 30000, knockMs: 90000, againMs: 60000, showMs: 2400 });
+  function updateNudges() {
+    cancel('nudge-1');
+    cancel('nudge-2');
+    cancel('nudge-end');
+    flag('nudge', null);
+    if (!NUDGE_STATES.has(view.state)) return;
+    later('nudge-1', NUDGE.firstMs, () => nudge('psst'));
+    later('nudge-2', NUDGE.knockMs, knockAgain);
+  }
+
+  function knockAgain() {
+    nudge('knock');
+    later('nudge-2', NUDGE.againMs, knockAgain);
+  }
+
+  function nudge(kind) {
+    if (!NUDGE_STATES.has(view.state)) return;
+    trace(`nudge: ${kind}`);
+    if (motionAllowed()) {
+      flag('nudge', kind, true);
+      later('nudge-end', NUDGE.showMs, () => flag('nudge', null));
+      if (kind === 'knock') knockRings();
+    }
+    quip(kind === 'knock' ? 'knock' : 'nudge', NUDGE.showMs);
+  }
+
+  /** Little rings where its knuckles hit the glass. */
+  function knockRings() {
+    const at = figurePoint(0.66, 0.5);
+    for (let i = 0; i < 3; i += 1) {
+      const ring = document.createElement('i');
+      ring.className = 'fx-knock';
+      ring.style.left = `${Math.round(at.x)}px`;
+      ring.style.top = `${Math.round(at.y)}px`;
+      ring.style.setProperty('--d', `${(0.25 + i * 0.32).toFixed(2)}s`);
+      fx.appendChild(ring);
+      setTimeout(() => ring.remove(), 2000);
+    }
   }
 
   /** Tapped and it liked it: two little hearts float up from its head. */
@@ -2082,6 +2201,19 @@
       const fixed = new TapMeter({ random: () => 0.99, likes: { calm: 0, busy: 0 } });
       temper.reset();
       [0, 300, 600, 3600, 3900, 4200].forEach((ms, i) => later(`rage-${i}`, ms, () => onClick(null, { meter: fixed, busy: true })));
+    } else if (name === 'commit' || name === 'push' || name === 'phew' || name === 'squeeze') {
+      onMoment(name);
+    } else if (name === 'sweat') {
+      flag('mood', 'sweat');
+      later('demo-sweat', 4000, () => flag('mood', view.mood === 'worried' || view.mood === 'sweat' ? view.mood : null));
+    } else if (name === 'knock' || name === 'psst') {
+      // (Normally only while Claude Code waits for the user.)
+      if (motionAllowed()) {
+        flag('nudge', name, true);
+        later('nudge-end', NUDGE.showMs, () => flag('nudge', null));
+        if (name === 'knock') knockRings();
+      }
+      quip(name === 'knock' ? 'knock' : 'nudge', NUDGE.showMs);
     } else if (name === 'loop') {
       // A hop with a loop-the-loop (main plans it; ambient life must be on).
       window.buddy.fun('loop');
@@ -2177,6 +2309,7 @@
     updateFun();
   });
   window.buddy.onMove((m) => applyMove(m));
+  window.buddy.onMoment((kind) => onMoment(kind));
   window.buddy.onFlip((phase) => onFlip(phase));
   window.buddy.onChat((msg) => applyChat(msg));
   window.buddy.onBug((bug) => applyBug(bug));

@@ -324,6 +324,124 @@
   fill: #ff9db0;
 }
 
+/* ------------------------------------------------------------ moments of the work (app/moments.js)
+
+   data-mood="sweat"   tools failed again and again: a worried face and a drop
+                       of sweat that runs down, again and again
+   data-moment="phew"  the next tool worked: it wipes its brow (~1.7 s)
+   data-moment="squeeze"  the conversation was compacted: its head gets
+                       squeezed and pops back (~1.9 s)
+   data-nudge="psst" / "knock"  Claude Code waits for the user: a hop, or a
+                       knock on the glass with the near hand (~2.4 s) */
+
+.rb-sweat {
+  opacity: 0;
+  transform-origin: 55px 46px;
+  transition: opacity 0.2s ease;
+}
+
+.buddy-character[data-mood='sweat'] .rb-brow-l {
+  transform: translateY(-1px) rotate(-14deg);
+}
+
+.buddy-character[data-mood='sweat'] .rb-brow-r {
+  transform: translateY(-1px) rotate(14deg);
+}
+
+.buddy-character[data-mood='sweat'] :is(.rb-mouth, .rb-mouth-o, .rb-mouth-grin) {
+  opacity: 0;
+}
+
+.buddy-character[data-mood='sweat'] .rb-mouth-worry {
+  opacity: 1;
+}
+
+.buddy-character[data-mood='sweat'] .rb-sweat {
+  opacity: 1;
+}
+
+.buddy-character[data-mood='sweat']:not([data-rest]) .rb-sweat {
+  animation: rb-sweat 1.6s ease-in infinite;
+}
+
+.buddy-character[data-mood='sweat'] .rb-led {
+  fill: #ff9db0;
+}
+
+@keyframes rb-sweat {
+  0% { opacity: 0; transform: translateY(-4px) scale(0.6); }
+  20% { opacity: 1; transform: none; }
+  80% { opacity: 1; transform: translateY(14px); }
+  100% { opacity: 0; transform: translateY(18px) scale(0.8); }
+}
+
+.buddy-character[data-moment='phew'] .rb-arm-back {
+  animation: rb-phew-arm 1.6s ease-in-out;
+}
+
+.buddy-character[data-moment='phew'] .rb-forearm-back {
+  animation: rb-phew-forearm 1.6s ease-in-out;
+}
+
+.buddy-character[data-moment='phew'] .rb-eyes {
+  animation: rb-phew-eyes 1.6s steps(1);
+}
+
+@keyframes rb-phew-arm {
+  0%, 100% { transform: none; }
+  25%, 75% { transform: rotate(120deg); }
+}
+
+@keyframes rb-phew-forearm {
+  0%, 100% { transform: none; }
+  25% { transform: rotate(70deg); }
+  45% { transform: rotate(40deg); }
+  60% { transform: rotate(75deg); }
+  75% { transform: rotate(60deg); }
+}
+
+@keyframes rb-phew-eyes {
+  0%, 20%, 80%, 100% { transform: none; }
+  21%, 79% { transform: scaleY(0.3); }
+}
+
+.buddy-character[data-moment='squeeze'] .rb-head {
+  animation: rb-squeeze 1.8s cubic-bezier(0.3, 0, 0.4, 1);
+}
+
+.buddy-character[data-moment='squeeze'] .rb-eyes {
+  animation: rb-phew-eyes 1.8s steps(1);
+}
+
+@keyframes rb-squeeze {
+  0%, 100% { transform: none; }
+  20% { transform: scale(1.14, 0.72); }
+  45% { transform: scale(1.1, 0.78); }
+  62% { transform: scale(0.94, 1.1); }
+  78% { transform: scale(1.02, 0.97); }
+}
+
+.buddy-character[data-nudge='psst'] .rb-figure {
+  animation: rb-hello 0.7s cubic-bezier(0.3, 0, 0.4, 1) 2;
+}
+
+.buddy-character[data-nudge='knock'] .rb-arm-front {
+  transform: rotate(-115deg);
+}
+
+.buddy-character[data-nudge='knock'] .rb-forearm-front {
+  animation: rb-knock 0.32s ease-in-out 0.2s 6 alternate;
+}
+
+.buddy-character[data-nudge='knock'] .rb-laptop {
+  opacity: 0;
+}
+
+@keyframes rb-knock {
+  from { transform: rotate(-10deg); }
+  to { transform: rotate(-58deg); }
+}
+
 /* ------------------------------------------------------------ idle: breathing, resting */
 
 .buddy-character[data-state='idle']:not([data-rest]) .rb-torso {
