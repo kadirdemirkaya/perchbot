@@ -1,9 +1,19 @@
+<div align="center">
+
 # Agent Buddy
 
-A tiny robot on your desktop that shows what Claude Code is doing: thinking, reading, typing,
-running a command, waiting for you, done. Sub-agents show up as little helpers; a failing test
-brings a bug it fights until the fix lands. Runs locally, sends nothing anywhere.
-Unofficial; not affiliated with Anthropic.
+**A little desktop robot that lets you watch Claude Code work in the background, and makes it fun.**
+
+<img src="docs/media/hello.gif" width="300" alt="The robot waves hello">
+
+</div>
+
+Agent Buddy lives in a corner of your screen and acts out what the agent is doing: it thinks, reads,
+types, runs commands, waits for you and cheers when the work is done. Sub-agents show up as little
+helpers, a failing test brings a bug to fight, and between tasks it plays on its own.
+It runs on your computer and sends nothing anywhere.
+
+<sub>Unofficial; not affiliated with Anthropic.</sub>
 
 ## Install
 
@@ -12,11 +22,88 @@ Needs Node.js 20+ and Claude Code.
 ```sh
 npm install -g agent-buddy
 agent-buddy setup        # adds the hooks to every Claude Code account on this computer
-agent-buddy doctor       # checks that each account brings up the buddy
 ```
 
-From a clone instead: `npm install`, then `npm run setup`.
-Open Claude Code sessions pick up the hooks after a restart (VS Code: *Developer: Reload Window*).
+Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows up with your next prompt.
+`agent-buddy demo` plays every state without an agent. From a clone: `npm install`, then `npm run setup`.
+
+## What it does
+
+| When | The robot |
+|---|---|
+| the agent thinks, reads, searches, edits or runs a command | takes a pose for each step and says what it is on ("Editing auth.js") |
+| the agent waits for you | nudges you, then knocks until you answer |
+| a turn ends | cheers, with a short summary ("Done! 4 steps in 12 s") |
+| sub-agents start | little helpers join in, work beside it, chat and report back |
+| a skill is in use | reads its skill book, the skill's name on a tag |
+| a test or check fails | a bug turns up and they fight until a check passes ("Bug fixed!") |
+| a commit, a push | plants a flag, launches a rocket |
+| checks keep failing | sweats, then "Phew!" when it is green again |
+| the work gets intense | puts on a headband and codes on a screen of light |
+| you tap it | loves it, up to a point: then it fumes, catches fire and goes on a rampage across your screen |
+| you start a duel | a sword fight against your cursor, three hearts each |
+| it is idle | backflips, moonwalks, blows bubbles, throws paper planes, gets visitors, plays with its cat, naps |
+| the cursor rests somewhere | now and then it flies over for a look through its magnifier |
+| you open the chat | answers questions about the work; on Windows (opt-in) it opens Chrome, a tab or YouTube for you |
+
+## See it in action
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/media/work.gif" width="380" alt="The robot reads, searches, edits and runs the tests while the agent works"><br><sub><b>At work:</b> reading, searching, editing, testing</sub></td>
+    <td align="center"><img src="docs/media/agents.gif" width="380" alt="Three helper robots join in, chat and report back"><br><sub><b>Sub-agents</b> join in, chat and report back</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/media/skill.gif" width="380" alt="The robot opens its skill book"><br><sub><b>A skill:</b> out comes the skill book</sub></td>
+    <td align="center"><img src="docs/media/bug.gif" width="380" alt="A failing test brings a bug; the robot fights it with a sword"><br><sub><b>Bug hunt:</b> a failing test brings a bug</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/media/rage.gif" width="380" alt="Tapped too often, the robot fumes and its head catches fire"><br><sub><b>Too many taps:</b> fuming, then fire</sub></td>
+    <td align="center"><img src="docs/media/rampage.gif" width="380" alt="Laser eyes and missiles leave marks on the screen, then the beams chase the cursor"><br><sub><b>Rampage:</b> lasers, missiles, then your cursor</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/media/hang.gif" width="380" alt="The robot flies up and hangs upside down from the top of the screen"><br><sub><b>Hanging around</b> at the top of the screen</sub></td>
+    <td align="center"><img src="docs/media/duel.gif" width="380" alt="A sword duel between the robot and the cursor"><br><sub><b>Sword duel</b> against your cursor</sub></td>
+  </tr>
+</table>
+
+<details>
+<summary><b>More animations</b></summary>
+<br>
+<table>
+  <tr>
+    <td align="center"><img src="docs/media/focus.gif" width="380" alt="Headband on, the robot codes on a screen of light"><br><sub><b>Focus mode</b> when the work gets intense</sub></td>
+    <td align="center"><img src="docs/media/moments.gif" width="380" alt="A flag for a commit, a rocket for a push, sweat, then phew"><br><sub><b>Commit, push, sweat, phew</b></sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/media/chat.gif" width="380" alt="The chat panel with buttons and ready-made questions"><br><sub><b>Chat:</b> ask what it is doing</sub></td>
+    <td align="center"><img src="docs/media/fist.gif" width="380" alt="The robot fires its forearm at Chrome's new tab button"><br><sub><b>Rocket fist:</b> a new tab, from afar</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/media/glee.gif" width="380" alt="Happy hops and hearts"><br><sub><b>A few taps</b> when it is idle: "Hehe!"</sub></td>
+    <td align="center"><img src="docs/media/idle.gif" width="380" alt="A backflip, a moonwalk, a sneeze, soap bubbles and a paper plane"><br><sub><b>Idle plays:</b> flips, bubbles, a paper plane</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/media/visitor.gif" width="380" alt="A small robot visits: a chat and sword practice"><br><sub><b>A visitor</b> drops by for sword practice</sub></td>
+    <td align="center"><img src="docs/media/cat.gif" width="380" alt="The robot plays with its cat using a laser pointer, then pets it"><br><sub><b>The cat:</b> laser pointer, then a cuddle</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/media/follow.gif" width="380" alt="The robot flies to where the cursor rests and looks through a magnifier"><br><sub><b>Curious:</b> a look where your cursor rests</sub></td>
+    <td align="center"><img src="docs/media/flight.gif" width="380" alt="A loop-the-loop and a slow wavy flight"><br><sub><b>Flying:</b> a loop-the-loop, a slow cruise</sub></td>
+  </tr>
+</table>
+</details>
+
+## Using it
+
+- **Hover** it for its menu, **drag** it anywhere, **right-click** it to walk, fly, duel or call the cat.
+  Everything else is in the tray icon.
+- **Quiet mode** hides file names and commands: handy while you share your screen.
+- **Ambient life** (tray) lets it and its helpers roam your screens when idle; **Stay here** keeps it on its spot.
+- **Several accounts** (`CLAUDE_CONFIG_DIR`)? Tray > Account > *One buddy per account* gives each one its own robot.
+- **Sound** (tray, off by default): little robot sounds made in code, no audio files.
+- **Hands** (Windows, tray, off by default): Chrome, tab and YouTube buttons in the chat panel. It presses
+  them through Windows UI Automation; your mouse is not moved, tab titles and addresses are not read.
 
 ## Commands
 
@@ -24,52 +111,21 @@ Open Claude Code sessions pick up the hooks after a restart (VS Code: *Developer
 |---|---|
 | `agent-buddy setup` | add the hooks (`~/.claude`, `~/.claude-<name>`, `$CLAUDE_CONFIG_DIR`); asks once, backs up each file |
 | `agent-buddy doctor` | fix missing hooks, test each account live (`--account <name>` for one) |
-| `agent-buddy status` | which accounts have the hooks, is the buddy running |
-| `agent-buddy start` | start the buddy now |
-| `agent-buddy demo` | a tour of every state, no Claude Code needed |
+| `agent-buddy status` | which accounts have the hooks, is the robot running |
+| `agent-buddy start` | start the robot now |
+| `agent-buddy demo` | a tour of every state, no agent needed |
 | `agent-buddy uninstall` | remove the hooks again |
 
-## Using it
+## Privacy
 
-- **Hover** the buddy for its menu (quiet mode, chat, settings, quit); **drag** it anywhere.
-- **Right-click** it: walk, fly, home, sword duel, the cat. More in the **tray icon**.
-- **Quiet mode** hides file names and commands: use it while sharing your screen.
-- **Several Claude accounts** (`CLAUDE_CONFIG_DIR`)? Tray > Account > **One buddy per account**
-  gives each account a buddy of its own, side by side, each with a small name tag.
-- **Ambient life** (tray) lets it and its helpers roam your screens when idle; switch it off to keep it still.
-  Leave the cursor resting somewhere for thirty seconds and now and then it flies over, peers at that
-  spot through a magnifier and flies back (once per spot, also while Claude Code works).
-  **Stay here** (tray or right-click) keeps it on its spot: it still plays there, but no trips, no fleeing.
-- Left **idle** for a while it does three things, picked at random each time: it reads a little, blows
-  soap bubbles, throws a paper plane that loops back to its hand, plays with the cat or pets it (if the cat
-  is on), or a visitor drops by to chat and practise with toy swords. Then it yawns and takes a nap.
-- **The cat** (right-click or tray) plays ball with it, chases the dot of its laser pointer, and naps;
-  every minute or so while it naps the laser pointer comes out to wake it up for a game.
-- **Focus mode:** when the work gets intense (lots of edits in a couple of minutes) it puts on a headband
-  and codes on a screen of light projected from its eye instead of the laptop.
-- **Tap** it: idle it mostly likes that. Keep tapping and it gets cross, fumes, and its head catches fire.
-  Set its head on fire twice within five minutes (or keep tapping while it burns) and it goes on a
-  rampage: laser eyes burn three lines into your screen and missiles leave blast marks (a click-through
-  layer; nothing real is touched), then it goes after your cursor with both for five seconds. The marks
-  fade 5 to 10 seconds after the last blast.
-- **Sound** (tray, off by default): little robot sounds made in code, no audio files. With **Work sounds**
-  on too it also signals when a turn is done, a tool failed or Claude Code has a question.
-- **Hands** (Windows, tray > "Hands: Chrome", off by default): buttons at the top of the chat panel.
-  It opens Chrome, closes the front Chrome window (after a Yes), opens a new tab, closes the last tab, or
-  opens YouTube (a new tab, then it types "youtube.com" into the address bar and presses Enter). It flies
-  over and presses the buttons through Windows UI Automation, or now and then fires its forearm at the
-  button from where it stands (a rocket fist); your mouse is not moved, tab titles and addresses are not read.
-
-Only the event, the tool name, a file name (not the path) and a shortened command (secrets
-masked) leave the hook, and only to `127.0.0.1`. Settings: `~/.agent-buddy/settings.json`.
-With ambient life on, the overlay also looks at the system idle time (to say welcome back), where the
-cursor is (its position only, to fly over to where it rests) and,
-on Windows, at where windows are (frames only, never titles or contents) to sit on title bars.
-Nothing of it is stored or sent anywhere.
+Only the event, the tool name, a file name (not the path) and a shortened command (secrets masked)
+leave the hook, and only to `127.0.0.1`. With ambient life on, the robot also looks at the system idle
+time, where the cursor is (its position only) and, on Windows, where windows are (frames only, never
+titles or contents). Nothing of it is stored or sent anywhere. Settings: `~/.agent-buddy/settings.json`.
 
 ## Development
 
 `npm test` · `npm run dev` · `npm run simulate [-- bug | life | chat]` · `npm pack`.
-Characters: [characters/README.md](characters/README.md).
+Make your own character: [characters/README.md](characters/README.md).
 
 MIT, see [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
