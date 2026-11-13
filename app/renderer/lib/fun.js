@@ -181,26 +181,35 @@
     }
   }
 
-  /** Its head catches fire this many times within windowMs: it goes on a rampage. */
-  const FURY = Object.freeze({ blazes: 2, windowMs: 5 * 60 * 1000 });
+  /**
+   * Its head catches fire this many times within windowMs: it goes on a
+   * rampage. Unwelcome taps while its head is already on fire are fuel: this
+   * many of them count as catching fire again (otherwise someone who never
+   * stops tapping would keep it burning, and it would never go over the top).
+   */
+  const FURY = Object.freeze({ blazes: 2, windowMs: 5 * 60 * 1000, stokes: 3 });
 
   /**
    * Counts how often its head catches fire (the temper reaches its top level
-   * from below). The second time within five minutes is too much: blaze()
-   * returns true (a rampage: laser eyes and missiles, see app/rampage.js) and
-   * the count starts over. Pure: the clock is injectable.
+   * from below, or `stokes` more unwelcome taps while it already burns). The
+   * second time within five minutes is too much: blaze() / stoke() returns
+   * true (a rampage: laser eyes and missiles, see app/rampage.js) and the
+   * count starts over. Pure: the clock is injectable.
    */
   class Fury {
-    constructor({ clock = realClock, blazes = FURY.blazes, windowMs = FURY.windowMs } = {}) {
+    constructor({ clock = realClock, blazes = FURY.blazes, windowMs = FURY.windowMs, stokes = FURY.stokes } = {}) {
       this.clock = clock;
       this.blazes = blazes;
       this.windowMs = windowMs;
+      this.stokes = stokes;
       this.times = [];
+      this.fuel = 0;
     }
 
     /** Its head just caught fire. True: that was once too often. */
     blaze() {
       const now = this.clock.now();
+      this.fuel = 0;
       this.times = this.times.filter((t) => now - t < this.windowMs);
       this.times.push(now);
       if (this.times.length < this.blazes) return false;
@@ -208,8 +217,16 @@
       return true;
     }
 
+    /** An unwelcome tap while its head is already on fire: every `stokes` of them, it catches fire again. */
+    stoke() {
+      this.fuel += 1;
+      if (this.fuel < this.stokes) return false;
+      return this.blaze();
+    }
+
     reset() {
       this.times = [];
+      this.fuel = 0;
     }
   }
 

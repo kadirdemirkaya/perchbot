@@ -46,6 +46,54 @@ test('fury: the second blaze within five minutes is a rampage, then it counts fr
   assert.equal(fury.blaze(), false);
 });
 
+test('fury: three more unwelcome taps while its head burns count as catching fire again', () => {
+  let now = 0;
+  const fury = new Fury({ clock: { now: () => now } });
+  assert.equal(FURY.stokes, 3);
+  assert.equal(fury.blaze(), false, 'its head catches fire');
+  now += 3000;
+  assert.equal(fury.stoke(), false);
+  assert.equal(fury.stoke(), false);
+  assert.equal(fury.stoke(), true, 'kept burning: over the top');
+  // Counted from zero after a rampage; stoking alone (no first fire) needs two rounds.
+  assert.equal(fury.stoke(), false);
+  assert.equal(fury.stoke(), false);
+  assert.equal(fury.stoke(), false, 'the first round only counts as catching fire');
+  // A fresh fire starts the fuel over.
+  fury.reset();
+  fury.stoke();
+  fury.stoke();
+  assert.equal(fury.blaze(), false);
+  assert.equal(fury.stoke(), false, 'fuel starts over with each fire');
+});
+
+test('fury: someone who never stops tapping gets a rampage (Temper keeps it burning)', () => {
+  const { TapMeter, Temper } = require('../app/renderer/lib/fun');
+  for (const busy of [false, true]) {
+    let now = 0;
+    const clock = { now: () => now };
+    const meter = new TapMeter({ clock, random: seeded(3) });
+    const temper = new Temper({ clock });
+    const fury = new Fury({ clock });
+    let rampage = 0;
+    // A tap every 300 ms; after it flees, 3 s to find it again.
+    while (now < 60000 && !rampage) {
+      const v = meter.tap(busy, temper.hot);
+      if (v === 'happy') temper.reset();
+      if (v === 'annoyed' || v === 'flee') {
+        const before = temper.level;
+        const { level } = temper.flare(v);
+        if (level >= TEMPER_MAX && (before < TEMPER_MAX ? fury.blaze() : fury.stoke())) rampage = now;
+      }
+      now += v === 'flee' ? 3000 : 300;
+    }
+    assert.ok(rampage > 0 && rampage < 30000, `${busy ? 'busy' : 'idle'}: a rampage after ${rampage} ms of tapping`);
+  }
+  const page = read('app', 'renderer', 'renderer.js');
+  assert.ok(page.includes('if (level >= TEMPER_MAX && before >= TEMPER_MAX && fury.stoke() && goRampage()) return;'));
+  assert.ok(DEMOS.has('pester'), 'a demo of it');
+});
+
 test('rampage request: two eyes and a hatch inside the window, nothing else', () => {
   const size = { width: 355, height: 340 };
   const ok = parseRampage({ eyes: [{ x: 100.4, y: 80 }, { x: 126, y: 80.6 }], hatch: { x: 113, y: 130 }, face: 'left', extra: 1 }, size);

@@ -1704,8 +1704,10 @@
     const { level, erupt } = temper.flare(verdict);
     flag('annoyed', level, !holder.dataset.annoyed);
     coolDown();
-    // Its head catches fire for the second time in five minutes: no flight this time.
+    // Its head catches fire for the second time in five minutes (or it is kept
+    // burning with more taps, lib/fun.js Fury.stoke): no flight this time.
     if (level >= TEMPER_MAX && before < TEMPER_MAX && fury.blaze() && goRampage()) return;
+    if (level >= TEMPER_MAX && before >= TEMPER_MAX && fury.stoke() && goRampage()) return;
     if (verdict === 'flee') {
       trace(erupt ? 'hit too often while blazing: erupting' : 'hit too often: leaving');
       if (erupt) {
@@ -2966,6 +2968,13 @@
       temper.reset();
       fury.reset();
       [0, 300, 600, 3600, 3900, 4200].forEach((ms, i) => later(`rage-${i}`, ms, () => onClick(null, { meter: fixed, busy: true })));
+    } else if (name === 'pester') {
+      // Never stops tapping: the anger ladder, then three more taps while its head
+      // still burns (Fury.stoke): a rampage, without a second fire.
+      const fixed = new TapMeter({ random: () => 0.99, likes: { calm: 0, busy: 0 } });
+      temper.reset();
+      fury.reset();
+      [0, 300, 600, 3600, 3900, 4200, 8400, 8700, 9000].forEach((ms, i) => later(`pester-${i}`, ms, () => onClick(null, { meter: fixed, busy: true })));
     } else if (name === 'guest') {
       // A visitor right now (normally the idle story's third beat).
       if (crewCount > 0 || guest) trace('guest: not now');
