@@ -659,6 +659,8 @@
       ]),
       // Curled up: one sleepy purr, then quiet.
       nap: sheet([cue(600, 'purr', 0.85)]),
+      // The laser pointer: a click as it comes on, a chirpy meow, a scrabble at each pounce (rbc-dot-chase 2.4 s).
+      laser: sheet([cue(150, 'beep', 1.8), cue(700, 'meow', 1.25), ...every(1500, 2400, 6000, 'scratch', [1.15, 1.3])]),
       // Petted by the robot (after a short walk up to it): it purrs and purrs.
       cuddle: sheet([cue(900, 'purr'), cue(2600, 'purr', 1.05), cue(4300, 'purr')]),
     }),

@@ -178,7 +178,7 @@ test('petting the cat: a story beat (Cat switch on); the cat comes close, the bu
     "const ok = ambientOn() && AMBIENT_STATES.has(view.state) && motionAllowed() && pet.cuddle();",
     "later('pat-come', PAT_COME_MS, () => {",
     "quip('petCat', 1800);",
-    '!raging && !guest && !cuddling && !guestPending;',
+    '!raging && !guest && !cuddling && !guestPending && !lasering;',
   ]) {
     assert.ok(page.includes(piece), piece);
   }

@@ -10,6 +10,7 @@
       rbc-ball    the ball it plays with (rolls towards the robot and back)
       rbc-curl    curled up, napping;  rbc-zzz  sleepy marks
       rbc-eyes-happy  eyes shut happily (being petted, data-phase="cuddle")
+      rbc-dot     the laser pointer's red dot on the ground ahead of it (data-phase="laser")
     Everything faces right (towards the robot); the app mirrors it when needed.
   -->
   <ellipse class="rbc-shadow" data-nohit="" cx="100" cy="186" rx="44" ry="5" fill="#2A2650" opacity=".15"/>
@@ -73,6 +74,13 @@
   <g class="rbc-ball" data-nohit="">
     <circle cx="176" cy="175" r="7" fill="#FFD25A" stroke="#2A2650" stroke-width="2.2"/>
     <path d="M169.5 173 Q176 178 182.5 173" fill="none" stroke="#B3A8F7" stroke-width="2.2" stroke-linecap="round"/>
+  </g>
+
+  <!-- the laser pointer's dot: it darts about on the ground ahead of the cat -->
+  <g class="rbc-dot" data-nohit="">
+    <ellipse cx="184" cy="182" rx="20" ry="8" fill="#FF3B4E" opacity=".28"/>
+    <ellipse cx="184" cy="182" rx="10" ry="5" fill="#FF2E48" stroke="#FFFFFF" stroke-opacity=".55" stroke-width="1.6"/>
+    <ellipse cx="182.5" cy="180.8" rx="3.6" ry="1.8" fill="#FFE4E8"/>
   </g>
 
   <!-- curled up, napping -->

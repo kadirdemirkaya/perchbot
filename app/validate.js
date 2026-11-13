@@ -116,6 +116,8 @@ const DEMOS = new Set([
   'duel',
   'cat',
   'cat-away',
+  // The cat chases the laser pointer's dot (it must be here).
+  'cat-laser',
   'menu',
   // A throw from where it is (no mouse needed), towards the middle of the screen.
   'fling',

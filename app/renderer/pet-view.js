@@ -15,8 +15,8 @@
    * @param {object} o
    * @param {HTMLElement} o.actors
    * @param {(markup: string) => SVGElement} o.sanitizeSvg
-   * @param {(name: string, on: boolean) => void} o.onCue  'play' / 'cuddle' starts / ends
-   * @param {(phase: string | null) => void} [o.onPhase]  enter, play, aside, nap, cuddle, leave; null: gone
+   * @param {(name: string, on: boolean) => void} o.onCue  'play' / 'cuddle' / 'laser' starts / ends
+   * @param {(phase: string | null) => void} [o.onPhase]  enter, play, aside, nap, cuddle, laser, leave; null: gone
    * @param {(message: string) => void} o.trace
    */
   function createPetView(o) {
@@ -29,6 +29,8 @@
     let last = null;
 
     const director = new PetDirector({
+      // Half the time the laser pointer comes out after the ball.
+      timings: { laserAfterPlay: 0.5 },
       onUpdate: render,
       onCue: (name, on) => o.onCue(name, on),
       onPhase: (phase) => o.onPhase && o.onPhase(phase),
@@ -93,6 +95,12 @@
       return director.cuddle();
     }
 
+    /** The laser pointer: the cat wakes up and chases the dot (false: not here, or busy). */
+    function laser() {
+      if (!template) return false;
+      return director.laser();
+    }
+
     function setRest(value) {
       rest = Boolean(value);
       if (last) render(last);
@@ -134,6 +142,7 @@
       setOn,
       interrupt,
       cuddle,
+      laser,
       setRest,
       setTravel,
       get here() {

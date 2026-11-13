@@ -301,11 +301,13 @@
   const pet = window.BuddyPetView.createPetView({
     actors,
     sanitizeSvg,
-    // The cat plays: the main character joins in (data-pet="play"); or it
-    // came to be petted (data-pet="cuddle", the idle story).
+    // The cat plays: the main character joins in (data-pet="play"); it came
+    // to be petted (data-pet="cuddle", the idle story); or it chases the laser
+    // pointer's dot (data-pet="laser").
     onCue: (name, on) => {
       flag('pet', on && motionAllowed() ? name : null);
       if (name === 'cuddle') onCuddle(on);
+      if (name === 'laser') onPetLaser(on);
     },
     // Its sounds: hello on the way in, the ball while it plays, a purr as it dozes off.
     onPhase: (phase) => {
@@ -322,6 +324,9 @@
         });
       }
       if (phase === null) patPending = false;
+      // It naps a lot: now and then the laser pointer wakes it up to play.
+      if (phase === 'nap') later('cat-laser', CAT_LASER_MIN_MS + Math.random() * (CAT_LASER_MAX_MS - CAT_LASER_MIN_MS), tryCatLaser);
+      else cancel('cat-laser');
     },
     trace,
   });
@@ -1631,7 +1636,7 @@
     // Helpers may roam the screen: ambient life on (with motion), awake, not paused.
     crew.setRoam(ambientOn() && !rest.resting);
     const calm =
-      ambientOn() && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen && !raging && !guest && !cuddling && !guestPending;
+      ambientOn() && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen && !raging && !guest && !cuddling && !guestPending && !lasering;
     // The idle story runs while it is idle with ambient life on; anything else ends it.
     if (ambientOn() && AMBIENT_STATES.has(view.state)) story.start();
     else if (story.running || story.finished) story.stop();
@@ -2341,6 +2346,8 @@
   let cuddling = false;
   /** The story called the visitor: it is on its way (main makes room first). */
   let guestPending = false;
+  /** The cat chases the laser pointer's dot (data-pet="laser"). */
+  let lasering = false;
   /** A backstop: the visitor never came. */
   const GUEST_PENDING_MS = 6000;
   /** The story brought the cat: it may send it away again to make room. */
@@ -2449,6 +2456,44 @@
         story.done();
       }
     }
+    updateFun();
+  }
+
+  /**
+   * The cat naps a lot: while it naps and the buddy is idle, awake and free,
+   * every 45-90 s the laser pointer comes out and the cat chases the dot
+   * (lib/pet.js laser(); it also comes out after the ball now and then).
+   */
+  const CAT_LASER_MIN_MS = 45000;
+  const CAT_LASER_MAX_MS = 90000;
+  const CAT_LASER_RETRY_MS = 20000;
+
+  function tryCatLaser() {
+    if (catPhase !== 'nap') return;
+    const free =
+      ambientOn() &&
+      AMBIENT_STATES.has(view.state) &&
+      motionAllowed() &&
+      !rest.resting &&
+      !moving &&
+      !drag &&
+      !duel.active &&
+      !hunt.active &&
+      !chatOpen &&
+      !raging &&
+      !guest &&
+      !guestPending &&
+      !cuddling &&
+      zone === null;
+    if (free && pet.laser()) trace('cat: the laser pointer');
+    else later('cat-laser', CAT_LASER_RETRY_MS, tryCatLaser);
+  }
+
+  /** The cat is at the dot (on) or goes back to its nap (off): it turns to the cat, like for petting. */
+  function onPetLaser(on) {
+    lasering = Boolean(on);
+    if (!hunt.active && !duel.active && !moving) flag('face', on ? (layout.side !== 'right' ? 'left' : null) : null);
+    if (on) ambient.stop();
     updateFun();
   }
 
@@ -2925,6 +2970,9 @@
       // A visitor right now (normally the idle story's third beat).
       if (crewCount > 0 || guest) trace('guest: not now');
       else window.buddy.fun('guest');
+    } else if (name === 'cat-laser') {
+      // The laser pointer for the cat now (it must be here: Cat switch, or the 'cat' demo first).
+      if (!pet.laser()) trace('cat: not now');
     } else if (name === 'pat') {
       // It pets the cat (normally an idle story beat; the Cat switch must be on).
       if (!startPat()) trace('cat: not now');

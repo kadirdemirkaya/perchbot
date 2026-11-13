@@ -2,7 +2,7 @@
  * "Pip", Robo's cat.
  *
  * The app wraps the SVG in <div class="buddy-pet" data-phase="...">:
- *   data-phase   enter | play | aside | nap | cuddle | leave
+ *   data-phase   enter | play | aside | nap | cuddle | laser | leave
  *   data-walk    present while it walks (enter, aside, leave)
  *   data-travel  "walk" | "fly": the whole buddy is on a trip and the cat comes along
  *   data-rest    the main character rests (or the screen is locked): no animation
@@ -17,7 +17,8 @@
 .rbc-curl,
 .rbc-zzz,
 .rbc-ball,
-.rbc-eyes-happy {
+.rbc-eyes-happy,
+.rbc-dot {
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -109,6 +110,55 @@
 @keyframes rbc-nuzzle {
   0%, 100% { transform: rotate(-6deg); }
   50% { transform: rotate(-14deg) translateY(2px); }
+}
+
+/* ------------------------------------------------------------ laser: chasing the red dot */
+
+/* The dot leads it to its play spot, then darts about; it crouches, wiggles
+   and pounces after it, head down, tail lashing. */
+.buddy-pet[data-phase='laser'] .rbc-dot {
+  opacity: 1;
+}
+
+.rbc-dot {
+  transform-origin: 184px 182px;
+}
+
+.buddy-pet[data-phase='laser']:not([data-walk]):not([data-rest]) .rbc-dot {
+  animation: rbc-dot-dart 2.4s ease-in-out infinite;
+}
+
+.buddy-pet[data-phase='laser']:not([data-walk]):not([data-rest]) .rbc-stand {
+  animation: rbc-dot-chase 2.4s ease-in-out infinite;
+}
+
+.buddy-pet[data-phase='laser'] .rbc-head {
+  transform: rotate(14deg);
+}
+
+.buddy-pet[data-phase='laser']:not([data-rest]) .rbc-tail {
+  animation: rbc-tail 0.36s ease-in-out infinite;
+}
+
+@keyframes rbc-dot-dart {
+  0%, 100% { transform: translate(0, 0); }
+  16% { transform: translate(34px, -2px); }
+  28% { transform: translate(38px, 1px); }
+  42% { transform: translate(-58px, 0); }
+  56% { transform: translate(-22px, -1px); }
+  70% { transform: translate(26px, 1px); }
+  84% { transform: translate(-6px, 0); }
+}
+
+@keyframes rbc-dot-chase {
+  0%, 100% { transform: translateY(3px) scale(1.04, 0.94); }
+  8% { transform: translate(-2px, 4px) scale(1.06, 0.92); }
+  22% { transform: translate(22px, -14px); }
+  32% { transform: translate(28px, 2px) scale(1.04, 0.94); }
+  48% { transform: translate(-30px, -8px) scaleX(0.97); }
+  60% { transform: translate(-20px, 3px) scale(1.04, 0.94); }
+  76% { transform: translate(16px, -10px); }
+  88% { transform: translate(2px, 2px) scale(1.03, 0.95); }
 }
 
 /* ------------------------------------------------------------ play: crouch, pounce, bat the ball */

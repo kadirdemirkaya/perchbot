@@ -171,3 +171,81 @@ test('asked to come and be petted from its own phase change (as it starts to pla
   clock.tick(T.cuddleMs);
   assert.deepEqual(phases, ['enter', 'play', 'cuddle', 'aside']);
 });
+
+test('the laser pointer: from its nap it chases the dot to its play spot, pounces there a while, then naps again', () => {
+  const { clock, d, log, last } = setup();
+  assert.equal(d.laser(), false, 'no cat yet');
+  d.call();
+  assert.equal(d.laser(), false, 'still walking in');
+  clock.tick(last().walkMs);
+  clock.tick(T.playMs);
+  assert.equal(last().phase, 'aside', 'by default the ball only (the page turns the laser on)');
+  clock.tick(last().walkMs);
+  assert.equal(last().phase, 'nap');
+  log.cues.length = 0;
+  assert.equal(d.laser(), true);
+  assert.equal(last().phase, 'laser');
+  assert.equal(last().off, 60, 'after the dot, to its play spot');
+  assert.ok(last().walkMs > 0);
+  assert.equal(d.laser(), false, 'already after it');
+  clock.tick(last().walkMs);
+  assert.deepEqual(log.cues, [['laser', true]]);
+  clock.tick(T.laserMs);
+  assert.deepEqual(log.cues, [['laser', true], ['laser', false]]);
+  assert.equal(last().phase, 'aside');
+  clock.tick(last().walkMs);
+  assert.equal(last().phase, 'nap');
+  assert.deepEqual(log.phases.slice(-3), ['laser', 'aside', 'nap']);
+  // Work: straight to its nap spot.
+  d.laser();
+  clock.tick(last().walkMs);
+  d.interrupt();
+  assert.deepEqual(log.cues.at(-1), ['laser', false]);
+  assert.equal(last().phase, 'aside');
+});
+
+test('the laser pointer after the ball: with laserAfterPlay, the ball, then the dot, then a nap', () => {
+  const clock = new FakeClock();
+  const cues = [];
+  const phases = [];
+  const d = new PetDirector({ clock, random: () => 0.2, timings: { laserAfterPlay: 0.5 }, onCue: (n, on) => cues.push([n, on]), onPhase: (p) => phases.push(p) });
+  d.setGeometry({ play: 60, nap: 150, width: 200 });
+  d.call();
+  clock.tick(d.pet.walkMs);
+  clock.tick(T.playMs);
+  assert.equal(d.pet.phase, 'laser', 'the ball, then the laser pointer');
+  clock.tick(0);
+  clock.tick(T.laserMs);
+  assert.deepEqual(cues, [['play', true], ['play', false], ['laser', true], ['laser', false]]);
+  assert.deepEqual(phases, ['enter', 'play', 'laser', 'aside']);
+  // A higher roll: the ball only.
+  const e = new PetDirector({ clock, random: () => 0.8, timings: { laserAfterPlay: 0.5 } });
+  e.setGeometry({ play: 60, nap: 150, width: 200 });
+  e.call();
+  clock.tick(e.pet.walkMs);
+  clock.tick(T.playMs);
+  assert.equal(e.pet.phase, 'aside');
+});
+
+test('the laser pointer on the page: the napping cat is woken now and then; the robot points it, the cat has the dot', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const read = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
+  const page = read('app', 'renderer', 'renderer.js');
+  for (const piece of [
+    "if (phase === 'nap') later('cat-laser', CAT_LASER_MIN_MS + Math.random() * (CAT_LASER_MAX_MS - CAT_LASER_MIN_MS), tryCatLaser);",
+    "if (free && pet.laser()) trace('cat: the laser pointer');",
+    "else later('cat-laser', CAT_LASER_RETRY_MS, tryCatLaser);",
+    "if (name === 'laser') onPetLaser(on);",
+  ]) {
+    assert.ok(page.includes(piece), piece);
+  }
+  assert.ok(read('app', 'renderer', 'pet-view.js').includes('timings: { laserAfterPlay: 0.5 },'), 'half the time after the ball');
+  const robot = read('characters', 'robot', 'robot.css');
+  assert.ok(robot.includes(".buddy-character[data-pet='laser'] .rb-pointer {"));
+  assert.match(read('characters', 'robot', 'robot.svg'), /class="rb-pointer" data-nohit=""/);
+  const cat = read('characters', 'robot', 'cat.css');
+  assert.ok(cat.includes(".buddy-pet[data-phase='laser'] .rbc-dot {"));
+  assert.match(read('characters', 'robot', 'cat.svg'), /class="rbc-dot" data-nohit=""/);
+  assert.ok(require('../app/validate').DEMOS.has('cat-laser'));
+});

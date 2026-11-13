@@ -39,6 +39,7 @@
       rb-wand, rb-bubbles  idle story: a bubble wand in the near hand, the bubbles it blows
       rb-plane-held, rb-plane-fly  idle story: a paper plane in the near hand, and the same
                  plane in flight (it loops round and comes back to the hand)
+      rb-pointer  a laser pointer in the near hand, for playing with the cat (data-pet="laser")
     Elements marked data-nohit never count as "the character" for the mouse.
   -->
   <defs>
@@ -497,6 +498,13 @@
               <path d="M118 151 V160" stroke="#4FD6B4" stroke-width="1.6" stroke-linecap="round"/>
               <circle cx="118" cy="166" r="6.4" fill="#CFF4FF" fill-opacity=".3" stroke="#2A2650" stroke-width="3.8"/>
               <circle cx="118" cy="166" r="6.4" fill="none" stroke="#4FD6B4" stroke-width="1.8"/>
+            </g>
+            <!-- the cat: a laser pointer, held out along the forearm (its dot is drawn by the cat) -->
+            <g class="rb-pointer" data-nohit="">
+              <rect x="114.6" y="146" width="6.8" height="17" rx="3" fill="#3A3566" stroke="#2A2650" stroke-width="2"/>
+              <rect x="115.6" y="150" width="4.8" height="2.6" rx="1" fill="#4FD6B4"/>
+              <circle cx="118" cy="165" r="4.6" fill="#FF3B4E" opacity=".35"/>
+              <circle cx="118" cy="164.2" r="2.2" fill="#FF5A6E" stroke="#2A2650" stroke-width="1.2"/>
             </g>
             <!-- idle story: a paper plane in the hand (turned so that it points ahead when the arm is held out) -->
             <g class="rb-plane-held" data-nohit="">
