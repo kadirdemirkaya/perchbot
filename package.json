@@ -1,10 +1,27 @@
 {
   "name": "agent-buddy",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A tiny animated desktop companion that reacts to what your coding agent is doing, driven by Claude Code hooks.",
   "license": "MIT",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kadirdemirkaya/perchbot.git"
+  },
   "main": "app/main.js",
+  "bin": {
+    "agent-buddy": "bin/agent-buddy.js"
+  },
+  "files": [
+    "app/",
+    "bin/",
+    "characters/",
+    "hooks/",
+    "lib/",
+    "scripts/simulate.js",
+    "setup.js",
+    "uninstall.js",
+    "THIRD_PARTY_NOTICES.md"
+  ],
   "keywords": [
     "desktop-companion",
     "overlay",

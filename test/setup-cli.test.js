@@ -13,6 +13,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const hooks = require('../lib/hooks-config');
+const cli = require('../lib/cli');
 
 const ROOT = path.join(__dirname, '..');
 const N = hooks.HOOK_SPECS.length;
@@ -124,4 +125,77 @@ test('--project and --local write into <dir>/.claude', () => {
   assert.ok(fs.existsSync(path.join(project, '.claude', 'settings.local.json')));
   const bad = run('setup.js', ['--project', '--local'], env);
   assert.equal(bad.code, 2);
+});
+
+test('accounts: ~/.claude and every ~/.claude-<name> Claude Code has used, plus CLAUDE_CONFIG_DIR, once each', () => {
+  const { dir } = sandbox();
+  const mk = (name, marker) => {
+    fs.mkdirSync(path.join(dir, name));
+    if (marker) fs.mkdirSync(path.join(dir, name, marker));
+  };
+  mk('.claude');
+  mk('.claude-personal', 'projects');
+  mk('.claude-work', 'todos');
+  mk('.claude-code-router'); // another tool's folder: nothing of Claude Code's in it
+  fs.writeFileSync(path.join(dir, '.claude.json'), '{}'); // a file, not an account
+  const names = (found) => found.map((a) => path.basename(a.dir));
+  assert.deepEqual(names(cli.findAccounts({ env: {}, home: dir })), ['.claude', '.claude-personal', '.claude-work']);
+  // CLAUDE_CONFIG_DIR comes first; pointing at one of them does not list it twice.
+  const withEnv = cli.findAccounts({ env: { CLAUDE_CONFIG_DIR: path.join(dir, '.claude-work') }, home: dir });
+  assert.deepEqual(names(withEnv), ['.claude-work', '.claude', '.claude-personal']);
+  assert.match(withEnv[0].why, /CLAUDE_CONFIG_DIR/);
+  assert.match(withEnv[1].why, /account "claude"/);
+  // Nothing at all yet: ~/.claude (created by setup).
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-buddy-empty-'));
+  assert.deepEqual(cli.resolveTargets({}, {}, empty), [{ file: path.join(empty, '.claude', 'settings.json'), why: 'default user settings' }]);
+  // An option names one file: only that one.
+  assert.equal(cli.resolveTargets({ configDir: path.join(dir, 'x') }, {}, dir).length, 1);
+});
+
+test('setup without options covers every account with one confirmation; status shows it; uninstall removes it everywhere', () => {
+  const { dir, env } = sandbox();
+  delete env.CLAUDE_CONFIG_DIR;
+  fs.mkdirSync(path.join(dir, '.claude'));
+  fs.mkdirSync(path.join(dir, '.claude-personal'));
+  fs.writeFileSync(path.join(dir, '.claude-personal', 'settings.json'), JSON.stringify({ theme: 'dark' }));
+  fs.mkdirSync(path.join(dir, '.claude-work', 'projects'), { recursive: true });
+
+  const dry = run('setup.js', ['--dry-run'], env);
+  assert.equal(dry.code, 0, dry.out);
+  assert.match(dry.out, /Accounts {6}: 3 found/);
+  assert.equal((dry.out.match(new RegExp(`Will add ${N} hooks`, 'g')) || []).length, 3);
+  assert.equal(fs.existsSync(path.join(dir, '.claude', 'settings.json')), false, 'dry run writes nothing');
+
+  const r = run('setup.js', ['--yes'], env);
+  assert.equal(r.code, 0, r.out);
+  for (const name of ['.claude', '.claude-personal', '.claude-work']) {
+    const data = JSON.parse(fs.readFileSync(path.join(dir, name, 'settings.json'), 'utf8'));
+    assert.equal(hooks.countOurHandlers(data), N, name);
+  }
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.claude-personal', 'settings.json'), 'utf8')).theme, 'dark', 'other settings kept');
+  assert.equal(backups(path.join(dir, '.claude-personal')).length, 1, 'the existing file was backed up');
+
+  const status = run('bin/agent-buddy.js', ['status'], env);
+  assert.equal(status.code, 0, status.out);
+  assert.match(status.out, /accounts found: 3/);
+  // One line per account (not the "Electron : installed" line above them).
+  assert.equal((status.out.match(/^ {4}claude\S* +installed\r?$/gm) || []).length, 3, status.out);
+
+  const removed = run('bin/agent-buddy.js', ['uninstall', '--yes'], env);
+  assert.equal(removed.code, 0, removed.out);
+  for (const name of ['.claude', '.claude-personal', '.claude-work']) {
+    assert.equal(hooks.countOurHandlers(JSON.parse(fs.readFileSync(path.join(dir, name, 'settings.json'), 'utf8'))), 0, name);
+  }
+  assert.match(run('bin/agent-buddy.js', ['status'], env).out, /not installed/);
+});
+
+test('the agent-buddy command: help, version, unknown commands', () => {
+  const { env } = sandbox();
+  const help = run('bin/agent-buddy.js', [], env);
+  assert.equal(help.code, 0);
+  assert.match(help.out, /agent-buddy <command>/);
+  assert.match(run('bin/agent-buddy.js', ['--version'], env).out, /^\d+\.\d+\.\d+/);
+  assert.equal(run('bin/agent-buddy.js', ['frobnicate'], env).code, 2);
+  const setupHelp = run('bin/agent-buddy.js', ['setup', '--help'], env);
+  assert.match(setupHelp.out, /every Claude Code account/);
 });

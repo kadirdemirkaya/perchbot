@@ -1,632 +1,85 @@
 # Agent Buddy
 
-> **Agent Buddy is an independent, unofficial companion app for Claude Code. It is not affiliated with or endorsed by Anthropic.**
+A tiny animated robot on your desktop that shows what Claude Code is doing: thinking,
+reading, typing, running a command, waiting for your approval, done. Sub-agents show up as
+little helper robots, and a failing test brings a bug that the buddy fights until the fix
+lands. Everything runs on your computer; nothing is sent anywhere.
 
-A tiny animated robot that sits in the corner of your screen and reacts to what
-your Claude Code session is doing. It types while files are edited, puts on
-glasses to read, shows a prompt while commands run, raises a hand when your
-approval is needed and jumps when the work is done.
-
-<p align="center">
-  <!-- TODO: add docs/demo.gif, a short screen recording of `npm run simulate` -->
-  <em>Demo GIF coming soon.</em>
-</p>
-
-- Works with Claude Code in the terminal and in the VS Code extension (both fire the same hooks).
-- Stays out of your way: clicks pass through everywhere except the character's own pixels,
-  it never takes keyboard focus and it is not in Alt+Tab.
-- Hover it for a small menu, drag it anywhere or throw it (it glides on and slows down; near a
-  bottom corner it settles there), click it for a bounce. Its eyes follow the cursor while the
-  cursor is near.
-- Lifelike but light: breathing, random blinks, an irregular typing rhythm, squash-and-stretch
-  jumps. After a quiet minute it rests and nothing animates at all.
-- Sub-agents show up as little helper robots, each in its own colour: they get a briefing,
-  work on their own laptops, chat with each other now and then, and report back when done.
-- When a skill is in use, the skill book comes out of the pocket, with its name on a tag.
-- Ambient life (on by default): when idle it stretches, looks around, hops, bounces a ball,
-  plays with its antenna, walks along the taskbar or takes a short flight, and it gets cross
-  and moves elsewhere when you poke it three times. Play mode adds a sword duel and a whip;
-  a cat can be called to play with it and then nap.
-- Handles several sessions at once and disappears when the last one ends.
-- Everything stays on your machine. See [Privacy](#privacy).
-- Characters are plug-ins: a folder with an SVG, a CSS file and a JSON manifest.
-- English and Turkish UI.
-
-## How it works
-
-```
-Claude Code ──(hooks)──► hooks/send.js ──HTTP POST──► Agent Buddy overlay (Electron)
-(terminal or VS Code)    Node.js, no deps,           127.0.0.1:7777 only
-                         exits in ~50 ms             state machine → animated SVG
-```
-
-1. **Claude Code hooks** run `hooks/send.js` for each event (session start/end, prompt,
-   before/after each tool, notifications, stop) and pass the event as JSON on stdin.
-2. **send.js** keeps a handful of fields (event, tool name, *file name*, a shortened
-   command), posts them to `http://127.0.0.1:7777/event` with a 300 ms timeout and exits.
-   It never prints anything and always exits with code 0. The hooks are registered as
-   `async`, so Claude Code does not wait for them at all (except `SessionEnd`, which
-   needs a few milliseconds).
-3. If the overlay is not running, a `SessionStart` or `UserPromptSubmit` event starts it
-   in the background and hands it that first event.
-4. **The overlay** is a transparent, frameless, click-through Electron window. It counts
-   open sessions. When the last one ends it waits about 2.5 seconds (a new session often
-   follows at once: Claude Code restarted, `/clear`, a resume), then waves goodbye and quits.
-   If Claude Code was closed without its `SessionEnd` hook (terminal window closed with X,
-   a killed tab, VS Code quit), the overlay notices within about 5 seconds that the Claude
-   Code process of that session is gone and closes the session the same way. If no event
-   arrives for 30 minutes (for example when that process could not be identified) it quits
-   on its own.
-
-| State | Trigger | Animation | Bubble |
-|---|---|---|---|
-| idle | nothing happening | standing, laptop closed, blinks now and then | – |
-| greeting | `SessionStart` | waves | "Hello!" |
-| thinking | `UserPromptSubmit`, between tools | hand on chin, "..." | – |
-| typing | Edit, Write, MultiEdit, NotebookEdit | laptop open, code scrolling | "Editing *file*" |
-| reading | Read, Grep, Glob | glasses on, highlight moves down the page | "Reading *file*" |
-| running | Bash, PowerShell | `>_` on the screen | the command itself in a little code box, e.g. `> dotnet test` (up to ~40 characters) |
-| working | any other tool | three dots on the screen | e.g. "Searching the web" |
-| waiting | `Notification`: permission prompt | raises a hand, little hops, worried face | "Waiting for approval" |
-| asking | `Notification`: a question for you | hand half up, question badge | "Question for you" |
-| standby | `Notification`: idle reminder, other notices | calm, light pulses slowly, no hops (10 s) | "Waiting for you" |
-| done | `Stop` | jumps, confetti | "Done!" |
-| goodbye | last session ended | waves and fades out | "See you!" |
-
-Tool states stay on screen for 1.5 s after the tool finishes so the character does not
-flicker between quick tool calls. A tool that fails gets a worried face for that time.
-
-Above the bubble, a row of small chips lists the last steps of the turn: the files it read
-(page icon) or wrote (pencil) and the commands it ran (dark code box). The step the bubble
-shows right now is not repeated; searches and other tools are not listed.
-
-Drop the buddy higher than ~24 px above the taskbar (the bottom of the screen's work area)
-and it hovers on small boot thrusters; drag it back down and it lands. Turn this off with
-**Hover mode → Always stand** in the tray menu.
-
-### Sub-agents and skills
-
-Each sub-agent (`SubagentStart` … `SubagentStop`) gets a little helper robot next to the
-buddy, on the side facing the middle of the screen. The window grows towards that side, so
-the buddy itself never moves.
-
-- **Arrival:** the helper drops in on its thrusters, gets a short briefing from the buddy and
-  walks to its spot (it hops over the others if they are in the way).
-- **Work:** laptop open. The tooltip on a helper shows its type, current tool and file name,
-  nothing else. The helpers are livelier (and a bit naughtier) than the buddy: every 8 to 20
-  seconds one of them gets up. It chats with a neighbour (they pass a note), walks over for a
-  word with the buddy, strolls around and looks about, puts on a little show (a spin, a jump,
-  a wave, a dance), zooms to the far end of the row on its thrusters and back, or sneaks up
-  to the buddy, pokes it and runs back.
-- **Roaming:** with ambient life on, the most common of those moments: a helper takes off out
-  of the row and roams the screen on its own, more scattered than the buddy: it flies or
-  walks anywhere on the screen, peeks at your cursor, puts on a little show, and with two
-  screens it hops over to the other one. After two to four legs it flies back over its spot
-  and drops in again. At most two are out at once; one whose agent finishes comes straight
-  back to report. While out it flies in a little window of its own that never takes the mouse
-  (about 100 MB more memory per helper out, gone when it is back). Locking the screen or
-  turning ambient life off brings everyone home.
-- **Done:** a happy face, then it walks to the buddy, salutes, hands over its note and flies
-  off. A helper whose session ends, or that has sent no event for 30 minutes, just fades.
-- Up to four helpers are shown when there is room; the rest wait behind a "+N" badge. The
-  main session's `Stop` does not end them: background agents keep working.
-
-### Bug hunt
-
-When a check fails, a little red bug turns up at the buddy's feet. A check is a `Bash` or
-`PowerShell` command that looks like a test, build, lint or type check (`npm test`,
-`pytest`, `cargo build`, `tsc`, `eslint`, `go test`, `make`, ...); `grep`, `ls`, `git`
-and the like never count. While Claude Code works on the fix, the buddy draws its toy sword
-and fights the bug: it winds up, lunges and strikes. Some strikes connect (a spark, the bug
-flinches), the bug hops out of the way of others. When the same check passes again
-(`npm test` and `npm test -- -t name` count as the same check, so do `pytest a.py` and
-`pytest b.py`), the last strike always lands: the bug is squashed in a little poof of
-stars, a few confetti fly and the buddy holds its sword up: "Bug fixed!".
-
-- It fights only while it works (thinking, reading, typing, running, working), and the
-  bubble and the chips still say what it does. While Claude Code waits for your approval or
-  asks a question, and when it is idle, the bug just sits there.
-- The helpers' checks count too: a helper whose check fails jumps, and at the win every
-  helper on screen cheers. Whoever runs the check again (a helper or the main session), the
-  same check passing beats the bug, and while helpers are still at work in the background the
-  buddy keeps fighting even when the main session is idle.
-- One bug at a time. A bug nobody fixes scuttles off after 20 minutes, or when its session
-  ends (a helper finishing does not chase it off).
-- Nothing new leaves the hook: the overlay pairs the shortened command it already gets when
-  a tool starts with the "finished" or "failed" event of the same tool id.
-- With reduced motion (a system setting) there is no fight: the bug shows up and goes.
-
-### Ambient life, play mode and the cat
-
-Three switches, in the tray menu and in the right-click menu:
-
-| Switch | Default | What it adds |
-|---|---|---|
-| **Ambient life** | on | Idle behaviours, varied cheers, getting cross when poked |
-| **Play mode** | off | *Play: sword duel* and the whip. The sword button in the hover menu is always there and turns this on by itself |
-| **Cat** | off | *Call the cat* / *Send the cat away*. The cat button in the hover menu is always there and turns this on by itself |
-
-**Ambient life.** While the buddy is idle (or on standby) and awake, every 15 to 60 seconds
-it does one short thing, never the same twice in a row, and about half of the time it goes
-somewhere: stretch and yawn, look around, a little hop, bounce a ball, play with its antenna,
-hum a tune, peek at its laptop, a backflip, reboot itself (the screen goes blank, a power sign
-blinks, a jolt and it is back), polish its face screen with a little cloth, sneeze ("Achoo!"),
-moonwalk on the spot; or a walk along the taskbar, a flight on its boot thrusters (anywhere
-from a short hop to across much of the screen, high up now and then), or a flight over to
-your cursor for a look through its glasses (keeping its distance). It does not go home by
-itself: it keeps wandering (*Back to the corner* in its menu brings it home, and so does
-turning ambient life off). Where a trip took it is not saved.
-
-**One screen or two.** With more than one screen it uses them all: now and then a walk or a
-flight goes over to another screen, and when your cursor is on the other screen, the look at
-it goes there. It flies to the edge that faces that screen, fades out and comes in at the
-facing edge of the other one, then goes on there. With one screen nothing of this happens.
-
-It stops at once when Claude Code needs it (a tool, a permission prompt, the end of a turn),
-when you hover or drag it, while the screen is locked, and with reduced motion. With ambient
-life on it rests after three quiet minutes (one without), and while resting it gets up by
-itself every two to four minutes for a while. Trips only happen while no helpers and no cat
-are around. "done" is celebrated with a jump, a pirouette, a little dance or fist pumps.
-
-**Tap it.** How it takes a few quick taps depends on its mood, picked anew for every streak
-of taps. While idle it mostly loves it: happy hops with both arms up, rosy cheeks, little
-hearts and a giggle. Now and then it is not in the mood and frowns. While it works it mostly
-does not want to be tapped: it frowns ("Working, later!"), and a third quick tap sends it
-off: it says so and walks or flies to a random spot elsewhere on the screen. That spot is
-saved as its new place (*Back to the corner* in its menu undoes it). Handy when it sits right
-where you want to click. Helpers do the same inside their row. Quick taps never restart a
-hop half-way; the next one follows right after.
-
-**Play mode.** *Play: sword duel* (the sword button in the hover menu, or the right-click
-menu; one click, play mode is switched on if needed): the buddy puts its laptop down and draws a toy wooden
-sword, and the whole overlay window becomes the arena: your cursor is a sword and every click
-is a swing. It guards, raises its sword (its light blinks: get ready) and slashes at you.
-Click while it raises the sword to parry (sparks fly where the blades meet, it is stunned),
-then click again to hit it; click while it guards and it blocks and strikes back at once.
-Three hearts each. To stop, click the sword button again: during the duel it stays in its
-place, lit up in mint. A right-click gives up too. *Take the whip*: the cursor turns into a whip over
-the buddy and its helpers; every click is a lash (a crack, a wince), the third in a row sends
-it off.
-
-**The cat.** *Call the cat* (the cat button in the hover menu, or the right-click menu; the Cat
-switch is turned on if needed): a cream cat with lilac stripes walks in, plays ball with the buddy
-for a while, then walks aside, curls up and naps until you send it away. If Claude Code needs
-the buddy while they play, the cat goes to nap at once.
-
-Anything Claude Code needs the buddy for (a prompt, a tool, a permission prompt, the end of a
-turn) ends the duel, a play or a poke reaction immediately: the arena is gone at once, the sword
-is put away and the work text shows right away. Work comes first, and work notifications are
-never delayed. A duel does not start in the middle of work ("Working, later!").
-
-When a skill is used (the `Skill` tool, or a slash command you type), the buddy takes the
-skill book out of its pocket and a tag with the skill name appears above its head; at the
-end of the turn the book goes back. Helpers do the same for the skills they use.
-
-### Using the mouse
-
-The overlay window ignores the mouse, so clicks reach the windows below, except while the
-pointer is over a painted part of the character, a helper, the open menu, the open chat
-panel or a chat answer. A safety check in the
-main process releases the mouse whenever the cursor is outside the window.
-
-| Do this | It does this |
-|---|---|
-| Move the cursor near it | Its eyes follow (turn off: menu, eye icon) |
-| Rest the cursor on it | It waves, and a small menu opens beside it |
-| Move away | The menu closes after a moment |
-| Click it | A little bounce |
-| Drag it | It follows the cursor. Let go and it eases into place: onto a bottom corner nearby, onto the ground when it is just above it, back inside the screen. Any monitor works; if that monitor is unplugged it returns to the primary display's corner |
-| Throw it | Let go while moving: it glides on in that direction, slows down, bounces softly off the screen edges and stays where it stops, in the air or on the ground. That spot is saved like a drag |
-| Rest the cursor on a helper | A tooltip: its type, tool and file name |
-| Drag a helper | Pick it up and drop it elsewhere next to the buddy; it lands there and keeps that spot |
-| Click a helper | A little hop; quick taps: happy hops, or cross and then it stomps off to another spot (by mood, like the buddy) |
-| Tap it a few times quickly | Idle: mostly happy hops and hearts. At work: mostly a frown, and the third tap sends it to a random spot on the screen, where it stays (ambient life) |
-| Right-click it | Play (duel), whip, walk, fly, come back home, call the cat, and the three switches |
-| Leave it alone for a minute while idle | It rests: eyes half closed, no animation. Any event or hover wakes it |
-
-The hover menu, two columns of round buttons: show/hide speech bubble, eyes on/off, Play
-(sword duel; click it again to stop), call or send away the cat, chat, back to the corner
-(after a drag), more settings (the full tray menu), quit. Play and the cat switch on what
-they need.
-
-### Sounds
-
-**Switched off in this version** while they get another pass: there is no speaker button
-or *Sound* entry, the `sound` setting is ignored and the page loads no audio code at all.
-The code stays in `app/renderer/lib/sound.js`; `app/features.js` explains how to switch it
-back on. When it is on, the speaker button in the hover menu or *Sound* in the tray menu
-(with a volume: low, medium, high) turns them on. Then a tap on the buddy goes *bonk* (quick
-taps climb higher; the third one gets a grumpy "hm-hmph"), swords clang in a duel, the
-whip cracks, the ball bounces, and the cat scratches and purrs. Helpers bonk a little
-higher.
-
-Every sound is made in code with the Web Audio API: there are no audio files, nothing is
-downloaded and nothing is recorded. There are never sounds for Claude Code's work, and work
-silences a sound at once; none while the screen is locked or the buddy rests. At most five
-play at once, and the audio engine is only started for the first sound, paused two seconds
-after the last one and closed after a minute of silence.
-
-### Chat
-
-The chat button in the hover menu opens a small panel with ready-made questions: *What are
-you doing?*, *How long so far?*, *How many tools?*, *Any sub-agents?*, *Which skill?*, *What
-are you waiting for?*, *Is it done?*. Click one and the buddy answers in its speech bubble
-(a click on the answer puts it away). There is no conversation with Claude behind it: the
-answers are made up from what the overlay already knows from the hook events (the state,
-the current tool with its file name or shortened command, when the turn started, how many
-tools it used, the helpers' types, the skill, what a notification waits for), in English or
-Turkish. Every question always gets an answer, also "No sub-agents at the moment".
-
-*Type…* turns into a text field for a question in your own words (Turkish or English), sent
-with Enter. Only then does the overlay take the keyboard; Esc, or a click anywhere else,
-gives it back. The text is matched to one of the questions above inside the overlay's page,
-then the field is emptied: it is not kept, logged, written to disk or sent anywhere, not
-even to the overlay's own main process. A question it does not recognise gets "I don't know
-that, but you can ask me these".
-
-The question buttons never take the keyboard, and the panel takes the mouse only while it is
-open. It closes with its x, with Esc while typing, or a moment after the pointer leaves it.
-Work comes first: news from Claude Code replaces an answer at once.
-
-## Requirements
-
-- **Node.js 20 or newer**, available as `node` on your `PATH` (Claude Code runs the hook with it).
-- **Claude Code** with hook support. Developed against Claude Code 2.1.x.
-- **Windows 10/11** is the main target. macOS and Linux are expected to work but are less tested.
+Unofficial; not affiliated with or endorsed by Anthropic.
 
 ## Install
 
-```sh
-git clone https://github.com/<your-account>/agent-buddy.git
-cd agent-buddy
-npm install
-npm run setup
-```
-
-Then start Claude Code (`claude`, or open the VS Code extension). The buddy appears
-in the bottom-right corner. To see it without Claude Code, run `npm run simulate`.
-
-### What `npm run setup` changes
-
-`npm run setup` **modifies your Claude Code settings file**. Before writing anything it:
-
-1. prints the file it will change and why it chose it,
-2. lists every hook it will add (the exact command for each event),
-3. prints the path of the backup it will create,
-4. asks you to confirm (skip with `--yes`).
-
-It then copies the current file to
-`settings.json.agent-buddy-YYYYMMDD-HHMMSS.bak` **in the same folder** and writes the
-merged result. Hooks you already have, including other tools' hooks on the same events,
-are kept. Running setup again does not create duplicates. If the file is not valid
-JSON, setup stops and changes nothing.
-
-Which file is used:
-
-| Command | File |
-|---|---|
-| `npm run setup` | `$CLAUDE_CONFIG_DIR/settings.json` if that variable is set, otherwise `~/.claude/settings.json` (Windows: `%USERPROFILE%\.claude\settings.json`) |
-| `npm run setup -- --config-dir <dir>` | `<dir>/settings.json` |
-| `npm run setup -- --project [dir]` | `<dir>/.claude/settings.json` (shared with your team if committed) |
-| `npm run setup -- --local [dir]` | `<dir>/.claude/settings.local.json` (personal, usually git-ignored) |
-| add `--dry-run` | show the changes, write nothing |
-
-`[dir]` defaults to the folder you ran `npm` from. Each hook looks like this:
-
-```json
-{ "type": "command", "command": "node \"C:/path/to/agent-buddy/hooks/send.js\" PreToolUse --agent-buddy", "async": true }
-```
-
-The `--agent-buddy` tag is how `uninstall-hooks` recognises its own entries.
-
-Claude Code notices settings changes on its own; restart open sessions if the buddy
-does not react. In interactive sessions, hooks only run after you accept the
-workspace trust dialog for the folder.
-
-## Uninstall
+Needs [Node.js](https://nodejs.org) 20+ and Claude Code.
 
 ```sh
-npm run uninstall-hooks            # same options as setup: --config-dir, --project, --local, --dry-run
+npm install -g agent-buddy          # or a package file: npm install -g ./agent-buddy-0.2.0.tgz
+agent-buddy setup                   # hooks into every Claude Code account on this computer
 ```
 
-It removes **only** the hooks Agent Buddy added (other hooks stay) and writes a backup
-first, named like the one above. To remove everything, also delete:
+`setup` finds every Claude Code account by itself: `~/.claude`, `~/.claude-<name>`
+(e.g. `~/.claude-personal`, `~/.claude-work`) and `$CLAUDE_CONFIG_DIR`. It shows what it will
+add, asks once, and backs up each settings file first. Other hooks and settings stay as they
+are. Done: the buddy appears with the next Claude Code session, in any of those accounts.
 
-- the `~/.agent-buddy` folder (settings, optional logs, Electron cache), and
-- the cloned `agent-buddy` folder.
+From a clone of this repository instead: `npm install`, then `npm run setup`.
 
-To undo a setup or uninstall by hand, copy the `.bak` file back over `settings.json`.
+## Use
 
-## Settings
-
-Most settings are in the tray menu (the robot-head icon in the notification area; on
-Windows it may be under the `^` overflow arrow):
-
-| Menu item | Effect |
+| Command | What it does |
 |---|---|
-| Position | Bottom right / bottom left of the primary display |
-| Size | Small / medium / large |
-| Hover mode | Auto (hover when placed above the ground) / Always stand |
-| Account | All accounts, or only one Claude account (see [Several Claude accounts](#several-claude-accounts)) |
-| Ambient life / Play mode / Cat | See [Ambient life, play mode and the cat](#ambient-life-play-mode-and-the-cat) |
-| Sound / Volume | Little sounds (see [Sounds](#sounds)); not shown while sounds are switched off |
-| Character | Any character found in `characters/` or `~/.agent-buddy/characters/` |
-| Language | English / Türkçe |
-| Quiet mode | Hides the speech bubble (handy while screen sharing) |
-| Eyes follow the cursor | On by default |
-| Back to the corner | Shown after you dragged the character somewhere else |
-| Open settings folder | Opens `~/.agent-buddy` |
-| Quit now | Closes the overlay. It will not come back for the sessions that are open now; a new session brings it back |
+| `agent-buddy status` | which accounts have the hooks, and whether the buddy is running |
+| `agent-buddy demo` | a tour of every state, no Claude Code needed |
+| `agent-buddy start` | start the buddy now (normally the first Claude Code event does) |
+| `agent-buddy setup` | run again after adding a Claude account, or after updating Agent Buddy |
+| `agent-buddy uninstall` | remove the hooks again (only Agent Buddy's) |
 
-Everything is stored in `~/.agent-buddy/settings.json`
-(Windows: `%USERPROFILE%\.agent-buddy\settings.json`):
+`--dry-run` shows the changes without writing anything; `--config-dir <dir>` limits `setup`
+or `uninstall` to one account.
 
-```json
-{
-  "corner": "bottom-right",
-  "size": "medium",
-  "character": "robot",
-  "quiet": false,
-  "language": "en",
-  "port": 7777,
-  "idleTimeoutMinutes": 30,
-  "debug": false,
-  "eyeTracking": true,
-  "position": null,
-  "hoverMode": "auto",
-  "account": "all",
-  "knownAccounts": [],
-  "ambientLife": true,
-  "playMode": false,
-  "cat": false,
-  "sound": false,
-  "soundVolume": "low"
-}
-```
+On the buddy:
 
-| Key | Values | Notes |
-|---|---|---|
-| `corner` | `bottom-right`, `bottom-left` | |
-| `size` | `small`, `medium`, `large` | |
-| `character` | folder name | |
-| `quiet` | `true` / `false` | |
-| `language` | `en`, `tr` | |
-| `port` | 1024–65535 | Read by both the hook and the overlay. Restart the overlay after changing it |
-| `idleTimeoutMinutes` | 0–1440 | Quit after this long without events. `0` turns the safety net off |
-| `debug` | `true` / `false` | Writes `~/.agent-buddy/logs/hook.log` and `overlay.log`. Off by default |
-| `eyeTracking` | `true` / `false` | Eyes follow the cursor while it is over the overlay window |
-| `position` | `null` or `{ "x", "y" }` | `null` = the chosen corner. Set by dragging: the bottom-centre of the character in screen coordinates |
-| `hoverMode` | `auto`, `stand` | `auto`: hovers when placed above the ground |
-| `account` | `all` or an account name | Show only the sessions of this Claude account |
-| `knownAccounts` | list of names | Accounts seen so far (at most 8), offered in the tray menu. Filled in automatically |
-| `ambientLife` | `true` / `false` | Idle behaviours, cheers, getting cross when poked (was `funMode` before 0.3) |
-| `playMode` | `true` / `false` | The sword duel and the whip |
-| `cat` | `true` / `false` | The cat can be called from the menus |
-| `sound` | `true` / `false` | Little sounds made in code. Off by default; ignored while sounds are switched off (see [Sounds](#sounds)) |
-| `soundVolume` | `low`, `medium`, `high` | |
+- **Hover:** a small menu (quiet mode, eyes, play, cat, chat, corner, settings, quit).
+- **Drag** it anywhere; dropped higher up, it hovers on its thrusters.
+- **Click:** a tap. Idle it loves it; at work, three quick taps and it moves away.
+- **Right-click:** walk, fly, home, sword duel, the whip, the cat.
+- **Tray icon:** corner, size, account, character, language (English / Türkçe), quiet mode,
+  ambient life, play mode, the cat, settings file, quit.
 
-Environment variables (optional): `AGENT_BUDDY_HOME` (another settings folder),
-`AGENT_BUDDY_PORT`, `AGENT_BUDDY_DEBUG=1`.
-
-### Several Claude accounts
-
-If you run Claude Code with more than one config folder (`claude --config-dir …` or
-`CLAUDE_CONFIG_DIR`, e.g. a personal and a work account) and installed the hooks in each,
-one overlay shows them all. The hook tells the overlay which account an event comes from by
-the **name of the config folder** without leading dots (`~/.claude-work` → `claude-work`,
-the default `~/.claude` → `claude`); the path itself is never sent.
-
-**Account** in the tray menu lists every account seen so far. Pick one and the buddy only
-shows that account's sessions and helpers; the others are ignored, and a session of another
-account no longer starts the overlay. If the chosen account has not sent anything since the
-overlay started, the buddy says so ("No events from this account yet").
-
-## Adding a character
-
-Create a folder with `character.json`, an SVG and a CSS file, either in `characters/`
-(and send a pull request) or in `~/.agent-buddy/characters/` (just for you). The app
-sets `data-state="typing"` (and so on) on the element around your SVG; your CSS animates
-the parts. No app code changes are needed.
-
-**Only submit artwork you drew yourself, or artwork under a permissive license such as
-CC0 or MIT.** No copyrighted characters, mascots or logos, no ripped sprites, nothing
-with an unclear license.
-
-The full format, the list of states and performance tips are in
-[characters/README.md](characters/README.md). `characters/robot/` is a commented example.
+**Ambient life** (on by default): when idle it plays, walks and flies around the screen, also
+over to a second screen, and helpers roam the screen too. Switch it off in the tray to keep
+everything still. **Quiet mode** hides the speech bubble (file names, commands): use it while
+sharing your screen.
 
 ## Privacy
 
-- **No data collection.** No analytics, no telemetry, no crash reporting, no update checks.
-- **Nothing leaves your computer.** The only network socket is the overlay's server,
-  bound to `127.0.0.1` (loopback). The overlay's page cannot make http(s) or websocket
-  requests: they are blocked, and the page is served from a private `buddy://` scheme.
-- **What the hook passes to the overlay** is fixed by an allowlist in `hooks/send.js`. Only
-  these fields can leave the hook process; anything else, including fields a future Claude
-  Code version might add, is dropped (a unit test checks this):
-
-  | Field | Content |
-  |---|---|
-  | `event`, `ts`, `v` | hook event name, time, payload format version |
-  | `session` | session id |
-  | `tool`, `id` | tool name, tool-use id (pairs "started" with "finished") |
-  | `detail` | the **file name** (not the path, not the contents), or the **command itself, up to ~40 characters** (set-up in front of it such as `cd somewhere &&` or variable assignments is left out, paths are shortened to their last part) with obvious secrets (tokens, passwords, `KEY=value`, `user:password@`) replaced by `***`, or a search pattern (max. 30 characters), or a web host name |
-  | `kind`, `source`, `reason` | notification type, why a session started / ended |
-  | `agent`, `agentType` | for sub-agents: a short hash of the agent id, and its type (e.g. `Explore`) |
-  | `skill` | the name of a skill being used |
-  | `account` | the name of the Claude config folder (e.g. `claude-personal`), never a full path |
-  | `pid` | `SessionStart` only: the process id of Claude Code, a number. To find it the hook reads the names and parent ids of its own parent processes (no command lines, no paths); only the number is passed on |
-- **Never passed on or stored:** file contents, prompts, full commands, tool output,
-  environment variables, transcripts, anything about other processes.
-- **Process check.** For sessions with a `pid`, the overlay checks every 5 seconds whether
-  that process still exists (`process.kill(pid, 0)`: no signal is sent, nothing is started).
-  So that a reused pid is not mistaken for Claude Code, it reads the process's start time
-  when the session starts and compares it now and then (Linux: `/proc`; macOS: `ps`;
-  Windows: one PowerShell query, only for sessions that were silent for 5 minutes).
-  The start time stays in memory and is never stored or sent.
-- **Stored on disk:** only your settings. The debug log is **off by default**; when you
-  turn it on it records event names, tool names, results and timings, never file names,
-  commands or prompts.
-- **Schema probe (developer aid), off by default.** To check which fields a new Claude Code
-  version sends, create an empty file `~/.agent-buddy/schema-log.on` (its content is used as
-  a random salt). While it exists, the hook appends one line per event to
-  `~/.agent-buddy/logs/schema.log` with **field names only, never values**: the event and
-  tool name, the names of the input fields, and the session / agent id as 8-character
-  salted hashes so events can be matched up. The one value it records is the expansion type
-  of a typed slash command (e.g. `slash_command`), never the command or its arguments.
-  Delete both files to turn it off; without the salt the hashes mean nothing.
-- **Sounds** are generated in the page (Web Audio): no audio files, no microphone, no
-  network.
-- **Bug hunt.** The shortened command of a check stays in memory only until its result
-  arrives; an open bug keeps just its first word or two (e.g. `npm test`) to recognise the
-  same check later. None of it is stored, logged or shown anywhere new.
-- **Chat.** The answers are built from the same in-memory state as the bubble; no one is
-  asked. A question typed into the chat panel stays in the overlay's page: it is matched to
-  one of the ready-made questions there and the text is dropped at once. It is never stored,
-  logged or sent anywhere.
-- **On screen:** the bubble shows file names and shortened commands. Use Quiet mode while
-  screen sharing.
-- **At install time** `npm install` downloads Electron from the npm registry and Electron's
-  official GitHub releases. That is the only network access, and it is done by npm.
-
-## Security
-
-- The simulator can ask for one of the buddy's own behaviours (a "Demo" event: a stretch, a
-  walk, the duel, the cat...). Only a local program can send it (same rules as below); the
-  hook never does, and it carries nothing but the name of the behaviour.
-- The server accepts only `POST /event` and `GET /health` on `127.0.0.1`. It rejects
-  browser requests (any `Origin` or `Sec-Fetch-*` header), unexpected `Host` headers
-  (DNS rebinding), non-JSON bodies, bodies over 4 KB and anything that fails schema
-  validation. A web page cannot drive the character.
-- The renderer runs with `contextIsolation`, `sandbox`, no `nodeIntegration` and a strict
-  Content Security Policy. Character SVGs are sanitised before use, and bubble text is
-  always inserted as text, never as HTML.
-- The hook never blocks Claude Code: async registration, short timeouts, exit code 0,
-  nothing on stdout.
-
-Found a problem? Please open an issue (or a private security advisory on GitHub for
-anything sensitive).
+- The hook passes only the event, the tool name, the **file name** (not the path) or a
+  **shortened command** with secrets masked, and the account folder's name. Never file
+  contents, prompts, full commands or tool output.
+- The overlay listens on `127.0.0.1` only. No telemetry, no update checks, no network.
+- Settings live in `~/.agent-buddy/settings.json`. The debug log is off by default.
 
 ## Troubleshooting
 
-**The buddy does not appear.**
-1. Run `npm run simulate`. If nothing shows up there either, the Electron binary may be
-   missing: run `node node_modules/electron/install.js`. Some npm setups skip that
-   download during `npm install`.
-2. Make sure the hooks are in the settings file Claude Code actually reads. If you use
-   `CLAUDE_CONFIG_DIR`, run setup from a shell where it is set. Inside Claude Code,
-   `/hooks` lists the active hooks.
-3. Accept the workspace trust dialog; hooks do not run before that.
-4. `node` must be on the `PATH` of the shell Claude Code uses (Git Bash, or PowerShell
-   when Git Bash is not installed).
-5. Set `"debug": true` and look at `~/.agent-buddy/logs/hook.log`. `result=delivered`
-   means the overlay received the event; `result=refused` means it was not running.
-
-**"Port 7777 is already in use".** Another program owns that port. Agent Buddy does not
-silently switch ports. Pick another `port` in `~/.agent-buddy/settings.json` (the hook
-reads the same value). To see which program uses it on Windows:
-`netstat -ano | findstr :7777`.
-
-**Windows Defender Firewall / security prompts.** The server listens on `127.0.0.1`
-only, so Windows normally does not ask. If a firewall prompt appears anyway, you can
-deny it: loopback traffic keeps working. `electron.exe` under `node_modules` is the
-official Electron binary downloaded by npm.
-
-**The buddy stays after I closed Claude Code.** If the terminal was killed, Claude Code
-may not have run its `SessionEnd` hook. The buddy then notices within about 5 seconds that
-the Claude Code process is gone. If the hook could not identify that process (an unusual
-shell or launcher between Claude Code and the hook), the buddy quits on its own after 30
-minutes without events, or right away with **Quit now** in the tray menu.
-
-**It shows up over a full-screen video or game.** It is an always-on-top window. Use
-**Quit now**, or drag it somewhere else.
-
-**A click did not reach the window under the buddy.** Only the character's painted pixels
-and its open menu take the mouse. If something seems to block clicks, move the cursor away
-and back; the overlay releases the mouse as soon as the cursor is outside its window. Please
-open an issue with your OS version and display scaling if it happens again.
-
-**I dragged it somewhere and want it back.** Hover it and choose **Back to the corner**, or
-use the same item in the tray menu.
+- **No buddy:** run `agent-buddy status`, then restart open Claude Code sessions.
+- **After updating or moving Agent Buddy:** run `agent-buddy setup` again (the hooks point at
+  the installed copy; `status` tells you when they point at another one).
+- **"Electron missing":** reinstall (`npm install -g agent-buddy`), or `npm install` in a clone.
+- **Port 7777 taken:** set another `"port"` in `~/.agent-buddy/settings.json`.
 
 ## Development
 
 ```sh
-npm run dev                         # overlay with console logs
-npm run simulate                    # tour of every state through the real hook script
-npm run simulate -- two-sessions    # checks the session counter (PASS/FAIL)
-npm run simulate -- playground      # idle buddy to try hover, menu, drag, click, resting
-npm run simulate -- --fast --keep   # shorter pauses, leave the overlay open
-npm run simulate -- life             # every ambient-life behaviour, 3 pokes, the duel, the cat
-npm run simulate -- lifecycle        # start, /clear, /resume, quick restart, crash, exit (PASS/FAIL)
-npm run simulate -- chat             # a short turn, then the chat panel answers two questions
-npm run simulate -- bug              # a failing check brings a bug, the buddy fights it and wins
-AGENT_BUDDY_DEMO=duel npm run dev   # developers: duel | trips | plays | cheers | menu by itself
-AGENT_BUDDY_PERF=1 npm run dev      # developers: frame times per transition, window move timing ([perf])
-npm test                            # unit tests (node:test, no extra dependencies)
-npm run make-icons                  # regenerate the tray icons
+npm install
+npm test                                     # unit tests (node:test)
+npm run dev                                  # overlay with console logs
+npm run simulate [-- bug | life | chat | two-sessions | lifecycle | playground]
+npm pack                                     # the package file (agent-buddy-<version>.tgz)
 ```
 
-On Windows, `scripts/windows/` has interactive checks on an isolated test overlay:
-screenshots of every state, CPU per state, and a click-through regression test with real
-mouse input. See [scripts/windows/README.md](scripts/windows/README.md).
-
-```
-agent-buddy/
-├── app/                 Electron main process, renderer and the pure logic it uses
-│   ├── main.js          window, tray, single instance, private buddy:// scheme
-│   ├── core.js          state machine, session counter, idle safety net
-│   ├── liveness.js      closes sessions whose Claude Code process is gone
-│   ├── agents.js        sub-agent registry (the helpers)
-│   ├── bugs.js          bug hunt: a failing check opens a bug, the same check passing fixes it
-│   ├── roam.js          trips around the screen (ambient life, being poked)
-│   ├── outings.js       helpers roaming the screen in little windows of their own
-│   ├── placement.js     corners, dragging, snapping, monitor fallback
-│   ├── menu-items.js    the hover menu (add features here)
-│   ├── chat.js          the chat panel's answers, from what the overlay already knows
-│   ├── server.js        127.0.0.1 HTTP endpoint
-│   ├── validate.js      event schema
-│   ├── renderer/        overlay page (HTML, CSS, JS); lib/ holds its pure, tested logic
-│   │                    (interaction.js: mouse, menu, rest; crew.js: the helpers' choreography;
-│   │                    fun.js: ambient life, pokes, cheers, the duel, the bug fight; pet.js: the cat;
-│   │                    chat-match.js: typed chat questions)
-│   └── locales/         en.json, tr.json
-├── characters/robot/    the default character (SVG + CSS + manifest)
-├── hooks/send.js        the hook script (Node built-ins only)
-├── lib/                 settings.json merge logic shared by setup/uninstall
-├── scripts/             simulate.js, make-icons.js
-├── test/                node:test suites
-├── setup.js, uninstall.js
-└── README.md, LICENSE, THIRD_PARTY_NOTICES.md
-```
-
-## Contributing
-
-Issues and pull requests are welcome. Please keep these properties intact:
-
-- **Zero runtime dependencies besides Electron.** `hooks/send.js`, `setup.js` and
-  `uninstall.js` use Node built-ins only.
-- **The hook must never get in Claude Code's way:** silent, fast, exit code 0.
-- **No network access, telemetry or update checks.**
-- **Tests pass** (`npm test`), and new behaviour comes with a test.
-- Code, comments and docs are in English.
-- **Assets:** only your own work or permissively licensed (CC0, MIT, ...), listed in
-  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-- **Translations:** copy `app/locales/en.json` to `app/locales/<code>.json`, translate
-  the values (keep the `{placeholders}`), then register the code in `app/i18n.js` and
-  `app/settings.js`. A test checks that every key and placeholder is present.
-
-## Disclaimer
-
-This software is provided "as is", without warranty of any kind (see [LICENSE](LICENSE)).
-`npm run setup` modifies your Claude Code settings file. It shows the changes first and
-writes a timestamped backup next to the file before changing it, and
-`npm run uninstall-hooks` removes the entries again. Review what it prints before you
-confirm.
+Making a character: [characters/README.md](characters/README.md). Windows checks
+(screenshots, CPU, click-through): [scripts/windows/README.md](scripts/windows/README.md).
 
 ## License
 
-[MIT](LICENSE). Third-party components: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-"Claude" and "Claude Code" are Anthropic's product names. They are used here only to
-describe compatibility.
+MIT, see [LICENSE](LICENSE). All artwork is original; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

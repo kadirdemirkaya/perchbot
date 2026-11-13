@@ -601,11 +601,27 @@ function post(payload, port, timeoutMs = POST_TIMEOUT_MS) {
   });
 }
 
-function electronBinary() {
-  const pkg = path.join(ROOT, 'node_modules', 'electron');
-  const relative = fs.readFileSync(path.join(pkg, 'path.txt'), 'utf8').trim();
-  const binary = path.join(pkg, 'dist', relative);
-  return fs.existsSync(binary) ? binary : null;
+/**
+ * The Electron binary: from Agent Buddy's own node_modules (a clone, or a
+ * global npm install), else wherever Node would find the package from here
+ * (an install where npm put Electron one level up). null when it is missing.
+ */
+function electronBinary(root = ROOT) {
+  const places = [path.join(root, 'node_modules', 'electron')];
+  try {
+    places.push(path.dirname(require.resolve('electron/package.json', { paths: [root] })));
+  } catch {
+    // not resolvable from here
+  }
+  for (const pkg of places) {
+    try {
+      const binary = path.join(pkg, 'dist', fs.readFileSync(path.join(pkg, 'path.txt'), 'utf8').trim());
+      if (fs.existsSync(binary)) return binary;
+    } catch {
+      // not installed here (or its download never finished)
+    }
+  }
+  return null;
 }
 
 /** Start the overlay detached and hand it the event; do not wait for it. */
@@ -785,4 +801,5 @@ module.exports = {
   shouldLaunch,
   post,
   schemaRecord,
+  electronBinary,
 };
