@@ -653,6 +653,17 @@ function start() {
     win.setBounds(initial.bounds);
     // Above other always-on-top windows and full-screen apps too, not only normal ones.
     win.setAlwaysOnTop(true, TOP_LEVEL);
+    // Windows drops a no-focus window's topmost place now and then (another app comes to the
+    // front): take it back every few seconds, the buddy and any helper out roaming.
+    const keepOnTop = setInterval(() => {
+      for (const w of [win, ...[...outings.values()].map((o) => o.hw)]) {
+        if (w && !w.isDestroyed() && w.isVisible()) {
+          w.setAlwaysOnTop(true, TOP_LEVEL);
+          w.moveTop();
+        }
+      }
+    }, 3000);
+    win.on('closed', () => clearInterval(keepOnTop));
     win.loadURL(`${ORIGIN}/renderer/index.html`);
   }
 
