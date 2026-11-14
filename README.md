@@ -38,7 +38,7 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 |---|---|
 | the agent thinks, reads, searches, edits or runs a command | takes a pose for each step and says what it is on ("Editing auth.js") |
 | the agent waits for you | nudges you, then knocks until you answer |
-| a turn ends | cheers, with a short summary ("Done! 4 steps in 12 s") |
+| a turn ends | cheers, with a short summary ("Done! 4 steps in 12 s"); on Friday afternoons it dances |
 | a long turn ends while you look elsewhere | flies over to your cursor (even on another screen): "All done! Over to you.", then back |
 | sub-agents start | little helpers join in, work beside it, chat and report back |
 | a skill is in use | reads its skill book, the skill's name on a tag |
@@ -48,7 +48,7 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 | the work gets intense | puts on a headband and codes on a screen of light |
 | you tap it | loves it, up to a point: then it fumes, catches fire and goes on a rampage across your screen |
 | you start a duel | a sword fight against your cursor, three hearts each |
-| it is idle | backflips, moonwalks, blows bubbles, throws paper planes, gets visitors, plays with its cat, flies off now and then and carries on wherever it lands, naps |
+| it is idle | backflips, moonwalks, blows bubbles, throws paper planes, gets visitors, plays with its cat, flies off now and then and carries on wherever it lands, has a coffee in the morning, naps (in a nightcap late at night) |
 | the cursor rests somewhere | now and then it flies over for a look through its magnifier |
 | you type in a terminal (Windows, opt-in) | now and then it flies over, reads along above the line, and a light bulb goes on: got it! |
 | you open the chat | answers questions about the work; on Windows (opt-in) it opens Chrome, a tab or YouTube for you |

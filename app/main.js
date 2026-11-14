@@ -165,7 +165,7 @@ const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers', 'menu', 'chat']);
 const demo = isDev && DEMOS.has(names.envValue('DEMO')) ? names.envValue('DEMO') : null;
 const DEMO_TRIPS = ['stroll', 'hop', 'screen', 'inspect', 'home'];
 /** Short lines in the speech bubble when it is hit or fights (locales: "quip"). */
-const QUIPS = ['whoa', 'welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'rampage', 'rampageFix', 'focusOn', 'lensHmm', 'guestHi', 'guestSpar', 'guestBow', 'sleepy', 'petCat', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed', 'typingLook', 'typingAha', 'foundYou'];
+const QUIPS = ['whoa', 'welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'rampage', 'rampageFix', 'focusOn', 'lensHmm', 'guestHi', 'guestSpar', 'guestBow', 'sleepy', 'petCat', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed', 'typingLook', 'typingAha', 'foundYou', 'coffee', 'lateNight', 'happyFriday'];
 
 // Keep Chromium's own data (caches, the single-instance lock) under
 // ~/.perchbot too, so there is exactly one folder to delete on uninstall

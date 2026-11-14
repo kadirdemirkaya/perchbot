@@ -114,6 +114,7 @@ Use whatever you like; ignore the rest.
 | `data-greet` | present for ~1.8 s when the pointer arrives while idle: wave hello |
 | `data-boop` | present for ~0.5 s after a click (quick clicks: back to back, never restarted half-way) |
 | `data-rest` | idle for a minute with nothing happening: show a calm pose, **stop all animation** |
+| `data-night` | 23:00-05:00 by the computer's clock (all night long, awake or not). Robo wears a nightcap only while it rests then (`[data-night][data-rest]`) |
 | `data-tap` | while typing: `down` / `up` on every key press of an irregular rhythm |
 | `data-sway` | `a` or `b` for ~1.2 s after each state change (secondary motion, e.g. an antenna wobble) |
 | `--look-x`, `--look-y` | cursor direction from `lookAnchor`, each from -1 to 1 (0 when the cursor is away) |
@@ -132,7 +133,7 @@ Use whatever you like; ignore the rest.
 | `data-think` | while thinking the app changes the pose every ~7 s: absent (the plain thinking look), `bulb` (an idea) or `pace` (pacing up and down; the app flips `data-face` every ~2.4 s) |
 | `data-talk` | up to ~1.8 s while it answers a question from the chat panel (talk, nod); also while it chats with a visitor |
 | `data-seated` | `down` while it sits with a visitor (the idle story), `up` for ~0.5 s as it gets up again |
-| `data-play` | ambient life, while idle: `stretch`, `look`, `peek`, `hum`, `jump`, `ball`, `antenna`, `flip`, `reboot`, `polish`, `sneeze`, `moonwalk` or `sit` (only on the ground) for 1.5-4.2 s, and the idle story's own plays (only the story starts them): `read` (9 s: takes a book out and reads), `bubbles` (7 s: blows soap bubbles through a wand), `plane` (6 s: throws a paper plane that loops back to its hand) (each name's time is in `PLAYS` in `app/renderer/lib/fun.js`; end your animation within it; the optional sounds that go with them are timed to the robot's keyframes, see `CUES` in `app/renderer/lib/sound.js`) |
+| `data-play` | ambient life, while idle: `stretch`, `look`, `peek`, `hum`, `jump`, `ball`, `antenna`, `flip`, `reboot`, `polish`, `sneeze`, `moonwalk` or `sit` (only on the ground) for 1.5-4.2 s, and the idle story's own plays (only the story starts them): `read` (9 s: takes a book out and reads), `bubbles` (7 s: blows soap bubbles through a wand), `plane` (6 s: throws a paper plane that loops back to its hand), `coffee` (6 s, mornings only: a mug comes up, three sips, "Ahh, coffee!" at ~4.5 s) (each name's time is in `PLAYS` in `app/renderer/lib/fun.js`; end your animation within it; the optional sounds that go with them are timed to the robot's keyframes, see `CUES` in `app/renderer/lib/sound.js`) |
 | `data-pet` | `play` while the pet plays next to the character (it joins in); `cuddle` while the pet stands close to be petted (the idle story; the app also turns the character towards it with `data-face`); `laser` while the pet chases a laser pointer's dot (the character points it; turned towards the pet like for `cuddle`) |
 | `data-cheer` | with `data-state="done"`: `jump` (the classic), `spin`, `dance` or `fist` |
 | `data-glee` | ~0.65 s: tapped and it liked it (a happy hop; quick taps: back to back). The app adds the hearts |

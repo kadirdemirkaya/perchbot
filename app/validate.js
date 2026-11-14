@@ -129,6 +129,12 @@ const DEMOS = new Set([
   'pat',
   'guest',
   'story',
+  // By the clock (lib/fun.js daytime), shown at any hour: a morning coffee, the nightcap of a nap
+  // late at night, "It's late... bed soon?", a Friday afternoon's done (a dance, "Happy Friday!").
+  'coffee',
+  'nightcap',
+  'late',
+  'friday',
   // Five quick taps it loves (happy hops, hearts).
   'glee',
   'duel',

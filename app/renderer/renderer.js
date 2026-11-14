@@ -47,7 +47,7 @@
 
 (() => {
   const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay, pageLeft, trailFits, besideRow } = window.BuddyInteraction;
-  const { TapMeter, Temper, TEMPER_MAX, Fury, FocusMeter, FOCUS, IdleStory, Wander, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight } = window.BuddyFun;
+  const { TapMeter, Temper, TEMPER_MAX, Fury, FocusMeter, FOCUS, IdleStory, Wander, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight, daytime, DAYTIME } = window.BuddyFun;
 
   const root = document.documentElement;
   const stage = document.getElementById('stage');
@@ -400,9 +400,11 @@
       swayAntenna();
       if (next.state === 'done') {
         burstConfetti();
-        // Fun mode: not always the same celebration.
-        flag('cheer', ambientOn() ? pickCheer() : 'jump');
+        // Fun mode: not always the same celebration (a dance on Friday afternoons).
+        flag('cheer', doneCheer());
       }
+      // After midnight, once a night, the first prompt: "It's late... bed soon?"
+      if (next.state === 'thinking' && (CALM.has(previous.state) || previous.state === 'done')) noteLate();
       if (BUSY.has(next.state)) flag('greet', null);
     }
     updateHunt();
@@ -1692,6 +1694,8 @@
       if (name === 'sneeze') later('sneeze', SNEEZE_AT_MS, () => holder.dataset.play === 'sneeze' && quip('sneeze', 1000));
       // "Gotcha!" when the paper plane is back in its hand.
       if (name === 'plane') later('plane-catch', PLANE_CATCH_MS, () => holder.dataset.play === 'plane' && quip('gotYou', 1200));
+      // "Ahh, coffee!" after the last sip.
+      if (name === 'coffee') later('coffee-ahh', COFFEE_AH_MS, () => holder.dataset.play === 'coffee' && quip('coffee', 1400));
     },
     onTrip: (kind) => {
       trace(`ambient: trip ${kind}`);
@@ -1735,6 +1739,8 @@
   const SNEEZE_AT_MS = 1300;
   /** The paper plane is back in its hand (robot.css rb-plane-fly: 86 % of 5.6 s). */
   const PLANE_CATCH_MS = 4850;
+  /** The last sip of the morning coffee is over (robot.css rb-coffee-forearm: 82 % of 5.6 s). */
+  const COFFEE_AH_MS = 4550;
 
   /**
    * Ambient life runs in short bursts, only while nothing else goes on: idle
@@ -2452,6 +2458,51 @@
   const PAT_COME_MS = 500;
   /** The story's own plays (each one ends the beat when it is over). */
   const STORY_PLAY_BEATS = new Set(['read', 'bubbles', 'plane']);
+  /** When it last had its morning coffee (an idle story beat, see storyBeat). */
+  let coffeeAt = 0;
+
+  // ---------------------------------------------------------------- the time of day (lib/fun.js daytime)
+
+  /**
+   * By the computer's own clock: late at night (23:00-05:00) data-night is set, and a nap
+   * then wears a nightcap (robot.css). After midnight, once a night, the first prompt gets
+   * "It's late... bed soon?"; on Friday afternoons the done cheer is a dance, once a day with
+   * "Happy Friday!" (after the summary has been read). The coffee: see storyBeat.
+   */
+  const LATE_AT_MS = 1200;
+  const FRIDAY_AT_MS = 1500;
+  /** The night it last said "It's late" / the day it last said "Happy Friday!". */
+  let lateSaidFor = null;
+  let fridaySaidOn = null;
+  /** The 'friday' demo: the next done is a Friday afternoon's (until then). */
+  let fridayDemoUntil = 0;
+
+  function updateNight() {
+    flag('night', daytime().night ? true : null);
+  }
+  updateNight();
+  setInterval(updateNight, 60000);
+
+  /** A prompt went off (calm to thinking): after midnight, once a night, a word about sleep. */
+  function noteLate() {
+    const now = daytime();
+    if (!now.late || lateSaidFor === now.nightOf) return;
+    lateSaidFor = now.nightOf;
+    later('late', LATE_AT_MS, () => view.state !== 'goodbye' && quip('lateNight', 2400));
+  }
+
+  /** The done cheer: a dance on Friday afternoons (ambient life on), else as always. */
+  function doneCheer() {
+    const now = daytime();
+    const demo = Date.now() < fridayDemoUntil;
+    if (!ambientOn() || !(now.friday || demo)) return ambientOn() ? pickCheer() : 'jump';
+    if (demo || fridaySaidOn !== now.day) {
+      if (!demo) fridaySaidOn = now.day;
+      fridayDemoUntil = 0;
+      later('friday', FRIDAY_AT_MS, () => view.state === 'done' && quip('happyFriday', 1500));
+    }
+    return 'dance';
+  }
   const SLEEPY_MS = 9000;
   const GUEST_LEAVE_MS = 900;
   const story = new IdleStory({ onBeat: storyBeat });
@@ -2497,6 +2548,15 @@
     if (!storyFree()) return 'later';
     trace(`story: ${name}`);
     if (STORY_PLAY_BEATS.has(name)) {
+      storyPlay = name;
+      ambient.run(name);
+      return 'busy';
+    }
+    if (name === 'coffee') {
+      // Mornings only (the computer's clock), and a cup now and then, not every idle spell.
+      const now = new Date();
+      if (!daytime(now).morning || now.getTime() - coffeeAt < DAYTIME.coffeeGapMs) return 'skip';
+      coffeeAt = now.getTime();
       storyPlay = name;
       ambient.run(name);
       return 'busy';
@@ -3146,6 +3206,19 @@
     } else if (name === 'tease') {
       // As if the pointer rested above the crew, a little way out: one runs over and pokes at it.
       if (!crew.demoTease(150)) trace('demo: no helper at work near enough');
+    } else if (name === 'nightcap') {
+      // A nap late at night, for a moment, whatever the clock says: the nightcap.
+      flag('night', true);
+      flag('rest', true);
+      later('demo-nightcap', 6000, () => {
+        flag('rest', rest.resting ? true : null);
+        updateNight();
+      });
+    } else if (name === 'late') {
+      quip('lateNight', 2400);
+    } else if (name === 'friday') {
+      // The next "done" (within 30 s) as on a Friday afternoon: a dance and "Happy Friday!".
+      fridayDemoUntil = Date.now() + 30000;
     } else if (name === 'sound' && sound === SILENT_BOARD) {
       trace('sound: switched off (app/features.js)');
     } else if (name === 'sound') {

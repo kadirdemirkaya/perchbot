@@ -34,7 +34,7 @@ function story(answers = {}) {
 }
 
 test('idle story: three beats picked at random, one after another, then sleepy', () => {
-  assert.deepEqual([...STORY.beats].sort(), ['bubbles', 'cat', 'guest', 'pat', 'plane', 'read']);
+  assert.deepEqual([...STORY.beats].sort(), ['bubbles', 'cat', 'coffee', 'guest', 'pat', 'plane', 'read']);
   assert.equal(STORY.count, 3);
   assert.equal(STORY.last, 'sleep');
   const { clock, s, log } = story({ sleep: 'skip' });
@@ -103,7 +103,7 @@ test('idle story: a different pick and order from one idle spell to the next', (
 
 test('idle story: "skip" moves on at once and does not count, "later" tries again a few times, stop() ends it', () => {
   // Only the book and the plane are possible: those two, then sleepy (fewer than three is fine).
-  const answers = { cat: 'skip', pat: 'skip', guest: 'skip', bubbles: 'skip', sleep: 'skip' };
+  const answers = { cat: 'skip', pat: 'skip', guest: 'skip', bubbles: 'skip', coffee: 'skip', sleep: 'skip' };
   const { clock, s, log } = story(answers);
   s.start();
   clock.tick(STORY.firstMs);
@@ -120,7 +120,7 @@ test('idle story: "skip" moves on at once and does not count, "later" tries agai
   assert.equal(s.finished, true);
   // Not now: again soon, a few times, then the next one.
   let busyNow = true;
-  const t = story({ read: () => (busyNow ? 'later' : 'busy'), cat: 'later', pat: 'later', guest: 'later', bubbles: 'later', plane: 'later', sleep: 'skip' });
+  const t = story({ read: () => (busyNow ? 'later' : 'busy'), cat: 'later', pat: 'later', guest: 'later', bubbles: 'later', plane: 'later', coffee: 'later', sleep: 'skip' });
   t.s.start();
   t.clock.tick(STORY.firstMs + STORY.retryMs * 2);
   const first = t.log[0][0];
@@ -144,7 +144,7 @@ test('idle story: "skip" moves on at once and does not count, "later" tries agai
 });
 
 test('the book, the bubbles and the plane are plays of the story only: never picked at random', () => {
-  assert.deepEqual([...STORY_PLAYS], ['read', 'bubbles', 'plane']);
+  assert.deepEqual([...STORY_PLAYS], ['read', 'bubbles', 'plane', 'coffee']);
   assert.equal(PLAYS.read, 9000);
   assert.equal(PLAYS.bubbles, 7000);
   assert.equal(PLAYS.plane, 6000);

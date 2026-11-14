@@ -621,6 +621,8 @@
       bubbles: sheet([cue(1000, 'whoosh', 1.45), cue(2580, 'whoosh', 1.45), cue(3100, 'tick', 1.7), cue(3780, 'tick', 1.55), cue(4160, 'whoosh', 1.45), cue(4700, 'tick', 1.8), cue(5090, 'tick', 1.6), cue(6480, 'tick', 1.4)]),
       // rb-plane-* 5.6 s: the throw at 28 %, back in the hand at 86 % (PLANE_CATCH_MS).
       plane: sheet([cue(1550, 'whoosh', 1.25), cue(4820, 'chirp', 1.35)]),
+      // rb-coffee-* 5.6 s: three sips (25 / 49 / 71 %), then "Ahh" at ~4.55 s (COFFEE_AH_MS).
+      coffee: sheet([cue(1400, 'whoosh', 0.7), cue(2740, 'whoosh', 0.7), cue(3980, 'whoosh', 0.7), cue(4550, 'chirp', 1.1)]),
     }),
     /**
      * The rampage's phases (app/rampage.js: four launches 320 ms apart, the

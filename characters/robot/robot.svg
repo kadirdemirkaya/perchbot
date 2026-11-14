@@ -40,6 +40,8 @@
       rb-plane-held, rb-plane-fly  idle story: a paper plane in the near hand, and the same
                  plane in flight (it loops round and comes back to the hand)
       rb-pointer  a laser pointer in the near hand, for playing with the cat (data-pet="laser")
+      rb-mug, rb-coffee-steam  mornings: a mug of coffee in the near hand, steam rising from it
+      rb-nightcap  a nightcap while it naps late at night (data-night with data-rest)
     Elements marked data-nohit never count as "the character" for the mouse.
   -->
   <defs>
@@ -58,6 +60,9 @@
     </linearGradient>
     <clipPath id="rb-body-clip">
       <path d="M71 103 H105 Q113 103 114 111 L116 143 Q117 157 103 157 H73 Q59 157 60 143 L62 111 Q63 103 71 103 Z"/>
+    </clipPath>
+    <clipPath id="rb-cap-clip">
+      <path d="M60 37 C62 22 74 10 92 9 C108 8 122 16 131 28 C135 33 138 39 139 44 C133 41 127 39 121 38 L116 37 Z"/>
     </clipPath>
   </defs>
 
@@ -173,6 +178,18 @@
             <path class="rb-band-tail" d="M50.5 41 L37 35.5 L39.5 42 Z M50.5 44.5 L38.5 49.5 L42.5 51.5 Z" fill="#FF5A6E" stroke="#2A2650" stroke-width="1.8" stroke-linejoin="round"/>
             <path d="M49.4 40 H127.4 L127.1 46 H49.8 Z" fill="#FF5A6E" stroke="#2A2650" stroke-width="2" stroke-linejoin="round"/>
             <path d="M58 43 H120" stroke="#FFB0BC" stroke-width="1.4" stroke-linecap="round"/>
+          </g>
+
+          <!-- late at night, napping: a striped nightcap flopping over to one side, a pom-pom at its tip -->
+          <g class="rb-nightcap" data-nohit="">
+            <path d="M60 37 C62 22 74 10 92 9 C108 8 122 16 131 28 C135 33 138 39 139 44 C133 41 127 39 121 38 L116 37 Z" fill="#8AB6FF"/>
+            <g clip-path="url(#rb-cap-clip)" fill="none" stroke="#FFF6E8" stroke-width="3.4" stroke-linecap="round">
+              <path d="M58 29 Q96 18 134 29"/>
+              <path d="M66 18.5 Q94 9 122 16"/>
+            </g>
+            <path d="M60 37 C62 22 74 10 92 9 C108 8 122 16 131 28 C135 33 138 39 139 44 C133 41 127 39 121 38 L116 37 Z" fill="none" stroke="#2A2650" stroke-width="2.4" stroke-linejoin="round"/>
+            <path d="M48.6 48 Q48.8 36.5 63 35.5 H113 Q127.2 36.5 127.4 48 Q88 42 48.6 48 Z" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.4" stroke-linejoin="round"/>
+            <circle cx="139.5" cy="46.5" r="5.6" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.2"/>
           </g>
 
           <!-- face screen -->
@@ -511,6 +528,20 @@
               <g transform="rotate(110 118 148)">
                 <path d="M132 147 L106 140 L112 148 Z" fill="#FFF6E8" stroke="#2A2650" stroke-width="1.8" stroke-linejoin="round"/>
                 <path d="M132 147 L112 148 L107 155 Z" fill="#E4DDFB" stroke="#2A2650" stroke-width="1.8" stroke-linejoin="round"/>
+              </g>
+            </g>
+            <!-- mornings, idle story: a mug of coffee by its handle (drawn turned round: upright once the
+                 hand is up beside its mouth, as for the bubble wand), steam rising from it -->
+            <g class="rb-mug" data-nohit="">
+              <g transform="rotate(175 118 148)">
+                <g class="rb-coffee-steam" fill="none" stroke="#B3A8F7" stroke-width="1.8" stroke-linecap="round">
+                  <path d="M103.5 136 Q101 132.5 103.5 129 Q106 125.5 103.5 122"/>
+                  <path d="M110 135 Q107.5 131.5 110 128 Q112.5 124.5 110 121"/>
+                </g>
+                <path d="M114 142.5 H117 Q122 142.5 122 148 Q122 153.5 117 153.5 H114" fill="none" stroke="#2A2650" stroke-width="2.6"/>
+                <rect x="99.5" y="139" width="15" height="18" rx="3.6" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.4"/>
+                <path d="M102 142.4 H112" stroke="#8A5A3C" stroke-width="2.6" stroke-linecap="round"/>
+                <path d="M100.8 150 H113.2" stroke="#4FD6B4" stroke-width="3"/>
               </g>
             </g>
             <circle cx="118" cy="148" r="6.8" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.6"/>

@@ -8,6 +8,7 @@
  *   FocusMeter        intense work: a screen of light instead of the laptop
  *   IdleStory         a long idle spell: a few things (a book, the cat, bubbles...), then a nap
  *   Wander            idle: about once a minute a trip of its own (up in the air too)
+ *   daytime           the time of day: morning coffee, a nightcap, "It's late...", Friday
  *   AmbientScheduler  ambient life: short plays and trips, every 15-60 s
  *   pickCheer      a different celebration for "done" now and then
  *   Duel           the sword fight started from the right-click menu
@@ -254,13 +255,15 @@
     bubbles: 7000,
     /** Throws a paper plane: it loops round and comes back to its hand (an idle story beat). */
     plane: 6000,
+    /** A cup of coffee: the mug comes up, three sips, "Ahh, coffee!" (an idle story beat, mornings only). */
+    coffee: 6000,
   });
 
   /** Plays that need the ground under its feet (not while it hovers or hangs). */
   const GROUND_PLAYS = Object.freeze(['sit']);
 
   /** Plays only the idle story (or a demo) starts: never picked at random. */
-  const STORY_PLAYS = Object.freeze(['read', 'bubbles', 'plane']);
+  const STORY_PLAYS = Object.freeze(['read', 'bubbles', 'plane', 'coffee']);
 
   /**
    * Trips around the screen (main.js plans them, see app/roam.js). It does not
@@ -400,6 +403,8 @@
    *   plane    throws a paper plane that loops back to it (the 'plane' play)
    *   guest    a visitor (a little robot like its helpers) drops by to sit
    *            and chat and to practise with swords
+   *   coffee   a cup of coffee (mornings only, at most every 45 minutes: the
+   *            page skips it otherwise, see daytime)
    * Beats come `gapMs` apart (the first `firstMs` after the spell began);
    * the page plays each one and says how it went:
    *   'busy'   started: call done() when it is over
@@ -409,7 +414,7 @@
    * per idle spell.
    */
   const STORY = Object.freeze({
-    beats: Object.freeze(['read', 'cat', 'pat', 'bubbles', 'plane', 'guest']),
+    beats: Object.freeze(['read', 'cat', 'pat', 'bubbles', 'plane', 'guest', 'coffee']),
     count: 3,
     last: 'sleep',
     firstMs: 20000,
@@ -617,6 +622,40 @@
       if (this.timer) this.clock.clearTimeout(this.timer);
       this.timer = null;
     }
+  }
+
+  // ------------------------------------------------------------------ the time of day
+
+  /**
+   * A few little extras by the computer's own clock (local time):
+   *   morning  05:00-10:59  a cup of coffee now and then (an idle story beat, every coffeeGapMs at most)
+   *   night    23:00-04:59  a nightcap while it naps
+   *   late     00:00-04:59  once a night, at the first prompt: "It's late... bed soon?"
+   *   friday   Fridays from 16:00: the done cheer is a dance, once a day "Happy Friday!"
+   * day / nightOf say which day and which night it is (for "once a day", "once a night"):
+   * a night belongs to the evening it began on.
+   */
+  const DAYTIME = Object.freeze({
+    morningFrom: 5,
+    morningTo: 11,
+    nightFrom: 23,
+    nightTo: 5,
+    fridayFrom: 16,
+    coffeeGapMs: 45 * 60000,
+  });
+
+  function daytime(date = new Date()) {
+    const h = date.getHours();
+    const key = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const evening = new Date(date.getFullYear(), date.getMonth(), date.getDate() - (h < DAYTIME.nightTo ? 1 : 0));
+    return {
+      morning: h >= DAYTIME.morningFrom && h < DAYTIME.morningTo,
+      night: h >= DAYTIME.nightFrom || h < DAYTIME.nightTo,
+      late: h < DAYTIME.nightTo,
+      friday: date.getDay() === 5 && h >= DAYTIME.fridayFrom,
+      day: key(date),
+      nightOf: key(evening),
+    };
   }
 
   // ------------------------------------------------------------------ focus mode
@@ -943,6 +982,8 @@
     STORY,
     Wander,
     WANDER,
+    daytime,
+    DAYTIME,
     AmbientScheduler,
     AMBIENT_GAP,
     WEIGHTS,
