@@ -17,7 +17,7 @@ types, runs commands, waits for you and cheers when the work is done. Sub-agents
 helpers, a failing test brings a bug to fight, and between tasks it plays on its own.
 It runs on your computer and sends nothing anywhere.
 
-<sub>Unofficial; not affiliated with Anthropic.</sub>
+<sub>Unofficial; not affiliated with or endorsed by Anthropic. Claude and Claude Code are trademarks of Anthropic.</sub>
 
 ## Install
 
