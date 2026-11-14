@@ -38,11 +38,13 @@ sandboxed tool shell mouse input may be blocked, and the test then stops at its 
 safety check without clicking.
 
 It puts a plain target window directly behind the test overlay and checks:
-- clicks on empty parts of the overlay window (including where the closed menu sits)
-  reach the window below;
+- clicks on empty parts of the overlay window (including where the closed menu sits,
+  and, with the menu on the left, the room the window keeps left of the page for the
+  helpers) reach the window below;
 - the character takes the mouse while hovered, clicks on it stay there, and it never
   takes focus;
-- moving off the character releases the mouse at once (also with a click 0-100 ms later);
+- moving off the character releases the mouse at once (also with a click 0-100 ms later),
+  also when the cursor goes straight into that room beside the page;
 - the hover menu opens, its buttons work (the bottom row too), and its spot passes clicks
   again once closed;
 - the Play button starts a duel with one click (turning play mode on in the test settings),

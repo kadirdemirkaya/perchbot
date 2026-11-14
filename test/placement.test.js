@@ -154,3 +154,121 @@ test('bug hunt: the bug sits at the feet, where the sword comes down, give or ta
     assert.deepEqual(p.bugSpot(side, 7), far, 'offset is clamped');
   }
 });
+
+// ---------------------------------------------------------------- the window frame (room beside the page)
+
+/** Every width the side column can have (CSS px), with the column on `side`. */
+function columnWidths(side) {
+  const widths = [p.SIDE_WIDTH, p.CHAT_WIDTH, p.guestSpot(side).width, p.bugSpot(side, 0).width, p.bugSpot(side, 1).width];
+  for (let n = 1; n <= p.CREW.max; n++) widths.push(p.crewWidth(n, side));
+  for (let n = 0; n <= p.CREW.max; n++) widths.push(p.petSpots(n, side).width);
+  return widths;
+}
+
+test('window frame: the room kept on the left fits every column the page can have', () => {
+  for (const w of columnWidths('left')) assert.ok(w <= p.COLUMN_ROOM, `${w} px fits`);
+  const widest = p.petSpots(p.CREW.max, 'left').width;
+  assert.ok(p.COLUMN_ROOM >= widest && p.COLUMN_ROOM < widest + 4, 'four helpers with the cat beyond them');
+  assert.equal(p.COLUMN_ROOM % 4, 0, 'whole pixels at 125 % like the page');
+  // Medium size at 125 %: the window's right edge (where the character stands) is on the
+  // same pixel as a window as wide as the page: both edges are whole pixels.
+  const at = p.cornerAnchor({ x: 0, y: 0, width: 1536, height: 912 }, 'bottom-right', 1);
+  const frame = p.windowFrame(at, 'left', 1, p.SIDE_WIDTH).bounds;
+  const page = p.windowLayout(at, 'left', 1).bounds;
+  for (const v of [frame.x, frame.width, page.x, page.width]) assert.ok(Number.isInteger(v * 1.25), `${v} DIP is whole pixels`);
+  assert.equal((frame.x + frame.width) * 1.25, (page.x + page.width) * 1.25);
+});
+
+test('window frame: with the column on the left the window stays put however the column changes', () => {
+  for (const scale of [0.8, 1, 1.25, 1.3]) {
+    const at = p.cornerAnchor(primary.workArea, 'bottom-right', scale);
+    const base = p.windowFrame(at, 'left', scale, p.SIDE_WIDTH, displays);
+    for (const w of columnWidths('left')) {
+      const frame = p.windowFrame(at, 'left', scale, w, displays);
+      assert.deepEqual(frame.bounds, base.bounds, `same window for a ${w} px column at ${scale}`);
+      assert.equal(frame.spare, p.COLUMN_ROOM - w);
+      // The page is the frame's right-hand part: same right edge (rounding aside), inside it.
+      const page = p.windowLayout(at, 'left', scale, w).bounds;
+      assert.ok(Math.abs(page.x + page.width - (frame.bounds.x + frame.bounds.width)) <= 1, 'right edges meet');
+      assert.ok(frame.bounds.x <= page.x, 'the page is inside the window');
+      assert.equal(frame.bounds.y, page.y);
+      assert.equal(frame.bounds.height, page.height);
+    }
+    assert.equal(base.bounds.width, Math.round((p.SLOT.width + p.COLUMN_ROOM) * scale));
+  }
+});
+
+test('window frame: with the column on the right the window is the page, exactly as before', () => {
+  for (const scale of [0.8, 1, 1.3]) {
+    const at = p.cornerAnchor(primary.workArea, 'bottom-left', scale);
+    for (const w of columnWidths('right')) {
+      const frame = p.windowFrame(at, 'right', scale, w, displays);
+      assert.deepEqual(frame.bounds, p.windowLayout(at, 'right', scale, w).bounds);
+      assert.equal(frame.spare, 0);
+    }
+  }
+});
+
+// A 125 % laptop screen with a 100 % monitor to its right, in DIP (as Electron reports them).
+const laptop = { id: 1, workArea: { x: 0, y: 0, width: 1536, height: 912 }, bounds: { x: 0, y: 0, width: 1536, height: 960 }, scaleFactor: 1.25 };
+const monitor = { id: 2, workArea: { x: 1536, y: 0, width: 1920, height: 1040 }, bounds: { x: 1536, y: 0, width: 1920, height: 1080 }, scaleFactor: 1 };
+
+test('window frame: the room never reaches into a display with another scale', () => {
+  const screens = [laptop, monitor];
+  // On the monitor, a little way from the laptop: only the room up to the laptop's edge.
+  const near = { x: 1536 + 400, y: 1040 };
+  const frame = p.windowFrame(near, 'left', 1, p.SIDE_WIDTH, screens);
+  assert.equal(frame.bounds.x, 1536, 'stops at the edge of the monitor');
+  assert.equal(frame.spare, 400 - 110 - p.SIDE_WIDTH);
+  // Closer than the page itself needs: the page as before, never narrower.
+  const tight = { x: 1536 + 150, y: 1040 };
+  assert.deepEqual(p.windowFrame(tight, 'left', 1, p.SIDE_WIDTH, screens).bounds, p.windowLayout(tight, 'left', 1).bounds);
+  // Far from it: all the room.
+  assert.equal(p.windowFrame({ x: 1536 + 1500, y: 1040 }, 'left', 1, p.SIDE_WIDTH, screens).spare, p.COLUMN_ROOM - p.SIDE_WIDTH);
+  // On the laptop (nothing on its left): all the room, even where it reaches past the screen edge.
+  assert.equal(p.windowFrame({ x: 400, y: 912 }, 'left', 1.25, p.SIDE_WIDTH, screens).spare, p.COLUMN_ROOM - p.SIDE_WIDTH);
+  // The same scale on the left: no harm in reaching over it.
+  const twin = { ...laptop, scaleFactor: 1 };
+  assert.equal(p.windowFrame(near, 'left', 1, p.SIDE_WIDTH, [twin, monitor]).spare, p.COLUMN_ROOM - p.SIDE_WIDTH);
+  // A display above or below, not beside it, does not count.
+  const above = { id: 3, workArea: { x: 0, y: -1200, width: 1536, height: 1152 }, bounds: { x: 0, y: -1200, width: 1536, height: 1200 }, scaleFactor: 1.5 };
+  assert.equal(p.frameLimit(near, [above, { ...monitor, bounds: { ...monitor.bounds } }]), -Infinity);
+  // Displays without bounds (or none at all): no limit.
+  assert.equal(p.frameLimit(near, displays), -Infinity);
+  assert.equal(p.frameLimit(near, []), -Infinity);
+});
+
+test('window frame: on the way towards that edge the window narrows bit by bit, it never jumps', () => {
+  const screens = [laptop, monitor];
+  let last = null;
+  for (let x = 1536 + 1600; x >= 1536 + 110 + p.SIDE_WIDTH; x -= 3) {
+    const { bounds } = p.windowFrame({ x, y: 1040 }, 'left', 1, p.SIDE_WIDTH, screens);
+    assert.ok(bounds.x >= 1536 || bounds.width === p.SLOT.width + p.SIDE_WIDTH, `inside the monitor at ${x}`);
+    if (last) {
+      assert.ok(Math.abs(bounds.x - last.x) <= 3, `left edge moves at most as far as the character (${x})`);
+      assert.ok(Math.abs(bounds.x + bounds.width - (last.x + last.width)) <= 3, `right edge too (${x})`);
+    }
+    last = bounds;
+  }
+});
+
+test('room beside the page: the window always moves by its frame; the page draws and listens only to its own part', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const read = (...parts) => fs.readFileSync(path.join(__dirname, '..', ...parts), 'utf8');
+  const main = read('app', 'main.js');
+  // Every move or resize of the buddy window goes through the frame (a page-sized window
+  // whose left edge moves under a character that stays put is the jump this fixes)...
+  const sets = main.match(/win\.setBounds\(([^;]*)\);/g) || [];
+  assert.ok(sets.length >= 4, 'found the window moves');
+  for (const call of sets) assert.ok(/frameFor\(|next\.bounds|initial\.bounds|\(bounds\)/.test(call) && !/windowLayout/.test(call), call);
+  // ...while trips and the mouse watchdog go by the page, as before.
+  assert.ok(!/spanLeft: anchor\.x - b\.x/.test(main.replace(/function pageSpans[\s\S]*?\n  }\n/, '')), 'trip spans come from pageSpans');
+  const css = read('app', 'renderer', 'overlay.css');
+  assert.ok(css.includes('html.column-left body {\n  clip-path: inset(0 0 0 max(0px, calc(100% - var(--page-width, 100%))));'), 'nothing drawn beside the page');
+  assert.ok(css.includes('html.column-left .duel-pad {\n  left: max(0px, calc(100% - var(--page-width, 100%)));'), 'the duel arena is the page');
+  const page = read('app', 'renderer', 'renderer.js');
+  assert.ok(page.includes("root.style.setProperty('--page-width', `${next.width}px`);"));
+  assert.ok(page.includes("root.classList.toggle('column-left', next.side === 'left');"));
+  assert.ok(page.includes('e.clientX < pageLeft(root.clientWidth, layout)'), 'a cursor beside the page is outside');
+});

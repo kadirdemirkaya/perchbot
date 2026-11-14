@@ -42,8 +42,11 @@ $W = $r.R - $r.L; $H = $r.B - $r.T
 $dpi = 0; try { $dpi = [U]::GetDpiForWindow($overlay) } catch { $dpi = 0 }
 $k = if ($dpi -gt 0) { $dpi / 96.0 } else { $H / 270.0 }
 $sideRight = ($r.L + $W / 2) -lt ([U]::GetSystemMetrics(0) / 2)
-$slotLeft = if ($sideRight) { 0 } else { 64 }
-$menuLeft = if ($sideRight) { 220 } else { 0 }
+# With the menu on the left the window is wider than the page (it keeps room for the
+# widest helper column, placement.windowFrame): the page is its right-hand 284 CSS px.
+$pageLeft = if ($sideRight) { 0 } else { [math]::Max(0, $W / $k - 284) }
+$slotLeft = if ($sideRight) { 0 } else { $pageLeft + 64 }
+$menuLeft = if ($sideRight) { 220 } else { $pageLeft }
 function Css($x, $y) { @([int]($r.L + $x * $k), [int]($r.T + $y * $k)) }
 # The hover menu: two columns of 30 px buttons from y = 70, rows 36 px apart, row by
 # row, the first column on the outer side. Items: quiet, eyes, play, cat, [corner],
@@ -63,9 +66,12 @@ $P = @{
   menuFirst  = MenuSpot 0                    # first menu button (quiet)
   menuPlay   = MenuSpot 2                    # Play (sword duel)
 }
+# The room left of the page (only when there is some): part of the window, never of the page.
+if ($pageLeft -ge 60) { $P.beside = Css ($pageLeft - 40) 150 }
 $farX = if ($sideRight) { $r.R + 100 } else { $r.L - 100 }
 $P.far = @([int]$farX, [int]($r.T + $H / 2))
-"overlay ($($r.L),$($r.T)) ${W}x${H}, $([math]::Round($k,3)) px per CSS px (dpi $dpi), menu on the $(if ($sideRight) {'right'} else {'left'})"
+"overlay ($($r.L),$($r.T)) ${W}x${H}, $([math]::Round($k,3)) px per CSS px (dpi $dpi), menu on the $(if ($sideRight) {'right'} else {'left'}), page from CSS x $([math]::Round($pageLeft))"
+$empty = @('topCorner', 'hiddenMenu', 'hiddenPlay') + $(if ($P.beside) { @('beside') } else { @() })
 
 $form = New-Object System.Windows.Forms.Form
 $form.FormBorderStyle = 'None'; $form.StartPosition = 'Manual'; $form.ShowInTaskbar = $false; $form.TopMost = $true
@@ -97,13 +103,13 @@ function SafeClick($pt) {
 }
 
 # Preflight (no clicks): every empty point must lead to the target window.
-foreach ($name in 'far', 'topCorner', 'hiddenMenu', 'hiddenPlay', 'gapNearArm') {
+foreach ($name in @('far', 'gapNearArm') + $empty) {
   Go $P[$name] 200
   if ((RootAt $P[$name][0] $P[$name][1]) -ne $target) { Abort "preflight: '$name' does not lead to the target window" }
 }
 'preflight ok'
 
-foreach ($name in 'topCorner', 'hiddenMenu', 'hiddenPlay') {
+foreach ($name in $empty) {
   Go $P.far 150; Go $P[$name]
   $before = $script:clicks; SafeClick $P[$name]
   Check "click on empty area ($name) reaches the window below" ($script:clicks -eq $before + 1) "target +$($script:clicks - $before)"
@@ -166,6 +172,14 @@ foreach ($delay in 0, 16, 50, 100) {
   [U]::Move($P.gapNearArm[0], $P.gapNearArm[1]); if ($delay -gt 0) { Pump $delay }
   $before = $script:clicks; SafeClick $P.gapNearArm
   Check "leave the shape, click after $delay ms: passes through" ($script:clicks -eq $before + 1) "target +$($script:clicks - $before)"
+}
+if ($P.beside) {
+  foreach ($delay in 0, 50) {
+    Go $P.far 150; Go $P.body 300
+    [U]::Move($P.beside[0], $P.beside[1]); if ($delay -gt 0) { Pump $delay }
+    $before = $script:clicks; SafeClick $P.beside
+    Check "character -> beside the page, click after $delay ms: passes through" ($script:clicks -eq $before + 1) "target +$($script:clicks - $before)"
+  }
 }
 
 $r0 = New-Object U+RECT; [U]::GetWindowRect($overlay, [ref]$r0) | Out-Null

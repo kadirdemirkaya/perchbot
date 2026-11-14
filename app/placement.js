@@ -21,6 +21,8 @@ const { shiftAnchor } = require('./instances');
 
 const SLOT = Object.freeze({ width: 220, height: 270 });
 const SIDE_WIDTH = 64; // hover menu column
+/** The side column while the chat panel is open (CSS px; see overlay.css .chat). */
+const CHAT_WIDTH = 176;
 const SCALE = Object.freeze({ small: 0.8, medium: 1, large: 1.3 });
 const MARGIN = 12;
 const SNAP_DISTANCE = 48;
@@ -345,9 +347,79 @@ function crewGeometry(side, capacity) {
   };
 }
 
+/**
+ * Room the window keeps for the side column when the column is on the left (CSS px): the
+ * widest the column ever gets, four helpers with the cat napping beyond them (windowFrame).
+ * Rounded up to a multiple of 4, as the page widths are: at 125 % or 175 % display scaling
+ * the window then still spans whole pixels and the character stays on the very pixel it
+ * stood on with a window as wide as the page.
+ */
+const COLUMN_ROOM =
+  Math.ceil(
+    Math.max(
+      SIDE_WIDTH,
+      CHAT_WIDTH,
+      crewWidth(CREW.max, 'left'),
+      petSpots(CREW.max, 'left').width,
+      guestSpot('left').width,
+      bugSpot('left', 1).width,
+    ) / 4,
+  ) * 4;
+
+/**
+ * The left edge (DIP) the window may not reach past: the right edge of a display beside the
+ * anchor's one, on its left, with another scale factor (a window mostly over there would
+ * take on that scale). -Infinity when there is none. Displays without bounds are left out.
+ */
+function frameLimit(anchor, screens) {
+  if (!Array.isArray(screens) || !screens.length) return -Infinity;
+  const here = nearestDisplay(anchor, screens);
+  if (!here || !here.bounds) return -Infinity;
+  const h = here.bounds;
+  let limit = -Infinity;
+  for (const s of screens) {
+    if (s === here || !s.bounds || s.scaleFactor === here.scaleFactor) continue;
+    const b = s.bounds;
+    if (b.y >= h.y + h.height || b.y + b.height <= h.y) continue; // above or below, not beside
+    const right = b.x + b.width;
+    if (right <= anchor.x) limit = Math.max(limit, right);
+  }
+  return limit;
+}
+
+/**
+ * The window itself (DIP), around the page of windowLayout.
+ *
+ * With the column on the left the window reaches as far left as the widest column would
+ * (COLUMN_ROOM), whatever is in the column now: helpers, the cat, a bug, a visitor or the
+ * chat come and go inside it, and the window neither moves nor changes size. The page draws
+ * only its own width and lets the mouse through beside it (renderer: pageLeft, overlay.css).
+ * Why: Windows shows a resized window's last picture from its new top-left corner until the
+ * page has drawn the new size, so a left edge that moved under a character that stays put
+ * showed everything a frame off, now and then (a jump as a helper came or went).
+ * With the column on the right the window grows to the right, its left edge stays anyway:
+ * the frame is the page.
+ *
+ * The room stops at frameLimit and never makes the window narrower than the page. Near that
+ * limit it narrows bit by bit as the character comes closer (a trip, a drag): no jump there.
+ * @param {Array<{ workArea: object, bounds?: object, scaleFactor?: number }>} [screens]
+ * @returns {{ bounds: object, spare: number }}  spare: CSS px of window left of the page
+ */
+function windowFrame(anchor, side, scale, sideWidth = SIDE_WIDTH, screens = []) {
+  if (side !== 'left') return { bounds: windowLayout(anchor, side, scale, sideWidth).bounds, spare: 0 };
+  const limit = frameLimit(anchor, screens);
+  const reach = limit === -Infinity ? Infinity : Math.floor((anchor.x - (SLOT.width / 2) * scale - limit) / scale);
+  const width = Math.max(sideWidth, Math.min(COLUMN_ROOM, reach));
+  return { bounds: windowLayout(anchor, 'left', scale, width).bounds, spare: width - sideWidth };
+}
+
 module.exports = {
   SLOT,
   SIDE_WIDTH,
+  CHAT_WIDTH,
+  COLUMN_ROOM,
+  windowFrame,
+  frameLimit,
   SNAP_DISTANCE,
   HOVER_THRESHOLD,
   CREW,

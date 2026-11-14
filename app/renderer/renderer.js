@@ -44,7 +44,7 @@
  */
 
 (() => {
-  const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay } = window.BuddyInteraction;
+  const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay, pageLeft } = window.BuddyInteraction;
   const { TapMeter, Temper, TEMPER_MAX, Fury, FocusMeter, FOCUS, IdleStory, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight } = window.BuddyFun;
 
   const root = document.documentElement;
@@ -603,6 +603,10 @@
     layout = next;
     stage.classList.toggle('side-left', next.side === 'left');
     stage.classList.toggle('side-right', next.side !== 'left');
+    // With the column on the left the window can be wider than the page (main.js keeps room
+    // for the widest column): the page is its rightmost --page-width (overlay.css, pageLeft).
+    root.style.setProperty('--page-width', `${next.width}px`);
+    root.classList.toggle('column-left', next.side === 'left');
     crew.setLayout(next);
     pet.setLayout(next);
     bugView.setLayout(next);
@@ -701,7 +705,22 @@
     resetLook();
   }
 
-  document.addEventListener('mousemove', (e) => onPointerMove(e.clientX, e.clientY), { passive: true });
+  // Left of the page, in the room the window keeps for the column (pageLeft): a cursor there
+  // counts as one that left the window. A mini being dragged keeps its pointer, as before.
+  let besidePage = false;
+  document.addEventListener(
+    'mousemove',
+    (e) => {
+      if (!drag && !crew.isPressing() && e.clientX < pageLeft(root.clientWidth, layout)) {
+        if (!besidePage) onPointerLeave({ type: 'beside the page' });
+        besidePage = true;
+        return;
+      }
+      besidePage = false;
+      onPointerMove(e.clientX, e.clientY);
+    },
+    { passive: true },
+  );
   document.addEventListener('mouseleave', onPointerLeave);
   window.addEventListener('blur', (e) => onPointerLeave(e));
 
@@ -906,7 +925,8 @@
     const rect = hit.el.getBoundingClientRect();
     const width = tooltip.offsetWidth;
     const maxLeft = document.documentElement.clientWidth - width - 2;
-    const left = Math.max(2, Math.min(maxLeft, rect.left + rect.width * 0.44 - width / 2));
+    const minLeft = pageLeft(root.clientWidth, layout) + 2;
+    const left = Math.max(minLeft, Math.min(maxLeft, rect.left + rect.width * 0.44 - width / 2));
     tooltip.style.left = `${Math.round(left)}px`;
     tooltip.style.top = `${Math.round(Math.max(2, rect.top - tooltip.offsetHeight + 4))}px`;
   }

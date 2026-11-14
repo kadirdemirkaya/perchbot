@@ -9,6 +9,7 @@
  *   lookVector         where the eyes should look, from a cursor offset
  *   createTapRhythm    irregular typing rhythm (bursts and pauses)
  *   Replay             a one-shot reaction that quick repeats queue instead of restart
+ *   pageLeft           where the page starts in a window that is wider than the page
  */
 (function (root, factory) {
   const api = factory();
@@ -273,5 +274,17 @@
     }
   }
 
-  return { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay };
+  /**
+   * Where the page starts in the window (CSS px from its left edge). With the side column on
+   * the left the window can be wider than the page: main.js keeps room there for the widest
+   * column (placement.windowFrame), so helpers coming and going never move the window's left
+   * edge. The page is then the window's rightmost `layout.width` px; the strip left of it is
+   * not part of it (nothing drawn there, a cursor there counts as outside). 0 otherwise.
+   */
+  function pageLeft(viewportWidth, layout) {
+    if (!layout || layout.side !== 'left' || !(layout.width > 0) || !(viewportWidth > 0)) return 0;
+    return Math.max(0, viewportWidth - layout.width);
+  }
+
+  return { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay, pageLeft };
 });

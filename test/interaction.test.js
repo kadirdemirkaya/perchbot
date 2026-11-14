@@ -238,3 +238,14 @@ test('rest: the wait can change (livelier with ambient life); it counts from the
   r.setDelay(Number.NaN);
   assert.equal(r.delay, 180000, 'nonsense is ignored');
 });
+
+test('pageLeft: with the column on the left the page is the right-hand part of a wider window', () => {
+  const { pageLeft } = require('../app/renderer/lib/interaction');
+  assert.equal(pageLeft(770, { side: 'left', width: 284 }), 486);
+  assert.equal(pageLeft(284, { side: 'left', width: 284 }), 0, 'window as wide as the page');
+  assert.equal(pageLeft(283.6, { side: 'left', width: 284 }), 0, 'never negative (rounding)');
+  assert.equal(pageLeft(770, { side: 'right', width: 284 }), 0, 'column on the right: the window is the page');
+  assert.equal(pageLeft(770, { side: 'left' }), 0, 'no layout yet');
+  assert.equal(pageLeft(770, null), 0);
+  assert.equal(pageLeft(0, { side: 'left', width: 284 }), 0);
+});

@@ -13,8 +13,10 @@
  *   the mouse whenever the cursor is outside the window.
  * - No network access: http(s)/ws(s) requests are blocked, the page is served
  *   from a private buddy:// scheme with a strict CSP.
- * - Sub-agents ("minis") stand next to the character. The window grows towards
- *   the inner side for them, so the character itself never moves.
+ * - Sub-agents ("minis") stand next to the character. The page grows towards
+ *   the inner side for them, so the character itself never moves. With that
+ *   column on the left the window keeps room for its widest (placement.windowFrame),
+ *   so minis coming and going never move the window's left edge.
  * - Fun mode: the page asks for trips around the screen (roam.js plans them,
  *   this file moves the window frame by frame). Where it went is kept only
  *   for this run; the user's chosen place stays its home.
@@ -112,7 +114,7 @@ const WARP_WAIT_MS = 400;
 /** ...and fades in on the other screen before the trip goes on there. */
 const WARP_IN_MS = 260;
 /** The side column while the chat panel is open (CSS px; see overlay.css .chat). */
-const CHAT_WIDTH = 176;
+const CHAT_WIDTH = placement.CHAT_WIDTH;
 /** The window level: above other always-on-top windows and full-screen apps (Electron levels). */
 const TOP_LEVEL = 'screen-saver';
 
@@ -663,8 +665,7 @@ function start() {
       const all = displays();
       const here = placement.nearestDisplay(anchor, all);
       if (placement.nearestDisplay(from, all).id !== here.id) return startTrip('home', { peek: true });
-      const b = win.getBounds();
-      const spans = { spanLeft: anchor.x - b.x, spanRight: b.x + b.width - anchor.x };
+      const spans = pageSpans();
       const plan = roam.planTrip({ kind: 'goto', to: from, from: anchor, home: homeAnchor(), workArea: here.workArea, scale: scale(), hoverMode: settings.hoverMode, ...spans });
       if (plan) beginTrip(plan, 'goto', null, { peek: true });
       return undefined;
@@ -762,7 +763,30 @@ function start() {
   }
 
   function displays() {
-    return screen.getAllDisplays().map((d) => ({ id: d.id, workArea: d.workArea }));
+    return screen.getAllDisplays().map((d) => ({ id: d.id, workArea: d.workArea, bounds: d.bounds, scaleFactor: d.scaleFactor }));
+  }
+
+  /**
+   * The window around the page at `at` (DIP): with the column on the left it keeps room
+   * for the widest column, so helpers, the cat, a bug, a visitor or the chat come and go
+   * without its left edge moving (placement.windowFrame).
+   */
+  function frameFor(at, side, sideWidth) {
+    return placement.windowFrame(at, side, scale(), sideWidth, displays());
+  }
+
+  /**
+   * The page's own rectangle (DIP), without the room the window keeps beside it: what
+   * trips keep on the screen and where the mouse watchdog counts the cursor as inside.
+   */
+  function pageBounds() {
+    return placement.windowLayout(anchor, pageLayout.side, scale(), pageLayout.sideWidth).bounds;
+  }
+
+  /** How far the page reaches left and right of the anchor (DIP), for roam.planTrip. */
+  function pageSpans() {
+    const b = pageBounds();
+    return { spanLeft: anchor.x - b.x, spanRight: b.x + b.width - anchor.x };
   }
 
   function primaryDisplay() {
@@ -812,7 +836,8 @@ function start() {
     layout.page.pet = pet;
     layout.page.guest = guest;
     layout.page.bug = bugAt;
-    return { anchor: resolved.anchor, ...layout };
+    // The window itself: the page, plus the room kept for the column when it is on the left.
+    return { anchor: resolved.anchor, page: layout.page, bounds: frameFor(resolved.anchor, side, sideWidth).bounds };
   }
 
   function createWindow() {
@@ -1000,7 +1025,8 @@ function start() {
     watchdog = setInterval(() => {
       if (!win || win.isDestroyed() || drag) return;
       const cursor = screen.getCursorScreenPoint();
-      const b = win.getBounds();
+      // The page, not the room the window keeps beside it (the cursor there is outside, as before).
+      const b = anchor && pageLayout ? pageBounds() : win.getBounds();
       const inside = cursor.x >= b.x && cursor.x < b.x + b.width && cursor.y >= b.y && cursor.y < b.y + b.height;
       if (!inside) {
         setCapture(false);
@@ -1042,7 +1068,7 @@ function start() {
       drag.samples.push({ t: Date.now(), x: cursor.x, y: cursor.y });
       if (drag.samples.length > 12) drag.samples.shift();
       drag.live = { x: drag.anchor.x + cursor.x - drag.cursor.x, y: drag.anchor.y + cursor.y - drag.cursor.y };
-      const ms = timed(() => win.setBounds(placement.windowLayout(drag.live, drag.side, scale(), pageLayout.sideWidth).bounds));
+      const ms = timed(() => win.setBounds(frameFor(drag.live, drag.side, pageLayout.sideWidth).bounds));
       if (PERF) drag.stats.add(ms);
       // Flames lean against the direction of travel; smoothed, and settle when the cursor rests.
       const speed = Math.max(-1, Math.min(1, (cursor.x - drag.lastX) / TILT_SPEED));
@@ -1135,9 +1161,8 @@ function start() {
     // 'inspect' at a given spot (where the cursor rested) instead of where it is now.
     const cursor = at || screen.getCursorScreenPoint();
     const home = homeAnchor();
-    const b = win.getBounds();
-    // The whole window (helpers, the cat) must stay on the screen, not only the slot.
-    const spans = { spanLeft: anchor.x - b.x, spanRight: b.x + b.width - anchor.x };
+    // The whole page (helpers, the cat) must stay on the screen, not only the slot.
+    const spans = pageSpans();
     // The second leg stays on the screen it came to (no ping-pong after a cursor that moved on).
     const target = stayHere ? here : roam.tripDisplay({ kind, here, displays: all, cursor, home });
     if (!target) return; // 'screen' with only one screen
@@ -1396,8 +1421,7 @@ function start() {
     const all = displays();
     const here = placement.nearestDisplay(anchor, all);
     const there = placement.nearestDisplay(point, all);
-    const b = win.getBounds();
-    const spans = { spanLeft: anchor.x - b.x, spanRight: b.x + b.width - anchor.x };
+    const spans = pageSpans();
     if (there.id !== here.id) {
       const way = roam.planCrossing({ from: anchor, fromArea: here.workArea, toArea: there.workArea, scale: scale(), hoverMode: settings.hoverMode, ...spans });
       if (!way) return handsDone();
@@ -1522,8 +1546,7 @@ function start() {
       startTrip('hop');
       return;
     }
-    const b = win.getBounds();
-    const spans = { spanLeft: anchor.x - b.x, spanRight: b.x + b.width - anchor.x };
+    const spans = pageSpans();
     const plan = roam.planTrip({ kind: 'goto', to: spot.anchor, from: anchor, home: homeAnchor(), workArea: here.workArea, scale: scale(), hoverMode: settings.hoverMode, ...spans });
     if (!plan || plan.to.x !== spot.anchor.x || plan.to.y !== spot.anchor.y) {
       startTrip('hop');
@@ -1630,7 +1653,7 @@ function start() {
     // setBounds with the size, not setPosition: at fractional display scales
     // setPosition grows the window by about a pixel per call on Windows, which
     // shifted the character along the way and made it jump back on arrival.
-    const bounds = placement.windowLayout(anchor, trip.side, scale(), pageLayout.sideWidth).bounds;
+    const bounds = frameFor(anchor, trip.side, pageLayout.sideWidth).bounds;
     const ms = timed(() => win.setBounds(bounds));
     if (PERF) trip.stats.add(ms);
     if (t >= trip.plan.ms) endTrip(false);

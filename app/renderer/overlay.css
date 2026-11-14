@@ -5,8 +5,11 @@
  *
  * The character slot is 220 x 270 CSS px; the hover menu column and the
  * sub-agent minis sit on the side facing the middle of the screen. The slot
- * is pinned to the OUTER edge of the page, so the window can grow towards the
- * inner side (more minis) without the character moving. The window zoom
+ * is pinned to the OUTER edge of the page, so the page can grow towards the
+ * inner side (more minis) without the character moving. With the column on
+ * the left the window is wider than the page (main.js keeps room for the
+ * widest column there, so its left edge never moves): the page is then the
+ * window's rightmost --page-width, see "Room beside the page". The window zoom
  * factor handles the small / medium / large sizes.
  *
  * Hit testing: everything is pointer-events: none except the character's
@@ -49,6 +52,16 @@ body {
   position: relative;
   width: 100%;
   height: 270px;
+}
+
+/*
+ * Room beside the page: with the column on the left (html.column-left) the window
+ * reaches further left than the page (placement.windowFrame). Nothing is drawn
+ * there and it never takes the mouse, as if the window ended where the page does;
+ * the renderer counts a cursor there as outside (pageLeft).
+ */
+html.column-left body {
+  clip-path: inset(0 0 0 max(0px, calc(100% - var(--page-width, 100%))));
 }
 
 /* Switching sides (main.js flipSides): gone for a frame or two, then back softly. */
@@ -714,6 +727,11 @@ html[data-weapon='whip'] .buddy-mini > svg * {
   inset: 0;
   z-index: 2;
   pointer-events: none;
+}
+
+/* ...the page's part of it, when the window keeps room beside the page. */
+html.column-left .duel-pad {
+  left: max(0px, calc(100% - var(--page-width, 100%)));
 }
 
 html[data-duel] .duel-pad {
