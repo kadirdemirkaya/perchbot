@@ -55,6 +55,7 @@ const fistLib = require('./fist');
 const { DwellWatch, FOLLOW, FOLLOW_STATES } = require('./follow');
 const typingLib = require('./typing');
 const { createCaretWatch } = require('./caret');
+const findLib = require('./find');
 const fling = require('./fling');
 const { buildTrayTemplate, buildFunMenuTemplate } = require('./tray');
 const { buildMenuItems, MENU_IDS, switchFor } = require('./menu-items');
@@ -95,9 +96,9 @@ const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
 /** Events that start the overlay (as in hooks/send.js). */
 const LAUNCH_EVENTS = new Set(['SessionStart', 'UserPromptSubmit']);
 /** What the page may ask for (fun mode): a trip, or the right-click menu. */
-const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch', 'peek', 'cat', 'cat-away', 'guest', 'guest-away', 'typing', 'land']);
+const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch', 'peek', 'cat', 'cat-away', 'guest', 'guest-away', 'typing', 'land', 'find']);
 /** What the page may not start by itself while "Stay here" is on (the menu still can). */
-const STAY_PUT_BLOCKS = new Set(['flee', 'stroll', 'hop', 'inspect', 'cruise', 'hang', 'loop', 'perch', 'peek', 'typing', 'land']);
+const STAY_PUT_BLOCKS = new Set(['flee', 'stroll', 'hop', 'inspect', 'cruise', 'hang', 'loop', 'perch', 'peek', 'typing', 'land', 'find']);
 /**
  * While the window travels, the page reports every frame it draws (vsync) and
  * the window moves then. This timer only fills in if those reports stop: Node
@@ -164,7 +165,7 @@ const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers', 'menu', 'chat']);
 const demo = isDev && DEMOS.has(names.envValue('DEMO')) ? names.envValue('DEMO') : null;
 const DEMO_TRIPS = ['stroll', 'hop', 'screen', 'inspect', 'home'];
 /** Short lines in the speech bubble when it is hit or fights (locales: "quip"). */
-const QUIPS = ['whoa', 'welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'rampage', 'rampageFix', 'focusOn', 'lensHmm', 'guestHi', 'guestSpar', 'guestBow', 'sleepy', 'petCat', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed', 'typingLook', 'typingAha'];
+const QUIPS = ['whoa', 'welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'rampage', 'rampageFix', 'focusOn', 'lensHmm', 'guestHi', 'guestSpar', 'guestBow', 'sleepy', 'petCat', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed', 'typingLook', 'typingAha', 'foundYou'];
 
 // Keep Chromium's own data (caches, the single-instance lock) under
 // ~/.perchbot too, so there is exactly one folder to delete on uninstall
@@ -255,6 +256,10 @@ function start() {
   let typingVisit = null;
   /** The state before the current one (a new prompt: from idle or done to thinking). */
   let lastCoreState = null;
+  /** "Come and tell me" (app/find.js): a turn just ended ({ turn, at }), until the "done" bubble is over. */
+  let findDue = null;
+  /** Offered to the page: { at } until it answers. */
+  let findOffer = null;
 
   // ------------------------------------------------------------------ events
 
@@ -292,8 +297,12 @@ function start() {
     // Reading along as the user types: the prompt went off (from idle or done to thinking), or
     // Claude Code needs the user now: it got it (the light bulb), then back.
     if (typingVisit && ((snap.state === 'thinking' && PROMPT_FROM.has(lastCoreState)) || !typingLib.TYPING_STATES.has(snap.state))) typingAha();
+    // A long turn is done and the user looks elsewhere: when the "done" bubble is over, it may go and tell them
+    // (offered after the page has the new view: it decides by it).
+    const findNow = noteFind(snap.state);
     lastCoreState = snap.state;
     sendView();
+    if (findNow) offerFind(findNow.turn);
   });
 
   function isHanging() {
@@ -431,6 +440,8 @@ function start() {
     else if (action === 'peek') settings.ambientLife && peekAtDwell();
     // "Watch me type": to the line the user is typing in, to read along (app/typing.js).
     else if (action === 'typing') settings.ambientLife && peekAtTyping();
+    // "Come and tell me": a long turn is done, over to the cursor and back (app/find.js).
+    else if (action === 'find') settings.ambientLife && goFind();
     // The idle story: the cat comes over (only with the Cat switch on) or goes again;
     // a visitor drops by (the window makes room), or has left.
     else if (action === 'cat') settings.ambientLife && setPet(true);
@@ -908,6 +919,106 @@ function start() {
     const p = screen.getCursorScreenPoint();
     typingSpot = { x: p.x, y: p.y, w: 10, h: 20, at: Date.now(), demo: true };
     if (canSend()) win.webContents.send('buddy:typing', { offer: true, demo: true });
+  }
+
+  // ------------------------------------------------------------------ come and tell me (app/find.js)
+
+  /**
+   * A turn ended ('done'): remember it. When the "done" bubble is over (back to idle or
+   * standby, the cheer at home played as always), it may go and tell the user: returns the
+   * turn to offer (offerFind: if it was long and the cursor is far, app/find.js), else null.
+   * Anything else in between (a new prompt, work of another session) forgets it.
+   */
+  function noteFind(state) {
+    if (state === 'done') {
+      if (lastCoreState !== 'done') {
+        const facts = core.facts();
+        findDue = { turn: facts.turn ? { ...facts.turn } : null, at: Date.now() };
+      }
+      return null;
+    }
+    const due = findDue;
+    findDue = null;
+    if (!due || lastCoreState !== 'done' || (state !== 'idle' && state !== 'standby')) return null;
+    if (Date.now() - due.at > findLib.FIND.windowMs) return null;
+    return due;
+  }
+
+  /** Free to fly over: ambient life, not "Stay here", hovering allowed, nothing else going on. */
+  function findFree() {
+    return Boolean(
+      settings.ambientLife && !settings.stayPut && settings.hoverMode !== 'stand' && win && !win.isDestroyed() && anchor && pageLayout &&
+        !paused && !quitting && !drag && !trip && !warping && !flipping && !rampage && !fist && !handsBusy && !peekBack && !typingVisit && !chatOpen,
+    );
+  }
+
+  /** The turn was long and the cursor is far (or on another screen): ask the page (it may be busy). */
+  function offerFind(turn, { demo = false } = {}) {
+    if (!findFree()) {
+      log.devOnly('find: not now (busy)');
+      return;
+    }
+    const cursor = screen.getCursorScreenPoint();
+    const all = displays();
+    const sameDisplay = placement.nearestDisplay(cursor, all).id === placement.nearestDisplay(anchor, all).id;
+    const slot = { x: anchor.x, y: anchor.y - (placement.SLOT.height * scale()) / 2 };
+    const why = demo ? null : findLib.findReason({ turn, cursor, slot, scale: scale(), sameDisplay, away: presence.away || presence.lockedAt !== null });
+    if (why) {
+      log.devOnly(`find: not now (${why})`);
+      return;
+    }
+    findOffer = { at: Date.now() };
+    log.devOnly(`find: a long turn is done and the cursor is far${demo ? ' (demo)' : ''}: offering to go`);
+    if (canSend()) win.webContents.send('buddy:find', { offer: true, demo });
+  }
+
+  /** The page said yes: over to the cursor (to its screen first, if it is on another one). */
+  function goFind() {
+    const offer = findOffer;
+    findOffer = null;
+    if (!offer || Date.now() - offer.at > findLib.FIND.freshMs || !findFree()) return;
+    const all = displays();
+    const here = placement.nearestDisplay(anchor, all);
+    const there = placement.nearestDisplay(screen.getCursorScreenPoint(), all);
+    const from = roamAnchor ? { ...roamAnchor } : null;
+    const arrive = () => foundYou(from);
+    if (there.id === here.id) {
+      findLeg(arrive);
+      return;
+    }
+    // Out at the facing edge, in on the other screen, then beside the cursor there.
+    const spans = pageSpans();
+    const way = roam.planCrossing({ from: anchor, fromArea: here.workArea, toArea: there.workArea, scale: scale(), hoverMode: settings.hoverMode, ...spans });
+    if (!way) return;
+    log.devOnly('find: over to the other screen');
+    const goOn = () => warpTo(way.entry, () => findLeg(arrive));
+    const leg = roam.planTrip({ kind: 'goto', to: way.exit, from: anchor, home: homeAnchor(), workArea: here.workArea, scale: scale(), hoverMode: settings.hoverMode, ...spans });
+    if (leg) beginTrip(leg, 'find', goOn, { peek: true });
+    else goOn();
+  }
+
+  /** Beside the cursor (where it is now), on this screen: a look's way there ('inspect'), shown as 'find'. */
+  function findLeg(then) {
+    if (!anchor || trip || drag) return;
+    const all = displays();
+    const here = placement.nearestDisplay(anchor, all);
+    const plan = roam.planTrip({ kind: 'inspect', from: anchor, home: homeAnchor(), workArea: here.workArea, cursor: screen.getCursorScreenPoint(), scale: scale(), hoverMode: settings.hoverMode, ...pageSpans() });
+    if (!plan) return;
+    plan.kind = 'find';
+    log.devOnly('find: off to the cursor');
+    beginTrip(plan, 'find', then, { peek: true });
+  }
+
+  /** There: the page cheers; it flies back after a moment, as after a look at the cursor. */
+  function foundYou(from) {
+    log.devOnly('find: here');
+    if (canSend()) win.webContents.send('buddy:find', { phase: 'here' });
+    lookThenBack(from);
+  }
+
+  /** The simulator: as if a long turn had just ended with the cursor where it is now (no distance check). */
+  function demoFind() {
+    offerFind(null, { demo: true });
   }
 
   const presence = new PresenceWatch();
@@ -2420,6 +2531,8 @@ function start() {
     else if (name === 'follow') demoFollow();
     // As if the user were typing where the cursor is now: it reads along, then the light bulb.
     else if (name === 'typing') demoTyping();
+    // As if a long turn had just ended: it flies over to the cursor, cheers, and back.
+    else if (name === 'find') demoFind();
     // Hands, for a test overlay only (--dev): a real tab is opened or closed, so a plain
     // overlay never does this for an event, only for the user in its chat panel.
     else if (chat.HAND_SET.has(name) && isDev) runHands(name, { confirmed: true });

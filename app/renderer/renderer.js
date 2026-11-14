@@ -2900,6 +2900,35 @@
     updateFun();
   }
 
+  // ---------------------------------------------------------------- come and tell me (app/find.js)
+
+  /**
+   * A long turn is done while the user looks elsewhere (main.js: the cursor far away, or
+   * on another screen; only after the "done" bubble and its cheer at home). Free to go (as
+   * for a look at the cursor: idle, nobody else around, not "Stay here"), it flies over to
+   * the cursor; there it hops for joy with hearts and confetti: "All done! Over to you."
+   * main.js flies it back a few seconds later.
+   */
+  const FOUND_MS = 2600;
+
+  function onFind(msg) {
+    if (!msg) return;
+    if (msg.offer) {
+      if (settings.stayPut || !ambientOn() || raging || moving || drag || duel.active || hunt.active || chatOpen || guest || guestPending || fisting || typingLook) return;
+      if (!AMBIENT_STATES.has(view.state) || crewCount > 0 || pet.here || zone !== null || rest.resting) return;
+      trace(`find: off to tell the user${msg.demo ? ' (demo)' : ''}`);
+      window.buddy.fun('find');
+      return;
+    }
+    if (msg.phase === 'here') {
+      trace('find: here, all done');
+      quip('foundYou', FOUND_MS);
+      if (!motionAllowed()) return;
+      glee.trigger();
+      burstConfetti();
+    }
+  }
+
   // ---------------------------------------------------------------- chat
 
   /**
@@ -3341,6 +3370,7 @@
   window.buddy.onRampage((msg) => onRampage(msg));
   window.buddy.onFollow((msg) => onFollow(msg));
   window.buddy.onTyping((msg) => onTyping(msg));
+  window.buddy.onFind((msg) => onFind(msg));
   window.buddy.onGuest((msg) => onGuest(msg));
   window.buddy.onOutingBack((id) => {
     if (typeof id !== 'string') return;

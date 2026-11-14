@@ -115,6 +115,8 @@ const DEMOS = new Set([
   'lens',
   // "Watch me type": as if the user were typing where the mouse cursor is (it reads along, then the light bulb).
   'typing',
+  // "Come and tell me": as if a long turn had just ended (it flies over to the cursor, cheers, and back).
+  'find',
   // The idle story: reads a book, blows bubbles, throws a paper plane, pets the cat; a visitor
   // drops by (sit, chat, sword practice); the whole story at once.
   'read',
