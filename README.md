@@ -70,6 +70,10 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
     <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/hang.gif" width="380" alt="The robot flies up and hangs upside down from the top of the screen"><br><sub><b>Hanging around</b> at the top of the screen</sub></td>
     <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/duel.gif" width="380" alt="A sword duel between the robot and the cursor"><br><sub><b>Sword duel</b> against your cursor</sub></td>
   </tr>
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/waiting.gif" width="380" alt="The robot waits for approval, whispers psst, then knocks"><br><sub><b>Waiting for you:</b> a psst, then a knock</sub></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/squeeze.gif" width="380" alt="A compaction squeezes its head; on /exit it waves goodbye"><br><sub><b>Compaction</b> squeezes its head, <b>/exit</b> waves goodbye</sub></td>
+  </tr>
 </table>
 
 <details>
@@ -77,7 +81,7 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 <br>
 <table>
   <tr>
-    <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/focus.gif" width="380" alt="Headband on, the robot codes on a screen of light"><br><sub><b>Focus mode</b> when the work gets intense</sub></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/focus.gif" width="380" alt="Headband on, the robot codes on a screen and keys of light"><br><sub><b>Focus mode</b> when the work gets intense</sub></td>
     <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/moments.gif" width="380" alt="A flag for a commit, a rocket for a push, sweat, then phew"><br><sub><b>Commit, push, sweat, phew</b></sub></td>
   </tr>
   <tr>
@@ -95,6 +99,17 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/follow.gif" width="380" alt="The robot flies to where the cursor rests and looks through a magnifier"><br><sub><b>Curious:</b> a look where your cursor rests</sub></td>
     <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/flight.gif" width="380" alt="A loop-the-loop and a slow wavy flight"><br><sub><b>Flying:</b> a loop-the-loop, a slow cruise</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/curious.gif" width="380" alt="It asks what this is, with answers to click, then welcomes you back"><br><sub><b>Curious:</b> "What's this?", then "Welcome back!"</sub></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/fidgets.gif" width="380" alt="Little plays: a stretch, humming, a ball, the antenna, a reboot, a polish"><br><sub><b>Little plays:</b> stretch, hum, ball, reboot, polish</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/stroll.gif" width="380" alt="It walks along the bottom of the screen, sits down, and the cat comes by"><br><sub><b>Ambient life:</b> a walk, a sit, the cat</sub></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/nap.gif" width="380" alt="A big yawn, then a nap with its light off"><br><sub><b>Nap time</b> after a long idle spell</sub></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/perch.gif" width="560" alt="It lands on a window's title bar and rides along when the window moves"><br><sub><b>Perching</b> on a window's title bar, riding along when it moves (Windows)</sub></td>
   </tr>
 </table>
 </details>
