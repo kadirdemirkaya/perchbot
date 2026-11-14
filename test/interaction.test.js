@@ -249,3 +249,46 @@ test('pageLeft: with the column on the left the page is the right-hand part of a
   assert.equal(pageLeft(770, null), 0);
   assert.equal(pageLeft(0, { side: 'left', width: 284 }), 0);
 });
+
+test('trail: the chips fit above the bubble; with a skill tag too they did not (cut at the top), then beside it', () => {
+  const { trailFits, besideRow } = require('../app/renderer/lib/interaction');
+  // The robot: slot 270 high, the stack starts 202 px up (head top 78 + 10), chips 19 high.
+  const base = 202;
+  const chips = 19;
+  const bubble = 31 + 4;
+  const skill = 21 + 4;
+  assert.equal(trailFits(base + bubble, chips, 270), true, 'bubble + chips: as before (top at 256)');
+  assert.equal(trailFits(base, chips, 270), true, 'chips alone');
+  assert.equal(trailFits(base + skill, chips, 270), true, 'skill tag + chips (no bubble): as before');
+  assert.equal(trailFits(base + skill + bubble, chips, 270), false, 'skill tag + bubble + chips: top at 281, past 270');
+  assert.equal(trailFits(249, 19, 270), true, 'exactly 2 px to spare');
+  assert.equal(trailFits(250, 19, 270), false);
+
+  // Side by side, centred over the head (x 98) and inside the 220 px slot.
+  const row = besideRow({ slotWidth: 220, headX: 98, skillWidth: 100, skillHeight: 21, skillBottom: 198, chipWidth: 80, chipHeight: 19 });
+  assert.deepEqual(row, { skillLeft: 6, chipLeft: 110, chipBottom: 199 });
+  assert.ok(row.chipLeft + 80 <= 220 - 4, 'the chip stays inside the slot');
+  // The widest row (tag 108 + 4 + chip 100) is kept inside the slot, also with the head off-centre.
+  for (const headX of [20, 98, 200]) {
+    const wide = besideRow({ slotWidth: 220, headX, skillWidth: 108, skillHeight: 21, skillBottom: 198, chipWidth: 100, chipHeight: 19 });
+    assert.ok(wide.skillLeft >= 4, `head at ${headX}: left edge`);
+    assert.ok(wide.chipLeft + 100 <= 216, `head at ${headX}: right edge`);
+  }
+  // A narrow row sits centred over the head.
+  const narrow = besideRow({ slotWidth: 220, headX: 110, skillWidth: 60, skillHeight: 21, skillBottom: 198, chipWidth: 40, chipHeight: 21 });
+  assert.equal(narrow.skillLeft, 58);
+  assert.equal(narrow.chipBottom, 198, 'same height: same bottom');
+});
+
+test('trail on the page: beside the skill tag only when it does not fit; otherwise the old stack', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const page = fs.readFileSync(path.join(__dirname, '..', 'app', 'renderer', 'renderer.js'), 'utf8');
+  assert.ok(page.includes('if (skillOn && !trailFits(bottom, trail.offsetHeight, SLOT_HEIGHT)) {'));
+  // The old stack, unchanged: above the bubble (or where it would be), above the skill tag.
+  assert.ok(page.includes('let bottom = SLOT_HEIGHT - head.top + 10 + lift;'));
+  assert.ok(page.includes("if (bubble.classList.contains('show')) bottom += bubble.offsetHeight + 4;"));
+  assert.ok(page.includes('trail.style.bottom = `${Math.round(bottom)}px`;'));
+  const css = fs.readFileSync(path.join(__dirname, '..', 'app', 'renderer', 'overlay.css'), 'utf8');
+  for (const rule of ['.trail.beside {', '.trail.beside .trail-chip.older {', '.skill-tag.beside {']) assert.ok(css.includes(rule), rule);
+});

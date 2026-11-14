@@ -10,6 +10,8 @@
  *   createTapRhythm    irregular typing rhythm (bursts and pauses)
  *   Replay             a one-shot reaction that quick repeats queue instead of restart
  *   pageLeft           where the page starts in a window that is wider than the page
+ *   trailFits          the row of step chips still fits under the top of the slot
+ *   besideRow          the skill tag and the newest chip side by side (when it does not)
  */
 (function (root, factory) {
   const api = factory();
@@ -286,5 +288,31 @@
     return Math.max(0, viewportWidth - layout.width);
   }
 
-  return { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay, pageLeft };
+  /**
+   * The row of step chips above the head (renderer.js renderTrail) fits under the top of the
+   * slot: its bottom (CSS px from the slot's bottom) plus its height, with `margin` to spare.
+   * With a skill tag, the bubble and the chips all at once it did not (the chips were cut in
+   * half at the top of the window): then the newest chip goes beside the skill tag (besideRow).
+   */
+  function trailFits(bottom, height, slotHeight, margin = 2) {
+    return bottom + height <= slotHeight - margin;
+  }
+
+  /**
+   * The skill tag and the newest chip side by side in one row, centred over the head and kept
+   * inside the slot (CSS px): where each one starts, and the chip's bottom (centred on the
+   * tag's height). The row is never wider than the slot: the page narrows both (CSS).
+   *   { slotWidth, headX, skillWidth, skillHeight, skillBottom, chipWidth, chipHeight }
+   */
+  function besideRow({ slotWidth, headX, skillWidth, skillHeight, skillBottom, chipWidth, chipHeight, gap = 4, margin = 4 }) {
+    const width = skillWidth + gap + chipWidth;
+    const left = Math.max(margin, Math.min(slotWidth - margin - width, headX - width / 2));
+    return {
+      skillLeft: Math.round(left),
+      chipLeft: Math.round(left + skillWidth + gap),
+      chipBottom: Math.round(skillBottom + Math.max(0, skillHeight - chipHeight) / 2),
+    };
+  }
+
+  return { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay, pageLeft, trailFits, besideRow };
 });

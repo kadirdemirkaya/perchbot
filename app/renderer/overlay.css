@@ -353,6 +353,24 @@ html.column-left body {
   font-weight: 500;
 }
 
+/*
+ * No room above it all (a skill tag, the bubble and the chips at once): the newest chip
+ * sits beside the skill tag (renderer.js besideSkill places both). The row fits the slot:
+ * tag 108 + gap 4 + chip 100 = 212 of 220 px.
+ */
+.trail.beside {
+  width: auto;
+  justify-content: flex-start;
+}
+
+.trail.beside .trail-chip {
+  max-width: 100px;
+}
+
+.trail.beside .trail-chip.older {
+  display: none;
+}
+
 /* ---------------------------------------------------------------- hover menu */
 
 /*
@@ -700,6 +718,11 @@ html.column-left body {
 .skill-tag span {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Sharing its row with the newest chip (see .trail.beside). */
+.skill-tag.beside {
+  max-width: 108px;
 }
 
 .skill-tag svg {

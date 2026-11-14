@@ -46,7 +46,7 @@
  */
 
 (() => {
-  const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay, pageLeft } = window.BuddyInteraction;
+  const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay, pageLeft, trailFits, besideRow } = window.BuddyInteraction;
   const { TapMeter, Temper, TEMPER_MAX, Fury, FocusMeter, FOCUS, IdleStory, Wander, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight } = window.BuddyFun;
 
   const root = document.documentElement;
@@ -544,13 +544,58 @@
       );
     }
     trail.classList.toggle('show', list.length > 0);
-    if (!list.length) return;
+    if (!list.length) {
+      unbeside();
+      return;
+    }
     // Above the bubble (or where it would be), above the skill tag.
     const head = headPoint();
-    const lift = skillTag.classList.contains('show') ? skillTag.offsetHeight + 4 : 0;
+    const skillOn = skillTag.classList.contains('show');
+    const lift = skillOn ? skillTag.offsetHeight + 4 : 0;
     let bottom = SLOT_HEIGHT - head.top + 10 + lift;
     if (bubble.classList.contains('show')) bottom += bubble.offsetHeight + 4;
+    // No room above it all (a skill tag, the bubble and the chips at once): the newest chip
+    // goes beside the skill tag instead of being cut at the top of the window.
+    if (skillOn && !trailFits(bottom, trail.offsetHeight, SLOT_HEIGHT)) {
+      besideSkill(head);
+      return;
+    }
+    unbeside();
     trail.style.bottom = `${Math.round(bottom)}px`;
+  }
+
+  /** The newest chip beside the skill tag, the older ones left out (lib/interaction.js besideRow). */
+  let besideOn = false;
+  function besideSkill(head) {
+    skillTag.classList.add('beside');
+    trail.classList.add('beside');
+    const newest = trail.lastElementChild;
+    if (!newest) return;
+    const row = besideRow({
+      slotWidth: SLOT_WIDTH,
+      headX: head.x,
+      skillWidth: skillTag.offsetWidth,
+      skillHeight: skillTag.offsetHeight,
+      skillBottom: SLOT_HEIGHT - head.top + 6,
+      chipWidth: newest.offsetWidth,
+      chipHeight: newest.offsetHeight,
+    });
+    skillTag.style.left = `${row.skillLeft}px`;
+    trail.style.left = `${row.chipLeft}px`;
+    trail.style.bottom = `${row.chipBottom}px`;
+    if (!besideOn) trace('trail: beside the skill tag (no room above)');
+    besideOn = true;
+  }
+
+  /** Back to the usual stack: the chips above, the skill tag centred again (if it still shows). */
+  function unbeside() {
+    if (!besideOn) return;
+    besideOn = false;
+    skillTag.classList.remove('beside');
+    trail.classList.remove('beside');
+    trail.style.left = '';
+    if (skillTag.classList.contains('show')) placeSkillTag();
+    trace('trail: above the bubble again');
   }
 
   /** The point above the character's head (bubbleAnchor), in slot coordinates. */
@@ -586,10 +631,7 @@
       flag('skill', 'open');
       skillName.textContent = name;
       skillTag.classList.add('show');
-      const head = headPoint();
-      const width = skillTag.offsetWidth;
-      skillTag.style.left = `${Math.round(Math.max(4, Math.min(SLOT_WIDTH - width - 4, head.x - width / 2)))}px`;
-      skillTag.style.bottom = `${Math.round(SLOT_HEIGHT - head.top + 6)}px`;
+      placeSkillTag();
       trace(`skill: open (${name.length} chars)`);
     } else {
       skillTag.classList.remove('show');
@@ -597,6 +639,14 @@
       later('stow', STOW_MS, () => flag('skill', null));
       trace('skill: stow');
     }
+  }
+
+  /** The skill tag centred above the head (kept inside the slot). */
+  function placeSkillTag() {
+    const head = headPoint();
+    const width = skillTag.offsetWidth;
+    skillTag.style.left = `${Math.round(Math.max(4, Math.min(SLOT_WIDTH - width - 4, head.x - width / 2)))}px`;
+    skillTag.style.bottom = `${Math.round(SLOT_HEIGHT - head.top + 6)}px`;
   }
 
   function applyLayout(next) {
