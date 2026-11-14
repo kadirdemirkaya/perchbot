@@ -2,6 +2,10 @@
 
 # Perchbot
 
+[![npm](https://img.shields.io/npm/v/perchbot.svg)](https://www.npmjs.com/package/perchbot)
+[![Downloads](https://img.shields.io/npm/dt/perchbot.svg)](https://www.npmjs.com/package/perchbot)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **A little desktop robot that lets you watch Claude Code work in the background, and makes it fun.**
 
 <img src="docs/media/hello.gif" width="300" alt="The robot waves hello">
