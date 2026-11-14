@@ -40,7 +40,7 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 | the agent waits for you | nudges you, then knocks until you answer |
 | a turn ends | cheers, with a short summary ("Done! 4 steps in 12 s"); on Friday afternoons it dances |
 | a long turn ends while you look elsewhere | flies over to your cursor (even on another screen): "All done! Over to you.", then back |
-| sub-agents start | little helpers join in, work beside it, chat and report back |
+| sub-agents start | little helpers join in, work beside it, chat, play tag, build towers, poke your resting cursor and report back |
 | a skill is in use | reads its skill book, the skill's name on a tag |
 | a test or check fails | a bug turns up and they fight until a check passes ("Bug fixed!") |
 | a commit, a push | plants a flag, launches a rocket |
