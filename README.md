@@ -28,6 +28,7 @@ npm install -g perchbot
 perchbot setup        # adds the hooks to every Claude Code account on this computer
 ```
 
+The first `perchbot setup` also downloads Electron, the window the robot lives in (about 100 MB, once).
 Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows up with your next prompt.
 `perchbot demo` plays every state without an agent. From a clone: `npm install`, then `npm run setup`.
 
@@ -126,6 +127,8 @@ Only the event, the tool name, a file name (not the path) and a shortened comman
 leave the hook, and only to `127.0.0.1`. With ambient life on, the robot also looks at the system idle
 time, where the cursor is (its position only) and, on Windows, where windows are (frames only, never
 titles or contents). Nothing of it is stored or sent anywhere. Settings: `~/.perchbot/settings.json`.
+The only download is Electron itself: once, by `perchbot setup` (or `start` / `demo` while it is still
+missing), with Electron's own installer. The robot never goes online.
 
 ## Development
 

@@ -23,6 +23,7 @@ const ROOT = path.join(__dirname, '..');
 const cli = require('../lib/cli');
 const hooks = require('../lib/hooks-config');
 const { electronBinary, readConfig } = require('../hooks/send');
+const electron = require('../lib/electron');
 
 const SEND_JS = path.join(ROOT, 'hooks', 'send.js');
 
@@ -75,7 +76,7 @@ async function status() {
   const { port } = readConfig();
   console.log(`Perchbot ${version()}\n`);
   console.log(`  This copy  : ${ROOT}`);
-  console.log(`  Electron   : ${electronBinary() ? 'installed' : 'MISSING (run npm install, or node node_modules/electron/install.js)'}`);
+  console.log(`  Electron   : ${electronBinary() ? 'installed' : 'not downloaded yet ("perchbot setup" or "perchbot start" downloads it)'}`);
   console.log(`  Overlay    : ${(await overlayRunning(port)) ? `running on 127.0.0.1:${port}` : 'not running (the first Claude Code event starts it)'}`);
   const accounts = cli.findAccounts();
   console.log(`\n  Claude Code accounts found: ${accounts.length}`);
@@ -84,12 +85,17 @@ async function status() {
   return 0;
 }
 
+/** Electron's binary, downloaded first if needed; null (after saying why) when that failed. */
+function readyElectron() {
+  const got = electron.ensureElectron();
+  if (got.ok) return got.binary;
+  console.error(electron.failureText(got));
+  return null;
+}
+
 function start() {
-  const binary = electronBinary();
-  if (!binary) {
-    console.error('Electron is not installed. Run "npm install" in the Perchbot folder first.');
-    return 1;
-  }
+  const binary = readyElectron();
+  if (!binary) return 1;
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   const child = spawn(binary, [ROOT], { cwd: ROOT, env, detached: true, stdio: 'ignore', windowsHide: true });
@@ -100,6 +106,8 @@ function start() {
 }
 
 function demo(args) {
+  // The demo's events start the overlay through the hook, which never downloads.
+  if (!readyElectron()) return Promise.resolve(1);
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [path.join(ROOT, 'scripts', 'simulate.js'), ...args], { stdio: 'inherit' });
     child.on('exit', (code) => resolve(code || 0));

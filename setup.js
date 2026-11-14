@@ -19,6 +19,8 @@
  *      backup will go.
  *   3. Asks once for confirmation (skip with --yes).
  *   4. Backs up every existing file it changes, then writes the merged result.
+ *   5. Downloads Electron's binary once if it is not there yet (lib/electron.js;
+ *      npm no longer does that during the install). Not with --dry-run.
  * Other hooks already in the files are kept. Running it again is safe: it
  * refreshes its own entries instead of adding duplicates (and points them at
  * this copy of Perchbot, e.g. after installing it with npm).
@@ -29,6 +31,7 @@ const path = require('node:path');
 const cli = require('./lib/cli');
 const hooks = require('./lib/hooks-config');
 const { electronBinary } = require('./hooks/send');
+const electron = require('./lib/electron');
 
 const SEND_JS = path.join(__dirname, 'hooks', 'send.js');
 const USAGE = 'Usage: perchbot setup [options]   (or: npm run setup -- [options])';
@@ -75,6 +78,15 @@ function plan({ file, why }) {
   return { file, settings: result.settings, added: result.added.length, backup };
 }
 
+/** Step 5: Electron's binary. 0 when it is there now, 1 when the download failed. */
+function downloadElectron() {
+  console.log('');
+  const got = electron.ensureElectron();
+  if (got.ok) return 0;
+  console.error(`\n  ${electron.failureText(got)}\n  The hooks are in place; the robot can start once Electron is there.`);
+  return 1;
+}
+
 async function main(argv = process.argv.slice(2)) {
   let opts;
   try {
@@ -95,13 +107,8 @@ async function main(argv = process.argv.slice(2)) {
 
   const [major] = process.versions.node.split('.').map(Number);
   if (major < 20) console.log(`\n  Warning: Node.js ${process.versions.node} found; Perchbot is tested with Node 20+.`);
-  if (!electronBinary()) {
-    console.log(
-      '\n  Warning: Electron is not installed yet, so the overlay cannot start.\n' +
-        '  Run "npm install" first. If that finished but this warning stays, run:\n' +
-        '    node node_modules/electron/install.js',
-    );
-  }
+  const needsElectron = !electronBinary();
+  if (needsElectron) console.log(`\n  Electron      : not downloaded yet; setup downloads it once (${electron.SIZE})`);
 
   const plans = targets.map(plan);
   if (plans.some((p) => p.error)) {
@@ -109,7 +116,7 @@ async function main(argv = process.argv.slice(2)) {
     return 1;
   }
   const writes = plans.filter((p) => p.settings);
-  if (!writes.length) return 0;
+  if (!writes.length) return needsElectron && !opts.dryRun ? downloadElectron() : 0;
 
   if (opts.dryRun) {
     console.log('\n  --dry-run: nothing was written.');
@@ -133,6 +140,7 @@ async function main(argv = process.argv.slice(2)) {
     console.log(`\n  Done. ${p.added} hooks written to ${p.file}`);
     if (p.backup) console.log(`  Backup of the previous file: ${p.backup}`);
   }
+  if (needsElectron && downloadElectron() !== 0) return 1;
   const single = opts.configDir !== undefined || opts.project !== undefined || opts.local !== undefined;
   console.log(
     '\n  Claude Code picks up hook changes automatically; restart open sessions if the buddy does not appear.' +

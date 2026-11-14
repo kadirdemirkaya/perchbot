@@ -642,18 +642,27 @@ function post(payload, port, timeoutMs = POST_TIMEOUT_MS) {
 }
 
 /**
- * The Electron binary: from Perchbot's own node_modules (a clone, or a
- * global npm install), else wherever Node would find the package from here
- * (an install where npm put Electron one level up). null when it is missing.
+ * Where the electron package can be: Perchbot's own node_modules (a clone, or
+ * a global npm install), else wherever Node would find it from here (an
+ * install where npm put Electron one level up).
  */
-function electronBinary(root = ROOT) {
+function electronDirs(root = ROOT) {
   const places = [path.join(root, 'node_modules', 'electron')];
   try {
     places.push(path.dirname(require.resolve('electron/package.json', { paths: [root] })));
   } catch {
     // not resolvable from here
   }
-  for (const pkg of places) {
+  return places;
+}
+
+/**
+ * The Electron binary in one of those packages; null when it is missing.
+ * Read from path.txt and dist/ directly (loading the electron package would
+ * start a download), so the hook stays fast. lib/electron.js downloads it.
+ */
+function electronBinary(root = ROOT) {
+  for (const pkg of electronDirs(root)) {
     try {
       const binary = path.join(pkg, 'dist', fs.readFileSync(path.join(pkg, 'path.txt'), 'utf8').trim());
       if (fs.existsSync(binary)) return binary;
@@ -853,5 +862,6 @@ module.exports = {
   launchArgs,
   post,
   schemaRecord,
+  electronDirs,
   electronBinary,
 };
