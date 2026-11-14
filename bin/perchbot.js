@@ -35,7 +35,8 @@ Usage: perchbot <command> [options]
               (~/.claude, ~/.claude-<name>, $CLAUDE_CONFIG_DIR); asks once, backs up each file
   uninstall   remove Perchbot's hooks again (nothing else)
   status      which accounts have the hooks; is the overlay running
-  doctor      check and fix: hooks everywhere, a live test per account, sessions
+              (--config-dir <dir>: only that one)
+  doctor     check and fix: hooks everywhere, a live test per account, sessions
               opened before the hooks (--account <name> tests one, --yes)
   start       start the overlay now (normally the first Claude Code event starts it)
   demo        a short tour of every state, without Claude Code
@@ -72,12 +73,37 @@ function hookState(file) {
   return 'not installed';
 }
 
-async function status() {
+const STATUS_USAGE = `Usage: perchbot status [--config-dir <dir> | --project [dir] | --local [dir]]
+
+  (default)            every Claude Code account found on this computer
+  --config-dir <dir>   only <dir>/settings.json
+  --project [dir]      only <dir>/.claude/settings.json
+  --local [dir]        only <dir>/.claude/settings.local.json`;
+
+async function status(args = []) {
+  let opts;
+  try {
+    opts = cli.parseArgs(args);
+  } catch (err) {
+    console.error(`${err.message}\n\n${STATUS_USAGE}`);
+    return 2;
+  }
+  if (opts.help) {
+    console.log(STATUS_USAGE);
+    return 0;
+  }
   const { port } = readConfig();
   console.log(`Perchbot ${version()}\n`);
   console.log(`  This copy  : ${ROOT}`);
   console.log(`  Electron   : ${electronBinary() ? 'installed' : 'not downloaded yet ("perchbot setup" or "perchbot start" downloads it)'}`);
   console.log(`  Overlay    : ${(await overlayRunning(port)) ? `running on 127.0.0.1:${port}` : 'not running (the first Claude Code event starts it)'}`);
+  // One settings file named by an option: only that one (no other account is read).
+  if (opts.configDir !== undefined || opts.project !== undefined || opts.local !== undefined) {
+    const [target] = cli.resolveTargets(opts);
+    console.log(`\n  Settings file (${target.why}): ${target.file}`);
+    console.log(`    ${hookState(target.file)}`);
+    return 0;
+  }
   const accounts = cli.findAccounts();
   console.log(`\n  Claude Code accounts found: ${accounts.length}`);
   for (const a of accounts) console.log(`    ${path.basename(a.dir).replace(/^\./, '').padEnd(20)} ${hookState(a.file)}`);
@@ -136,7 +162,7 @@ async function run(argv) {
       });
     }
     case 'status':
-      return status();
+      return status(rest);
     case 'start':
       return start();
     case 'demo':

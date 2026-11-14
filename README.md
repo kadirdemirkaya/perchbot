@@ -138,7 +138,7 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 |---|---|
 | `perchbot setup` | add the hooks (`~/.claude`, `~/.claude-<name>`, `$CLAUDE_CONFIG_DIR`); asks once, backs up each file |
 | `perchbot doctor` | fix missing hooks, test each account live (`--account <name>` for one) |
-| `perchbot status` | which accounts have the hooks, is the robot running |
+| `perchbot status` | which accounts have the hooks, is the robot running (`--config-dir <dir>` for one) |
 | `perchbot start` | start the robot now |
 | `perchbot demo` | a tour of every state, no agent needed |
 | `perchbot uninstall` | remove the hooks again |

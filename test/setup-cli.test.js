@@ -199,3 +199,29 @@ test('the perchbot command: help, version, unknown commands', () => {
   const setupHelp = run('bin/perchbot.js', ['setup', '--help'], env);
   assert.match(setupHelp.out, /every Claude Code account/);
 });
+
+test('perchbot status --config-dir: only that settings file, no other account', () => {
+  const { dir, env } = sandbox();
+  delete env.CLAUDE_CONFIG_DIR;
+  fs.mkdirSync(path.join(dir, '.claude'));
+  fs.mkdirSync(path.join(dir, '.claude-work', 'projects'), { recursive: true });
+  const fake = path.join(dir, 'fake-claude');
+  fs.mkdirSync(fake);
+  assert.equal(run('setup.js', ['--yes', '--config-dir', fake], env).code, 0);
+
+  const one = run('bin/perchbot.js', ['status', '--config-dir', fake], env);
+  assert.equal(one.code, 0, one.out);
+  assert.ok(one.out.includes(`Settings file (--config-dir): ${path.join(fake, 'settings.json')}`), one.out);
+  assert.match(one.out, /^ {4}installed\r?$/m);
+  assert.doesNotMatch(one.out, /accounts found/, 'the other accounts are not listed');
+
+  const none = run('bin/perchbot.js', ['status', '--config-dir', path.join(dir, 'empty')], env);
+  assert.equal(none.code, 0, none.out);
+  assert.match(none.out, /no settings file yet: not installed/);
+
+  // Without options: every account, as before.
+  assert.match(run('bin/perchbot.js', ['status'], env).out, /accounts found: 2/);
+  assert.equal(run('bin/perchbot.js', ['status', '--frobnicate'], env).code, 2);
+  assert.equal(run('bin/perchbot.js', ['status', '--config-dir'], env).code, 2, 'a folder is needed');
+  assert.match(run('bin/perchbot.js', ['status', '--help'], env).out, /--config-dir <dir> {3}only <dir>\/settings\.json/);
+});
