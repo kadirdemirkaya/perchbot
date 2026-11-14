@@ -36,7 +36,7 @@ Usage: perchbot <command> [options]
   uninstall   remove Perchbot's hooks again (nothing else)
   status      which accounts have the hooks; is the overlay running
               (--config-dir <dir>: only that one)
-  doctor     check and fix: hooks everywhere, a live test per account, sessions
+  doctor      check and fix: hooks everywhere, a live test per account, sessions
               opened before the hooks (--account <name> tests one, --yes)
   start       start the overlay now (normally the first Claude Code event starts it)
   demo        a short tour of every state, without Claude Code
