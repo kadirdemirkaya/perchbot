@@ -443,3 +443,195 @@ test('roaming: never out for longer than awayMaxMs; taken off the page while out
   d.setAgents([agent(ID(1))]); // the app forgot agent 2
   assert.deepEqual(log.cues, [['recall', { id: ID(2) }]]);
 });
+
+/** Steps the clock in small ticks and records each mini's phase changes (and a few details). */
+function track(clock, views, ids, ms, step = 10) {
+  const seen = Object.fromEntries(ids.map((id) => [id, []]));
+  for (let t = 0; t < ms; t += step) {
+    clock.tick(step);
+    for (const id of ids) {
+      const v = views.get(id);
+      const last = seen[id][seen[id].length - 1];
+      const now = v ? `${v.phase}${v.play ? `:${v.play}` : ''}` : 'gone';
+      if (!last || last.phase !== now) seen[id].push({ phase: now, off: v && v.off, fly: v && v.fly, lift: v && v.lift, face: v && v.face });
+    }
+  }
+  return seen;
+}
+
+test('games: tag, a tap sends the other one running, a chase, caught at the last tap, both jump for joy', () => {
+  const { clock, d, views } = working(2);
+  d.setQuiet(true); // nothing else in between
+  const chaser = d.minis.get(ID(1));
+  const runner = d.minis.get(ID(2));
+  d.tag(chaser, runner);
+  assert.equal(views.get(ID(2)).phase, 'look', 'the one about to be tagged looks round');
+  assert.equal(views.get(ID(1)).phase, 'walk');
+  assert.equal(views.get(ID(1)).off, GEO.spots[1] - T.tagReach, 'up beside it, on its own side');
+  const seen = track(clock, views, [ID(1), ID(2)], 15000);
+  const taps = seen[ID(1)].filter((s) => s.phase === 'tag');
+  assert.equal(taps.length, T.tagRounds + 1, 'a tap for each run, then the catch');
+  const runs = seen[ID(2)].filter((s) => s.phase === 'walk');
+  assert.equal(runs.length, T.tagRounds, 'it runs off after each tap but the last');
+  assert.ok(runs.every((s) => s.off >= GEO.report && s.off <= GEO.spots[1]), 'inside the crew area');
+  assert.ok(runs.some((s) => s.fly), 'cornered, it hops over the other one');
+  for (const id of [ID(1), ID(2)]) {
+    assert.ok(seen[id].some((s) => s.phase === 'play:jump'), `${id}: jumps for joy`);
+    assert.equal(views.get(id).phase, 'work', `${id}: back to work`);
+    assert.equal(d.minis.get(id).game, null);
+    assert.equal(d.minis.get(id).partner, null);
+  }
+  assert.equal(views.get(ID(1)).off, GEO.spots[0]);
+  assert.equal(views.get(ID(2)).off, GEO.spots[1]);
+});
+
+test('games: tag cut short (the runner picked up, an agent done): the other one goes back to work', () => {
+  const { clock, d, views } = working(3);
+  d.setQuiet(true);
+  d.tag(d.minis.get(ID(1)), d.minis.get(ID(3)));
+  clock.tick(2000);
+  assert.equal(d.grab(ID(3)), true);
+  clock.tick(3000);
+  assert.equal(views.get(ID(1)).phase, 'work', 'the chaser stops and goes back');
+  assert.equal(views.get(ID(1)).off, GEO.spots[0]);
+  d.dropAt(ID(3), 300);
+  clock.tick(T.landMs);
+  assert.equal(views.get(ID(3)).phase, 'work');
+  // An agent that finishes during a game plays on, then reports.
+  d.tag(d.minis.get(ID(1)), d.minis.get(ID(2)));
+  clock.tick(500);
+  d.setAgents([agent(ID(1)), agent(ID(2), 'done'), agent(ID(3))]);
+  assert.notEqual(views.get(ID(2)).phase, 'done', 'not in the middle of the game');
+  const seen = track(clock, views, [ID(2)], 15000);
+  assert.ok(seen[ID(2)].some((s) => s.phase === 'play:jump'), 'the game ends as usual');
+  assert.ok(seen[ID(2)].some((s) => s.phase === 'done' || s.phase === 'report' || s.phase === 'gone'), 'then it finishes');
+});
+
+test('games: a tower, one hops up onto the head of the other, they wobble, it hops down', () => {
+  const { clock, d, views } = working(2);
+  d.setQuiet(true);
+  d.tower(d.minis.get(ID(1)), d.minis.get(ID(2)));
+  assert.equal(views.get(ID(1)).phase, 'look');
+  assert.equal(views.get(ID(1)).face, 'out', 'turns to the one coming');
+  assert.equal(views.get(ID(2)).off, GEO.spots[0] + T.climbFrom, 'up beside it first');
+  clock.tick(views.get(ID(2)).walkMs);
+  const climb = views.get(ID(2));
+  assert.equal(climb.phase, 'climb');
+  assert.equal(climb.off, GEO.spots[0], 'onto its head');
+  assert.equal(climb.lift, T.towerLift);
+  assert.equal(climb.fly, true, 'on its thrusters');
+  assert.equal(climb.walkMs, T.climbMs);
+  clock.tick(T.climbMs);
+  assert.equal(views.get(ID(1)).phase, 'tower');
+  assert.equal(views.get(ID(2)).phase, 'tower-top');
+  assert.equal(views.get(ID(2)).lift, T.towerLift, 'stays up there');
+  assert.equal(views.get(ID(2)).face, views.get(ID(1)).face, 'both face the same way (their sway mirrors with them)');
+  clock.tick(T.towerMs);
+  assert.equal(views.get(ID(1)).phase, 'work');
+  const down = views.get(ID(2));
+  assert.equal(down.lift, 0, 'hops down');
+  assert.equal(down.fly, true);
+  assert.equal(down.walkMs, T.hopDownMs);
+  assert.equal(down.off, GEO.spots[0] + T.climbFrom, 'a little way towards its spot');
+  clock.tick(5000);
+  assert.equal(views.get(ID(2)).phase, 'work');
+  assert.equal(views.get(ID(2)).off, GEO.spots[1]);
+  assert.equal(views.get(ID(2)).lift, 0);
+});
+
+test('games: the one below picked up mid-tower: the one on top hops down and goes back to work', () => {
+  const { clock, d, views } = working(2);
+  d.setQuiet(true);
+  d.tower(d.minis.get(ID(1)), d.minis.get(ID(2)));
+  clock.tick(views.get(ID(2)).walkMs + T.climbMs + 500);
+  assert.equal(views.get(ID(2)).phase, 'tower-top');
+  d.grab(ID(1));
+  assert.equal(views.get(ID(2)).lift, 0, 'down at once');
+  clock.tick(5000);
+  assert.equal(views.get(ID(2)).phase, 'work');
+  assert.equal(views.get(ID(2)).off, GEO.spots[1]);
+  // The one on top picked up: off the head, the pointer holds it.
+  d.dropAt(ID(1), GEO.spots[0]);
+  clock.tick(T.landMs + 100);
+  d.tower(d.minis.get(ID(1)), d.minis.get(ID(2)));
+  clock.tick(views.get(ID(2)).walkMs + T.climbMs + 500);
+  d.grab(ID(2));
+  assert.equal(views.get(ID(2)).lift, 0);
+  clock.tick(3000);
+  assert.equal(views.get(ID(1)).phase, 'work');
+});
+
+test('the pointer rests over the crew: the nearest one at work runs over, pokes at it, runs back', () => {
+  const { clock, d, views } = working(2, () => 0.99);
+  const at = GEO.spots[0] + 40;
+  assert.equal(d.tease(at), true);
+  assert.equal(views.get(ID(1)).phase, 'walk', 'the nearest one');
+  assert.equal(views.get(ID(2)).phase, 'work');
+  assert.equal(views.get(ID(1)).off, at - T.teaseArm, 'just short of it');
+  clock.tick(views.get(ID(1)).walkMs);
+  assert.equal(views.get(ID(1)).phase, 'tease');
+  assert.equal(views.get(ID(1)).face, 'out', 'facing the pointer');
+  clock.tick(T.teaseMs);
+  assert.equal(views.get(ID(1)).phase, 'walk', 'runs back');
+  clock.tick(1000);
+  assert.equal(views.get(ID(1)).phase, 'work');
+  assert.equal(views.get(ID(1)).off, GEO.spots[0]);
+  // Not when nobody is near enough, nowhere near the crew, not quiet, nothing odd.
+  assert.equal(d.tease(GEO.spots[1] + T.teaseReach), false, 'beyond the crew area');
+  assert.equal(d.tease(GEO.report - 100), false, 'over the main character');
+  assert.equal(d.tease(Number.NaN), false);
+  d.setQuiet(true);
+  assert.equal(d.tease(at), false, 'resting');
+});
+
+test('social moments: two at work may play tag or make a tower; one alone never does', () => {
+  const sequenceOf = (...values) => () => (values.length ? values.shift() : 0);
+  {
+    const { d } = working(2);
+    d.setQuiet(true);
+    // Options: chat 3, visit 2, prank 2, play 4, zoom 3, tag 3, tower 2, stroll 2 (21): 0.75 -> tag.
+    d.random = sequenceOf(0.75, 0, 0.5);
+    d.socialMoment();
+    assert.equal(d.minis.get(ID(1)).game, 'tag');
+    assert.equal(d.minis.get(ID(2)).game, 'tag');
+  }
+  {
+    const { d } = working(2);
+    d.setQuiet(true);
+    d.random = sequenceOf(0.86, 0);
+    d.socialMoment();
+    assert.equal(d.minis.get(ID(1)).game, 'tower', 'the inner one below');
+    assert.equal(d.minis.get(ID(2)).game, 'tower');
+  }
+  {
+    const { d } = working(1);
+    d.setQuiet(true);
+    for (const r of [0, 0.3, 0.6, 0.75, 0.86, 0.99]) {
+      d.random = sequenceOf(r, 0, 0);
+      d.socialMoment();
+      assert.equal(d.minis.get(ID(1)).game, null, `random ${r}`);
+      d.backToWork(d.minis.get(ID(1)));
+    }
+  }
+});
+
+test('the games on the page: drawn lifted, a poke at the resting pointer (ambient life), demos, poses', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const read = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
+  const view = read('app', 'renderer', 'crew-view.js');
+  assert.ok(view.includes("el.style.setProperty('--lift', `${view.lift || 0}px`);"), 'up on the other one: --lift');
+  assert.ok(view.includes("view.fly || view.phase === 'leave' || view.lift > 0 ? 20 : 10 - view.slot"), 'drawn above the one below');
+  assert.ok(view.includes('if (!director.tease(off)) return;'));
+  assert.ok(view.includes('const TEASE = Object.freeze({ restMs: 1300, moveTol: 14, gapMs: 30000, height: 230 });'), 'resting a moment, at most every 30 s');
+  const page = read('app', 'renderer', 'renderer.js');
+  // Only over the empty crew area (not on a mini: its tooltip and the drag stay as they were), with ambient life.
+  assert.ok(page.includes('const teaseOk = next === null && crewCount > 0 && ambientOn() && !drag && !moving && !duel.active && !raging && !chatOpen && !paused;'));
+  assert.ok(page.includes('crew.pointer(teaseOk ? clientX : null, clientY);'));
+  assert.ok(page.includes('    crew.pointer(null);\n    if (drag) return;'), 'leaving the page forgets it');
+  assert.ok(page.includes("} else if (name === 'tag' || name === 'tower') {"));
+  const demos = read('app', 'validate.js');
+  for (const name of ['tag', 'tower', 'tease']) assert.ok(demos.includes(`  '${name}',`), name);
+  const css = read('characters', 'robot', 'mini.css');
+  for (const phase of ['tag', 'tower', 'tower-top', 'tease']) assert.ok(css.includes(`.buddy-mini[data-phase='${phase}']`), phase);
+});

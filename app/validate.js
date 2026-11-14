@@ -99,6 +99,10 @@ const DEMOS = new Set([
   'screen',
   // A helper off to roam the screen in a window of its own (needs a helper at work).
   'roam',
+  // Two helpers at work play tag / make a tower; one pokes at the pointer (as if it rested above them).
+  'tag',
+  'tower',
+  'tease',
   'anger',
   // The anger ladder: cross, it leaves fuming, then three more taps set its head on fire.
   'rage',

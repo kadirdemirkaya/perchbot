@@ -25,6 +25,10 @@
  *              prank  sneaks up to the main character, pokes it ("poke" cue:
  *                     a jolt, and it gets a little cross)
  *                     and runs back, quickly
+ *              tag    (two of them) a tap, "you're it!": that one runs off and the
+ *                     other gives chase; caught at the last tap, both jump for joy
+ *              tower  (two neighbours) one hops up onto the other's head, they
+ *                     wobble, it waves, hops down
  *              roam   (when the page allows it: ambient life on) off out of
  *                     the window on its thrusters ("outing"), then "away":
  *                     cue 'outing' and the app flies it around the screen(s)
@@ -32,6 +36,8 @@
  *                     in at its spot again. At most two are out at once; one
  *                     whose agent finishes meanwhile is called back (cue
  *                     'recall'), and none stays out longer than awayMaxMs
+ *   tease    the pointer rests over the crew (the page asks, ambient life on): the
+ *            nearest one at work runs over, pokes at it from below, runs back
  *   held     the user picked it up; when dropped it lands there and makes that
  *            place its new spot
  *   shooed   hit too often: it huffs, then walks (or hops) off to a random new
@@ -101,6 +107,30 @@
     awayMaxMs: 60000,
     /** At most this many out roaming at once. */
     maxOut: 2,
+    /** Tag: how close the one who is "it" comes for a tap (CSS px), and the tap itself. */
+    tagReach: 50,
+    tagTapMs: 450,
+    /** Taps that send the other one running (each followed by a chase); the next tap catches it. */
+    tagRounds: 2,
+    /** The one running away is quicker than the one chasing it, who sets off a moment later. */
+    tagRunSpeed: 0.17,
+    tagChaseSpeed: 0.12,
+    tagDelayMs: 300,
+    /** A run away goes at least this far (when the crew area has the room). */
+    tagRunMin: 90,
+    /** Caught: both jump for joy (play "jump": three hops). */
+    tagCheerMs: 1800,
+    /** A tower: the one on top stands this high, its feet on the other one's head (mini artwork). */
+    towerLift: 100,
+    /** Up from beside it (this far, CSS px) onto its head, on its thrusters. */
+    climbFrom: 40,
+    climbMs: 650,
+    towerMs: 2600,
+    hopDownMs: 450,
+    /** A poke at the pointer resting over the crew: only a mini this close goes; it stands this short of it. */
+    teaseReach: 170,
+    teaseArm: 26,
+    teaseMs: 1200,
   });
 
   const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
@@ -108,7 +138,7 @@
    * Relative weights of the social moments (when each is possible). The kids are a
    * bit naughty: they show off, zoom about on their thrusters and poke the main character.
    */
-  const SOCIAL_WEIGHTS = { chat: 3, visit: 2, stroll: 2, play: 4, zoom: 3, prank: 2, roam: 6 };
+  const SOCIAL_WEIGHTS = { chat: 3, visit: 2, stroll: 2, play: 4, zoom: 3, prank: 2, roam: 6, tag: 3, tower: 2 };
   /** Their little shows (mini CSS: data-phase="play" with data-play). */
   const MINI_PLAYS = ['spin', 'jump', 'wave', 'dance'];
   /** A zoom needs at least this much room in the crew area (CSS px). */
@@ -218,6 +248,8 @@
       mini.phase = 'held';
       mini.fly = true;
       mini.walkMs = 0;
+      // Taken off another one's head (a tower): the pointer holds it now.
+      mini.lift = 0;
       this.emit(mini);
       this.scheduleSocial();
       return true;
@@ -366,6 +398,10 @@
         finishing: null,
         partner: null,
         play: null,
+        /** A game with its partner: 'tag' | 'tower' | null. */
+        game: null,
+        /** Above the ground (CSS px): on another one's head in a tower. */
+        lift: 0,
       };
       this.minis.set(mini.id, mini);
       if (atReport) this.reportHolder = mini.id;
@@ -513,11 +549,17 @@
       if (this.reportHolder === null) options.push('visit', 'prank');
       options.push('play');
       if (this.maxOff() - (this.geo.report + this.t.strollMargin) >= ZOOM_ROOM) options.push('zoom');
+      // Two of them at work: a game of tag, or (neighbours) a tower. Before 'stroll' and 'roam',
+      // so that a pick of the first or the last option is what it always was.
+      if (workers.length >= 2) options.push('tag');
+      if (pairs.length) options.push('tower');
       options.push('stroll');
       if (this.roamAllowed && this.outCount() < this.t.maxOut) options.push('roam');
       const kind = this.pickKind(options);
       const any = () => workers[Math.floor(this.random() * workers.length)];
       if (kind === 'chat') this.chat(...pairs[Math.floor(this.random() * pairs.length)]);
+      else if (kind === 'tag') this.tag(...this.twoOf(workers));
+      else if (kind === 'tower') this.tower(...pairs[Math.floor(this.random() * pairs.length)]);
       else if (kind === 'visit') this.visit(any());
       else if (kind === 'prank') this.prank(any());
       else if (kind === 'play') this.play(any());
@@ -660,8 +702,194 @@
       });
     }
 
+    // ---------------------------------------------------------------- games: tag, a tower
+
+    /** Two different minis out of `workers`, at random. */
+    twoOf(workers) {
+      const n = workers.length;
+      const i = Math.floor(this.random() * n) % n;
+      let j = Math.floor(this.random() * (n - 1)) % (n - 1);
+      if (j >= i) j += 1;
+      return [workers[i], workers[j]];
+    }
+
+    /** An offset kept inside the crew area. */
+    inArea(off) {
+      return Math.round(Math.max(this.geo.report, Math.min(this.maxOff(), off)));
+    }
+
+    pair(a, b, game) {
+      a.partner = b.id;
+      b.partner = a.id;
+      a.game = game;
+      b.game = game;
+    }
+
+    /** Both still here and still playing `game` together (a drag, a shoo or a finished agent ends it). */
+    together(a, b, game) {
+      return this.minis.get(a.id) === a && this.minis.get(b.id) === b && a.partner === b.id && b.partner === a.id && a.game === game && b.game === game;
+    }
+
+    /** A game is over (or cut short): both go back to work (the one on top hops down first). */
+    endGame(mini) {
+      const partner = mini.partner ? this.minis.get(mini.partner) : null;
+      for (const m of [mini, partner]) {
+        if (!m || this.minis.get(m.id) !== m) continue;
+        m.partner = null;
+        m.game = null;
+        this.backToWork(m);
+      }
+    }
+
+    /**
+     * Tag: one of them runs over and taps another ("you're it!"); that one runs off and the
+     * first gives chase, a moment later and a little slower. After tagRounds runs the next tap
+     * catches it, and both jump for joy. Then back to work.
+     */
+    tag(chaser, runner) {
+      this.pair(chaser, runner, 'tag');
+      // The one about to be tagged looks round (it is not quietly working any more).
+      this.setPhase(runner, 'look', runner.face);
+      this.tagLeg(chaser, runner, 0);
+    }
+
+    tagLeg(chaser, runner, round) {
+      if (!this.together(chaser, runner, 'tag')) {
+        this.endGame(chaser);
+        return;
+      }
+      // Up beside it, on the side it comes from.
+      const side = chaser.off <= runner.off ? -1 : 1;
+      const at = this.inArea(runner.off + side * this.t.tagReach);
+      const speed = round === 0 ? this.t.walkSpeed * 1.5 : this.t.tagChaseSpeed;
+      this.walk(
+        chaser,
+        at,
+        () => {
+          if (!this.together(chaser, runner, 'tag')) {
+            this.endGame(chaser);
+            return;
+          }
+          this.setPhase(chaser, 'tag', runner.off >= chaser.off ? 'out' : 'in');
+          this.after(chaser, this.t.tagTapMs, () => {
+            if (!this.together(chaser, runner, 'tag')) {
+              this.endGame(chaser);
+              return;
+            }
+            if (round >= this.t.tagRounds) {
+              // Caught: both jump for joy, then back to work.
+              for (const m of [chaser, runner]) {
+                m.play = 'jump';
+                this.setPhase(m, 'play', m.face);
+              }
+              this.after(chaser, this.t.tagCheerMs, () => this.endGame(chaser));
+              return;
+            }
+            // Off it runs; the other one gives chase a moment later.
+            this.walk(runner, this.fleeSpot(runner, chaser), () => this.setPhase(runner, 'look', runner.face), { speed: this.t.tagRunSpeed });
+            this.setPhase(chaser, 'look', chaser.face);
+            this.after(chaser, this.t.tagDelayMs, () => this.tagLeg(chaser, runner, round + 1));
+          });
+        },
+        { speed },
+      );
+    }
+
+    /** Where the tagged one runs to: away from the one chasing it; cornered, past it to the far side. */
+    fleeSpot(runner, chaser) {
+      const lo = this.geo.report + this.t.tagReach;
+      const hi = Math.max(lo, this.maxOff());
+      const away = runner.off >= chaser.off ? 1 : -1;
+      const room = away > 0 ? hi - runner.off : runner.off - lo;
+      if (room >= this.t.tagRunMin) {
+        const far = this.t.tagRunMin + this.random() * (room - this.t.tagRunMin);
+        return this.inArea(runner.off + away * far);
+      }
+      // Cornered: it dodges past the other one (hopping over it) to the other end.
+      return this.inArea(away > 0 ? lo : hi);
+    }
+
+    /**
+     * A tower: the outer one of two neighbours comes up beside the other, hops up onto its
+     * head on its thrusters, and stands there waving while they both wobble; then it hops
+     * down and both go back to work.
+     */
+    tower(base, top) {
+      this.pair(base, top, 'tower');
+      const side = top.off >= base.off ? 1 : -1;
+      this.setPhase(base, 'look', side > 0 ? 'out' : 'in');
+      this.walk(top, this.inArea(base.off + side * this.t.climbFrom), () => {
+        if (!this.together(base, top, 'tower')) {
+          this.endGame(top);
+          return;
+        }
+        // Up onto its head (the page draws it above the other one while it is lifted).
+        top.off = base.off;
+        top.lift = this.t.towerLift;
+        top.fly = true;
+        top.face = side > 0 ? 'in' : 'out';
+        top.phase = 'climb';
+        top.walkMs = this.t.climbMs;
+        this.emit(top);
+        this.after(top, this.t.climbMs, () => {
+          if (!this.together(base, top, 'tower')) {
+            this.endGame(top);
+            return;
+          }
+          // Both face the same way up there (their sway is mirrored with them, mini.css).
+          this.setPhase(base, 'tower', base.face);
+          this.setPhase(top, 'tower-top', base.face);
+          this.after(top, this.t.towerMs, () => this.endGame(top));
+        });
+      });
+    }
+
+    /**
+     * The pointer rests over the crew (the page asks now and then, ambient life on): the
+     * mini quietly at work nearest to it (within teaseReach) runs over, pokes at it from
+     * below and runs back. False when nobody is free or near enough.
+     * @param {number} off  where the pointer is, as an outward offset (CSS px)
+     */
+    tease(off) {
+      const at = Number(off);
+      if (this.quiet || this.disposed || !Number.isFinite(at)) return false;
+      if (at < this.geo.report - this.t.teaseArm || at > this.maxOff() + this.t.teaseReach / 2) return false;
+      const near = this.idleWorkers().filter((m) => Math.abs(m.off - at) <= this.t.teaseReach);
+      if (!near.length) return false;
+      near.sort((a, b) => Math.abs(a.off - at) - Math.abs(b.off - at));
+      const mini = near[0];
+      const dir = at >= mini.off ? 1 : -1;
+      this.walk(
+        mini,
+        this.inArea(at - dir * this.t.teaseArm),
+        () => {
+          this.setPhase(mini, 'tease', dir > 0 ? 'out' : 'in');
+          this.after(mini, this.t.teaseMs, () => this.walk(mini, this.spotOf(mini), () => this.work(mini), { speed: this.t.runSpeed }));
+        },
+        { speed: this.t.runSpeed },
+      );
+      return true;
+    }
+
     backToWork(mini) {
       this.clearTimer(mini);
+      // Up on another one's head (a tower): a hop down first, a little way towards its spot.
+      if (mini.lift > 0) {
+        const dir = this.spotOf(mini) >= mini.off ? 1 : -1;
+        mini.off = this.inArea(mini.off + dir * Math.min(this.t.climbFrom, Math.abs(this.spotOf(mini) - mini.off)));
+        mini.lift = 0;
+        mini.fly = true;
+        mini.face = dir > 0 ? 'out' : 'in';
+        mini.phase = 'walk';
+        mini.walkMs = this.t.hopDownMs;
+        this.emit(mini);
+        this.after(mini, this.t.hopDownMs, () => {
+          mini.fly = false;
+          mini.walkMs = 0;
+          this.backToWork(mini);
+        });
+        return;
+      }
       if (mini.off === this.spotOf(mini)) this.work(mini);
       else this.walk(mini, this.spotOf(mini), () => this.work(mini));
     }
@@ -670,10 +898,16 @@
     leavePartner(mini) {
       const partner = mini.partner ? this.minis.get(mini.partner) : null;
       mini.partner = null;
+      mini.game = null;
       if (!partner) return;
       partner.partner = null;
       // A partner already talking goes back; one still walking over notices on arrival.
       if (partner.phase === 'chat') this.backToWork(partner);
+      // In a game (tag, a tower): it stops and goes back to work (hopping down first if it was on top).
+      else if (partner.game) {
+        partner.game = null;
+        this.backToWork(partner);
+      }
     }
 
     // ---------------------------------------------------------------- helpers
@@ -761,6 +995,7 @@
         face: mini.face,
         fly: mini.fly,
         walkMs: mini.walkMs,
+        lift: mini.lift || 0,
       };
     }
 
@@ -785,6 +1020,9 @@
  * @property {number|null} home  where the user dropped it (overrides the slot's spot)
  * @property {number} tint  colour variant
  * @property {string} phase  arrive | brief | walk | work | chat | look | play | prank | held | land | huff | done | report | leave | outing | away
+ *   | tag (a tap: "you're it!") | climb | tower (the one below) | tower-top (the one on its head) | tease (a poke at the pointer)
+ * @property {string|null} game  'tag' | 'tower' | null: a game with its partner
+ * @property {number} lift  above the ground (CSS px): on another one's head in a tower
  * @property {string|null} play  during phase "play": spin | jump | wave | dance
  * @property {number} off  outward offset of its feet (CSS px)
  * @property {'in'|'out'} face

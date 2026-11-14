@@ -642,6 +642,110 @@
   50% { transform: translateY(-3px) scale(0.98, 1.03); }
 }
 
+/* ------------------------------------------------------------ tag: a tap, "you're it!" */
+
+/* The runs are ordinary walks (quicker); this is the tap at the end of each one. */
+.buddy-mini[data-phase='tag'] :is(.rbm-eyes, .rbm-mouth) {
+  opacity: 0;
+}
+
+.buddy-mini[data-phase='tag'] :is(.rbm-eyes-happy, .rbm-mouth-grin) {
+  opacity: 1;
+}
+
+.buddy-mini[data-phase='tag'] .rbm-arm-front {
+  transform: rotate(-80deg);
+}
+
+.buddy-mini[data-phase='tag']:not([data-rest]) .rbm-arm-front {
+  animation: rbm-poke 0.22s ease-in-out;
+}
+
+/* ------------------------------------------------------------ a tower: one on the other's head */
+
+/* The app lifts the one on top (--lift) onto the other one's head (climb: on its thrusters).
+   The one below holds still, both arms up, a little strained ("o"). */
+.buddy-mini[data-phase='tower'] .rbm-arm {
+  transform: rotate(155deg);
+}
+
+.buddy-mini[data-phase='tower'] .rbm-arm-front {
+  transform: rotate(-155deg);
+}
+
+.buddy-mini[data-phase='tower'] .rbm-mouth {
+  opacity: 0;
+}
+
+.buddy-mini[data-phase='tower'] .rbm-mouth-talk {
+  opacity: 1;
+}
+
+/* The one on top: a grin and a wave. */
+.buddy-mini[data-phase='tower-top'] :is(.rbm-eyes, .rbm-mouth) {
+  opacity: 0;
+}
+
+.buddy-mini[data-phase='tower-top'] :is(.rbm-eyes-happy, .rbm-mouth-grin) {
+  opacity: 1;
+}
+
+.buddy-mini[data-phase='tower-top'] .rbm-arm {
+  transform: rotate(150deg);
+}
+
+.buddy-mini[data-phase='tower-top']:not([data-rest]) .rbm-arm {
+  animation: rbm-wave 0.42s ease-in-out infinite;
+}
+
+/* They wobble together: the head below sways ~3 px, the one on top rides along (both face
+   the same way, so a mirrored pair still sways in step). */
+.buddy-mini[data-phase='tower']:not([data-rest]) .rbm-figure {
+  animation: rbm-wobble 0.9s ease-in-out infinite;
+}
+
+.buddy-mini[data-phase='tower-top']:not([data-rest]) .rbm-figure {
+  animation: rbm-wobble-top 0.9s ease-in-out infinite;
+}
+
+@keyframes rbm-wobble {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+
+@keyframes rbm-wobble-top {
+  0%, 100% { transform: translateX(-3px) rotate(-4deg); }
+  50% { transform: translateX(3px) rotate(4deg); }
+}
+
+/* ------------------------------------------------------------ tease: a poke at the pointer */
+
+/* The pointer rests above the crew: one runs over and pokes up at it, hopping to reach it. */
+.buddy-mini[data-phase='tease'] :is(.rbm-eyes, .rbm-mouth) {
+  opacity: 0;
+}
+
+.buddy-mini[data-phase='tease'] :is(.rbm-eyes-happy, .rbm-mouth-grin) {
+  opacity: 1;
+}
+
+.buddy-mini[data-phase='tease'] .rbm-arm-front {
+  transform: rotate(-125deg);
+}
+
+.buddy-mini[data-phase='tease']:not([data-rest]) .rbm-arm-front {
+  animation: rbm-poke-up 0.28s ease-in-out 0.15s 3;
+}
+
+.buddy-mini[data-phase='tease']:not([data-rest]) .rbm-figure {
+  animation: rbm-hop 0.6s cubic-bezier(0.3, 0, 0.4, 1) 2;
+}
+
+@keyframes rbm-poke-up {
+  0%, 100% { transform: rotate(-125deg); }
+  50% { transform: rotate(-145deg) translateX(5px); }
+}
+
 /* ------------------------------------------------------------ held by the user, landing */
 
 /* Dangling: legs kick, arms up, a surprised "o". */

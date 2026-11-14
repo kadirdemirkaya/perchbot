@@ -15,6 +15,7 @@
  * Positioning (--off, --lift, --walk) and mirroring are done by the app
  * (overlay.css). Minis can be picked up and dropped elsewhere in the crew area
  * (startDrag / dragMove / endDrag); a click without moving is a little boop.
+ * The pointer resting over the empty crew area: one runs over and pokes at it (pointer).
  * All text goes through textContent.
  */
 (() => {
@@ -149,6 +150,63 @@
       director.comeBack(id);
     }
 
+    /** The simulator: the two innermost helpers quietly at work play tag or make a tower now. */
+    function demoGame(kind) {
+      const workers = director.idleWorkers().sort((a, b) => a.off - b.off);
+      if (workers.length < 2) return false;
+      if (kind === 'tower') director.tower(workers[0], workers[1]);
+      else director.tag(workers[0], workers[1]);
+      return true;
+    }
+
+    // ---------------------------------------------------------------- a poke at the pointer
+
+    /**
+     * The pointer rests over the empty crew area (not on a mini: that one shows its tooltip
+     * and can be picked up, as always) for restMs: the nearest helper at work runs over and
+     * pokes at it (lib/crew.js tease). At most once in gapMs. Only what the page already
+     * gets: the pointer's position over the window.
+     */
+    const TEASE = Object.freeze({ restMs: 1300, moveTol: 14, gapMs: 30000, height: 230 });
+    let teaseRest = null;
+    let teaseLast = 0;
+
+    /** The pointer over the page (clientX / clientY), or null (left it, or not allowed now). */
+    function pointer(clientX, clientY) {
+      if (clientX === null || clientX === undefined || held || !template) {
+        cancelTease();
+        return;
+      }
+      if (teaseRest && Math.hypot(clientX - teaseRest.x, clientY - teaseRest.y) <= TEASE.moveTol) return;
+      cancelTease();
+      const timer = setTimeout(() => {
+        teaseRest = null;
+        teaseAt(clientX, clientY);
+      }, TEASE.restMs);
+      teaseRest = { x: clientX, y: clientY, timer };
+    }
+
+    function cancelTease() {
+      if (teaseRest) clearTimeout(teaseRest.timer);
+      teaseRest = null;
+    }
+
+    function teaseAt(clientX, clientY) {
+      if (Date.now() - teaseLast < TEASE.gapMs) return;
+      const box = actors.getBoundingClientRect();
+      // Above the minis' ground, not higher than a mini on another one's head.
+      if (clientY > box.bottom || clientY < box.bottom - TEASE.height) return;
+      const off = side === 'left' ? box.left - clientX : clientX - box.left;
+      if (!director.tease(off)) return;
+      teaseLast = Date.now();
+      o.trace(`crew: a poke at the pointer (${Math.round(off)} px out)`);
+    }
+
+    /** The simulator: as if the pointer rested above the crew, `off` px out. */
+    function demoTease(off) {
+      return director.tease(off);
+    }
+
     /** Resting / paused: every mini stops moving, no chats. */
     /**
      * A drawing for a visitor that is not one of the helpers (the idle story):
@@ -226,10 +284,11 @@
       // While held, the pointer moves it (dragMove); landing brings it back to the ground.
       if (view.phase !== 'held') {
         el.style.setProperty('--off', `${view.off}px`);
-        el.style.setProperty('--lift', '0px');
+        // Up on another one's head (a tower), otherwise on the ground.
+        el.style.setProperty('--lift', `${view.lift || 0}px`);
         el.style.setProperty('--walk', `${view.walkMs}ms`);
       }
-      el.style.zIndex = String(view.fly || view.phase === 'leave' ? 20 : 10 - view.slot);
+      el.style.zIndex = String(view.fly || view.phase === 'leave' || view.lift > 0 ? 20 : 10 - view.slot);
       if (view.phase === 'chat') startTalk();
     }
 
@@ -402,6 +461,9 @@
       setRoam,
       comeBack,
       demoRoam,
+      demoGame,
+      demoTease,
+      pointer,
       setHover,
       setTravel,
       setRest,

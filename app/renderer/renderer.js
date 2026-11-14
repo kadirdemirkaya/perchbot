@@ -722,6 +722,9 @@
     const next = drag ? 'character' : holding ? 'mini' : moving ? null : zoneOf(el);
     capture.pointer(takesMouse(next));
     setZone(next);
+    // Resting over the empty crew area: a helper may come and poke at it (crew-view.js, ambient life on).
+    const teaseOk = next === null && crewCount > 0 && ambientOn() && !drag && !moving && !duel.active && !raging && !chatOpen && !paused;
+    crew.pointer(teaseOk ? clientX : null, clientY);
     if (next === 'mini' && !crew.isHolding()) {
       if (el) showMiniTooltip(el);
     } else if (miniTip) hideTooltip();
@@ -751,6 +754,7 @@
 
   function onPointerLeave(e) {
     trace(`pointer left the page (${e && e.type})`);
+    crew.pointer(null);
     if (drag) return;
     capture.leave();
     setZone(null);
@@ -3136,6 +3140,12 @@
     if (name === 'roam') {
       // A helper off to roam the screen right now (normally one of the crew's naughty moments).
       if (!crew.demoRoam()) trace('demo: no helper at work to send out');
+    } else if (name === 'tag' || name === 'tower') {
+      // Two helpers play tag / make a tower right now (normally among the crew's moments).
+      if (!crew.demoGame(name)) trace('demo: not two helpers at work');
+    } else if (name === 'tease') {
+      // As if the pointer rested above the crew, a little way out: one runs over and pokes at it.
+      if (!crew.demoTease(150)) trace('demo: no helper at work near enough');
     } else if (name === 'sound' && sound === SILENT_BOARD) {
       trace('sound: switched off (app/features.js)');
     } else if (name === 'sound') {
