@@ -83,7 +83,7 @@ test('the bundled robot brings its kids (minis) and its cat (pet), all scripts-f
 });
 
 test('character manifests cannot point outside their folder', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-buddy-chars-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'perchbot-chars-'));
   const make = (id, manifest) => {
     fs.mkdirSync(path.join(root, id));
     fs.writeFileSync(path.join(root, id, 'character.json'), JSON.stringify(manifest));
@@ -134,7 +134,7 @@ test('settings: free position and eye tracking are validated', () => {
 });
 
 test('characters written before a state existed fall back to an older state', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-buddy-chars-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'perchbot-chars-'));
   const char = path.join(dir, 'old');
   fs.mkdirSync(char);
   fs.writeFileSync(path.join(char, 'a.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
@@ -186,7 +186,7 @@ test('settings: normalisation, missing and broken files, atomic save', () => {
     ...DEFAULTS,
     language: 'tr',
   });
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-buddy-settings-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'perchbot-settings-'));
   const file = path.join(dir, 'nested', 'settings.json');
   assert.deepEqual(loadSettings(file), { settings: { ...DEFAULTS }, error: null });
   saveSettings({ ...DEFAULTS, corner: 'bottom-left' }, file);
@@ -201,7 +201,7 @@ test('settings: normalisation, missing and broken files, atomic save', () => {
 test('tray menu reflects settings and calls back', () => {
   const calls = [];
   const on = new Proxy({}, { get: (_t, name) => (...args) => calls.push([name, ...args]) });
-  const characters = new Map([['robot', { id: 'robot', name: 'Robo', author: 'Agent Buddy contributors' }]]);
+  const characters = new Map([['robot', { id: 'robot', name: 'Robo', author: 'Perchbot contributors' }]]);
   const template = buildTrayTemplate({ settings: { ...DEFAULTS, quiet: true }, characters, sessionCount: 2, on });
   const byLabel = (label) => template.find((item) => item.label === label);
   assert.equal(template[1].label, 'Active sessions: 2');
@@ -287,7 +287,7 @@ test('tray menu: a buddy of its own account says which one, and leads back to on
   const on = new Proxy({}, { get: (_t, name) => (...args) => calls.push([name, ...args]) });
   const settings = { ...DEFAULTS, perAccount: true, knownAccounts: ['claude', 'claude-work'] };
   const menu = buildTrayTemplate({ settings, characters: new Map(), sessionCount: 1, instance: 'claude-work', on });
-  assert.equal(menu[0].label, 'Agent Buddy · claude-work');
+  assert.equal(menu[0].label, 'Perchbot · claude-work');
   const account = menu.find((i) => i.label === 'Account').submenu;
   assert.ok(!account.some((i) => i.type === 'radio'), 'no account filter: it only shows its own');
   assert.equal(account[0].label, 'This buddy: claude-work');
@@ -297,7 +297,7 @@ test('tray menu: a buddy of its own account says which one, and leads back to on
   const tr = buildTrayTemplate({ settings: { ...settings, language: 'tr' }, characters: new Map(), sessionCount: 1, instance: 'claude-work', on });
   assert.equal(tr.find((i) => i.label === 'Hesap').submenu[0].label, 'Bu bot: claude-work');
   // One buddy for all: the title as before.
-  assert.equal(buildTrayTemplate({ settings: DEFAULTS, characters: new Map(), sessionCount: 0, on })[0].label, 'Agent Buddy');
+  assert.equal(buildTrayTemplate({ settings: DEFAULTS, characters: new Map(), sessionCount: 0, on })[0].label, 'Perchbot');
 });
 
 test('ambient life, play mode and the cat: settings, tray, right-click and hover menus', () => {

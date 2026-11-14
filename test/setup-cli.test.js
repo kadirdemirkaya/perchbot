@@ -19,13 +19,13 @@ const ROOT = path.join(__dirname, '..');
 const N = hooks.HOOK_SPECS.length;
 
 function sandbox() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-buddy-setup-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'perchbot-setup-'));
   const env = {
     ...process.env,
     HOME: dir,
     USERPROFILE: dir,
     CLAUDE_CONFIG_DIR: path.join(dir, 'claude-config'),
-    AGENT_BUDDY_HOME: path.join(dir, '.agent-buddy'),
+    PERCHBOT_HOME: path.join(dir, '.perchbot'),
     INIT_CWD: dir,
   };
   return { dir, env };
@@ -87,7 +87,7 @@ test('backs up, merges, is idempotent, and uninstall restores the original', () 
   assert.equal(backups(cfg).length, 2);
 
   const again = run('uninstall.js', ['--config-dir', cfg, '--yes'], env);
-  assert.match(again.out, /No Agent Buddy hooks found/);
+  assert.match(again.out, /No Perchbot hooks found/);
 });
 
 test('invalid JSON is left untouched and reported', () => {
@@ -146,7 +146,7 @@ test('accounts: ~/.claude and every ~/.claude-<name> Claude Code has used, plus 
   assert.match(withEnv[0].why, /CLAUDE_CONFIG_DIR/);
   assert.match(withEnv[1].why, /account "claude"/);
   // Nothing at all yet: ~/.claude (created by setup).
-  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-buddy-empty-'));
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'perchbot-empty-'));
   assert.deepEqual(cli.resolveTargets({}, {}, empty), [{ file: path.join(empty, '.claude', 'settings.json'), why: 'default user settings' }]);
   // An option names one file: only that one.
   assert.equal(cli.resolveTargets({ configDir: path.join(dir, 'x') }, {}, dir).length, 1);
@@ -175,27 +175,27 @@ test('setup without options covers every account with one confirmation; status s
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.claude-personal', 'settings.json'), 'utf8')).theme, 'dark', 'other settings kept');
   assert.equal(backups(path.join(dir, '.claude-personal')).length, 1, 'the existing file was backed up');
 
-  const status = run('bin/agent-buddy.js', ['status'], env);
+  const status = run('bin/perchbot.js', ['status'], env);
   assert.equal(status.code, 0, status.out);
   assert.match(status.out, /accounts found: 3/);
   // One line per account (not the "Electron : installed" line above them).
   assert.equal((status.out.match(/^ {4}claude\S* +installed\r?$/gm) || []).length, 3, status.out);
 
-  const removed = run('bin/agent-buddy.js', ['uninstall', '--yes'], env);
+  const removed = run('bin/perchbot.js', ['uninstall', '--yes'], env);
   assert.equal(removed.code, 0, removed.out);
   for (const name of ['.claude', '.claude-personal', '.claude-work']) {
     assert.equal(hooks.countOurHandlers(JSON.parse(fs.readFileSync(path.join(dir, name, 'settings.json'), 'utf8'))), 0, name);
   }
-  assert.match(run('bin/agent-buddy.js', ['status'], env).out, /not installed/);
+  assert.match(run('bin/perchbot.js', ['status'], env).out, /not installed/);
 });
 
-test('the agent-buddy command: help, version, unknown commands', () => {
+test('the perchbot command: help, version, unknown commands', () => {
   const { env } = sandbox();
-  const help = run('bin/agent-buddy.js', [], env);
+  const help = run('bin/perchbot.js', [], env);
   assert.equal(help.code, 0);
-  assert.match(help.out, /agent-buddy <command>/);
-  assert.match(run('bin/agent-buddy.js', ['--version'], env).out, /^\d+\.\d+\.\d+/);
-  assert.equal(run('bin/agent-buddy.js', ['frobnicate'], env).code, 2);
-  const setupHelp = run('bin/agent-buddy.js', ['setup', '--help'], env);
+  assert.match(help.out, /perchbot <command>/);
+  assert.match(run('bin/perchbot.js', ['--version'], env).out, /^\d+\.\d+\.\d+/);
+  assert.equal(run('bin/perchbot.js', ['frobnicate'], env).code, 2);
+  const setupHelp = run('bin/perchbot.js', ['setup', '--help'], env);
   assert.match(setupHelp.out, /every Claude Code account/);
 });

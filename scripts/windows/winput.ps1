@@ -48,7 +48,7 @@ public static class U {
 function Pump([int]$ms) { $end = [DateTime]::UtcNow.AddMilliseconds($ms); do { [System.Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 5 } while ([DateTime]::UtcNow -lt $end) }
 function RootAt($x, $y) { $p = New-Object U+POINT; $p.X = $x; $p.Y = $y; [U]::GetAncestor([U]::WindowFromPoint($p), 2) }
 function FindOverlay([int]$MainPid) {
-  $h = [U]::FindVisible([uint32]$MainPid, 'Agent Buddy')
-  if ($h -eq [IntPtr]::Zero) { foreach ($c in Get-CimInstance Win32_Process -Filter "ParentProcessId=$MainPid") { $h = [U]::FindVisible([uint32]$c.ProcessId, 'Agent Buddy'); if ($h -ne [IntPtr]::Zero) { break } } }
+  $h = [U]::FindVisible([uint32]$MainPid, 'Perchbot')
+  if ($h -eq [IntPtr]::Zero) { foreach ($c in Get-CimInstance Win32_Process -Filter "ParentProcessId=$MainPid") { $h = [U]::FindVisible([uint32]$c.ProcessId, 'Perchbot'); if ($h -ne [IntPtr]::Zero) { break } } }
   $h
 }

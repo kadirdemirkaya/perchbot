@@ -15,7 +15,7 @@ const SEND_JS = path.join(__dirname, '..', 'hooks', 'send.js');
 const ALLOWED_KEYS = new Set(Object.keys(send.PAYLOAD_FIELDS));
 
 function tmpHome() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'agent-buddy-test-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'perchbot-test-'));
 }
 
 /** A port nothing listens on. */
@@ -32,7 +32,7 @@ function runHook(stdin, env = {}, args = []) {
   return new Promise((resolve) => {
     const started = Date.now();
     const child = spawn(process.execPath, [SEND_JS, ...args], {
-      env: { ...process.env, AGENT_BUDDY_NO_LAUNCH: '1', AGENT_BUDDY_NO_PID: '1', ...env },
+      env: { ...process.env, PERCHBOT_NO_LAUNCH: '1', PERCHBOT_NO_PID: '1', ...env },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let stdout = '';
@@ -273,9 +273,9 @@ test('account: the hook sends it, and never starts the overlay for a filtered-ou
   assert.equal(send.shouldLaunch(ev('claude-work'), { home, account: 'claude-work' }), true);
   assert.equal(send.shouldLaunch(ev('claude'), { home, account: 'claude-work' }), false);
   fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ account: 'claude-work' }));
-  assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home }).account, 'claude-work');
+  assert.equal(send.readConfig({ PERCHBOT_HOME: home }).account, 'claude-work');
   fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ account: '../../etc' }));
-  assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home }).account, 'all');
+  assert.equal(send.readConfig({ PERCHBOT_HOME: home }).account, 'all');
 
   // End to end: the real script reads CLAUDE_CONFIG_DIR and sends only the folder name.
   const port = await freePort();
@@ -291,8 +291,8 @@ test('account: the hook sends it, and never starts the overlay for a filtered-ou
   await new Promise((resolve) => server.listen(port, '127.0.0.1', resolve));
   const dir = path.join(os.tmpdir(), 'private-name', '.claude-test');
   await runHook(JSON.stringify({ hook_event_name: 'Stop', session_id: 's' }), {
-    AGENT_BUDDY_HOME: tmpHome(),
-    AGENT_BUDDY_PORT: String(port),
+    PERCHBOT_HOME: tmpHome(),
+    PERCHBOT_PORT: String(port),
     CLAUDE_CONFIG_DIR: dir,
   });
   await new Promise((resolve) => server.close(resolve));
@@ -335,9 +335,9 @@ test('one buddy per account: each account goes to its own overlay (instance file
   assert.equal(instances.accountArg(args), 'claude-work', 'the app reads the same argument');
   // readConfig
   fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ perAccount: true }));
-  assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home }).perAccount, true);
+  assert.equal(send.readConfig({ PERCHBOT_HOME: home }).perAccount, true);
   fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ perAccount: 'yes' }));
-  assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home }).perAccount, false);
+  assert.equal(send.readConfig({ PERCHBOT_HOME: home }).perAccount, false);
 
   // End to end: the real script, perAccount on, finds the account's overlay in its instance file.
   const port = await freePort();
@@ -355,7 +355,7 @@ test('one buddy per account: each account goes to its own overlay (instance file
   fs.writeFileSync(path.join(e2e, 'settings.json'), JSON.stringify({ perAccount: true, port: 7777 }));
   fs.mkdirSync(path.join(e2e, 'instances'));
   fs.writeFileSync(instances.instanceFile(e2e, 'claude-work'), JSON.stringify({ port, pid: 1 }));
-  const env = { AGENT_BUDDY_HOME: e2e, AGENT_BUDDY_PORT: '', CLAUDE_CONFIG_DIR: path.join(os.tmpdir(), '.claude-work') };
+  const env = { PERCHBOT_HOME: e2e, PERCHBOT_PORT: '', CLAUDE_CONFIG_DIR: path.join(os.tmpdir(), '.claude-work') };
   await runHook(JSON.stringify({ hook_event_name: 'Stop', session_id: 's' }), env);
   await new Promise((resolve) => server.close(resolve));
   assert.equal(received.length, 1);
@@ -387,19 +387,19 @@ test('only SessionStart / UserPromptSubmit may launch, and muted sessions do not
 test('config: env port beats settings file, invalid values fall back', () => {
   const home = tmpHome();
   fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ port: 8123, debug: true }));
-  assert.deepEqual(send.readConfig({ AGENT_BUDDY_HOME: home }), { home, port: 8123, debug: true, noLaunch: false, noPid: false, account: 'all', perAccount: false });
-  assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home, AGENT_BUDDY_NO_PID: '1' }).noPid, true);
-  assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home, AGENT_BUDDY_PORT: '9001' }).port, 9001);
-  assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home, AGENT_BUDDY_PORT: '80' }).port, 8123);
+  assert.deepEqual(send.readConfig({ PERCHBOT_HOME: home }), { home, port: 8123, debug: true, noLaunch: false, noPid: false, account: 'all', perAccount: false });
+  assert.equal(send.readConfig({ PERCHBOT_HOME: home, PERCHBOT_NO_PID: '1' }).noPid, true);
+  assert.equal(send.readConfig({ PERCHBOT_HOME: home, PERCHBOT_PORT: '9001' }).port, 9001);
+  assert.equal(send.readConfig({ PERCHBOT_HOME: home, PERCHBOT_PORT: '80' }).port, 8123);
   fs.writeFileSync(path.join(home, 'settings.json'), '{broken');
-  assert.equal(send.readConfig({ AGENT_BUDDY_HOME: home }).port, 7777);
+  assert.equal(send.readConfig({ PERCHBOT_HOME: home }).port, 7777);
 });
 
 // ------------------------------------------------------------- process behaviour
 
 test('the hook process is silent, exits 0 and is quick, whatever the input', async () => {
   const port = await freePort();
-  const env = { AGENT_BUDDY_HOME: tmpHome(), AGENT_BUDDY_PORT: String(port) };
+  const env = { PERCHBOT_HOME: tmpHome(), PERCHBOT_PORT: String(port) };
   const inputs = [
     '',
     'not json at all',
@@ -433,7 +433,7 @@ test('large stdin (e.g. a big Write) is handled and not forwarded', async () => 
   try {
     const big = 'x'.repeat(3 * 1024 * 1024);
     const input = JSON.stringify({ hook_event_name: 'PreToolUse', session_id: 's', tool_name: 'Write', tool_input: { file_path: '/p/big.txt', content: big } });
-    const r = await runHook(input, { AGENT_BUDDY_HOME: tmpHome(), AGENT_BUDDY_PORT: String(server.address().port) });
+    const r = await runHook(input, { PERCHBOT_HOME: tmpHome(), PERCHBOT_PORT: String(server.address().port) });
     assert.equal(r.code, 0);
     assert.equal(received.length, 1);
     assert.ok(received[0].length < 300, `forwarded ${received[0].length} bytes`);
@@ -465,7 +465,7 @@ test('delivers a whitelisted JSON body to the overlay endpoint', async () => {
         tool_use_id: 'toolu_9',
         tool_input: { command: 'AWS_SECRET_ACCESS_KEY=abc123abc123 aws s3 ls s3://bucket --recursive --human-readable' },
       }),
-      { AGENT_BUDDY_HOME: tmpHome(), AGENT_BUDDY_PORT: String(server.address().port) },
+      { PERCHBOT_HOME: tmpHome(), PERCHBOT_PORT: String(server.address().port) },
     );
     assert.equal(r.code, 0);
     assert.equal(r.stdout, '');
@@ -487,7 +487,7 @@ test('debug log (opt-in) records metadata only', async () => {
   const port = await freePort();
   await runHook(
     JSON.stringify({ hook_event_name: 'PreToolUse', session_id: 'sess-log', tool_name: 'Bash', tool_input: { command: 'echo supersecretvalue' } }),
-    { AGENT_BUDDY_HOME: home, AGENT_BUDDY_PORT: String(port), AGENT_BUDDY_DEBUG: '1' },
+    { PERCHBOT_HOME: home, PERCHBOT_PORT: String(port), PERCHBOT_DEBUG: '1' },
   );
   const log = fs.readFileSync(path.join(home, 'logs', 'hook.log'), 'utf8');
   assert.match(log, /event=PreToolUse/);
@@ -496,7 +496,7 @@ test('debug log (opt-in) records metadata only', async () => {
   assert.ok(!log.includes('echo'));
 
   const quiet = tmpHome();
-  await runHook(JSON.stringify({ hook_event_name: 'Stop', session_id: 's' }), { AGENT_BUDDY_HOME: quiet, AGENT_BUDDY_PORT: String(port) });
+  await runHook(JSON.stringify({ hook_event_name: 'Stop', session_id: 's' }), { PERCHBOT_HOME: quiet, PERCHBOT_PORT: String(port) });
   assert.equal(fs.existsSync(path.join(quiet, 'logs')), false, 'no log unless enabled');
 });
 
@@ -530,7 +530,7 @@ test('schema probe records field names and salted id hashes, never values', () =
 test('schema probe writes only while the flag file exists', async () => {
   const home = tmpHome();
   const port = await freePort();
-  const env = { AGENT_BUDDY_HOME: home, AGENT_BUDDY_PORT: String(port) };
+  const env = { PERCHBOT_HOME: home, PERCHBOT_PORT: String(port) };
   const input = JSON.stringify({ hook_event_name: 'SubagentStart', session_id: 'abc', agent_id: 'xyz', agent_type: 'Explore' });
   await runHook(input, env);
   assert.equal(fs.existsSync(path.join(home, 'logs', 'schema.log')), false, 'off by default');

@@ -2,16 +2,16 @@
 'use strict';
 
 /**
- * The agent-buddy command (npm install -g agent-buddy):
+ * The perchbot command (npm install -g perchbot):
  *
- *   agent-buddy setup       add the hooks to every Claude Code account on this computer
- *   agent-buddy uninstall   remove them again (only Agent Buddy's)
- *   agent-buddy status      which accounts have the hooks, is the overlay running
- *   agent-buddy start       start the overlay now (normally the first Claude Code event does)
- *   agent-buddy demo        play a short tour of every state, no Claude Code needed
+ *   perchbot setup       add the hooks to every Claude Code account on this computer
+ *   perchbot uninstall   remove them again (only Perchbot's)
+ *   perchbot status      which accounts have the hooks, is the overlay running
+ *   perchbot start       start the overlay now (normally the first Claude Code event does)
+ *   perchbot demo        play a short tour of every state, no Claude Code needed
  *
  * setup / uninstall take --dry-run, --yes, --config-dir <dir>, --project, --local
- * (see "agent-buddy setup --help"). Node built-ins only, like the hook.
+ * (see "perchbot setup --help"). Node built-ins only, like the hook.
  */
 
 const fs = require('node:fs');
@@ -26,13 +26,13 @@ const { electronBinary, readConfig } = require('../hooks/send');
 
 const SEND_JS = path.join(ROOT, 'hooks', 'send.js');
 
-const HELP = `Agent Buddy: a tiny animated desktop companion for Claude Code.
+const HELP = `Perchbot: a tiny animated desktop companion for Claude Code.
 
-Usage: agent-buddy <command> [options]
+Usage: perchbot <command> [options]
 
   setup       add the hooks to every Claude Code account on this computer
               (~/.claude, ~/.claude-<name>, $CLAUDE_CONFIG_DIR); asks once, backs up each file
-  uninstall   remove Agent Buddy's hooks again (nothing else)
+  uninstall   remove Perchbot's hooks again (nothing else)
   status      which accounts have the hooks; is the overlay running
   doctor      check and fix: hooks everywhere, a live test per account, sessions
               opened before the hooks (--account <name> tests one, --yes)
@@ -40,7 +40,7 @@ Usage: agent-buddy <command> [options]
   demo        a short tour of every state, without Claude Code
 
 Options for setup / uninstall: --dry-run, --yes, --config-dir <dir>, --project [dir],
---local [dir]. Details: agent-buddy setup --help`;
+--local [dir]. Details: perchbot setup --help`;
 
 function version() {
   try {
@@ -67,27 +67,27 @@ function hookState(file) {
   if (!current.exists) return 'no settings file yet: not installed';
   if (current.error) return `cannot check (${current.error})`;
   if (hooks.isInstalled(current.data, SEND_JS)) return 'installed';
-  if (hooks.countOurHandlers(current.data) > 0) return 'installed for another copy of Agent Buddy: run "agent-buddy setup" to switch';
+  if (hooks.countOurHandlers(current.data) > 0) return 'installed by another or an older copy (e.g. from before the rename): run "perchbot setup" to update';
   return 'not installed';
 }
 
 async function status() {
   const { port } = readConfig();
-  console.log(`Agent Buddy ${version()}\n`);
+  console.log(`Perchbot ${version()}\n`);
   console.log(`  This copy  : ${ROOT}`);
   console.log(`  Electron   : ${electronBinary() ? 'installed' : 'MISSING (run npm install, or node node_modules/electron/install.js)'}`);
   console.log(`  Overlay    : ${(await overlayRunning(port)) ? `running on 127.0.0.1:${port}` : 'not running (the first Claude Code event starts it)'}`);
   const accounts = cli.findAccounts();
   console.log(`\n  Claude Code accounts found: ${accounts.length}`);
   for (const a of accounts) console.log(`    ${path.basename(a.dir).replace(/^\./, '').padEnd(20)} ${hookState(a.file)}`);
-  if (!accounts.length) console.log('    (none yet: run Claude Code once, then "agent-buddy setup")');
+  if (!accounts.length) console.log('    (none yet: run Claude Code once, then "perchbot setup")');
   return 0;
 }
 
 function start() {
   const binary = electronBinary();
   if (!binary) {
-    console.error('Electron is not installed. Run "npm install" in the Agent Buddy folder first.');
+    console.error('Electron is not installed. Run "npm install" in the Perchbot folder first.');
     return 1;
   }
   const env = { ...process.env };
@@ -95,7 +95,7 @@ function start() {
   const child = spawn(binary, [ROOT], { cwd: ROOT, env, detached: true, stdio: 'ignore', windowsHide: true });
   child.on('error', () => {});
   child.unref();
-  console.log('Agent Buddy started. It goes away by itself after a while without Claude Code events.');
+  console.log('Perchbot started. It goes away by itself after a while without Claude Code events.');
   return 0;
 }
 

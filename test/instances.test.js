@@ -69,7 +69,7 @@ test('settings: one buddy per account is off by default; each account keeps its 
 });
 
 test('settings: a change is applied to the file as it is now, so overlays never undo each other', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-buddy-test-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'perchbot-test-'));
   const file = path.join(home, 'settings.json');
   // Buddy A has a stale copy; buddy B saved its place and the language meanwhile.
   const stale = normalizeSettings({});

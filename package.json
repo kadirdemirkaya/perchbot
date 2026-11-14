@@ -1,5 +1,5 @@
 {
-  "name": "agent-buddy",
+  "name": "perchbot",
   "version": "0.2.0",
   "description": "A tiny animated desktop companion that reacts to what your coding agent is doing, driven by Claude Code hooks.",
   "license": "MIT",
@@ -9,7 +9,7 @@
   },
   "main": "app/main.js",
   "bin": {
-    "agent-buddy": "bin/agent-buddy.js"
+    "perchbot": "bin/perchbot.js"
   },
   "files": [
     "app/",

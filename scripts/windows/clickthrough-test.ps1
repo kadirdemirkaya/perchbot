@@ -1,6 +1,6 @@
 param(
   [int]$Port = 7790,
-  [string]$TestHome = (Join-Path $env:TEMP 'agent-buddy-test-home')
+  [string]$TestHome = (Join-Path $env:TEMP 'perchbot-test-home')
 )
 # Click-through regression test for the ISOLATED test overlay
 # (start it first with start-test-overlay.ps1).

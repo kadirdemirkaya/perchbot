@@ -314,7 +314,7 @@ test('rampage wiring: a click-through effect window that only listens, ended by 
   const at = main.indexOf('function startRampage(req)');
   assert.ok(at > 0);
   const body = main.slice(at, main.indexOf('function endRampage(why)'));
-  for (const piece of ["const ew = effectWindow(display, 'Agent Buddy effects');", 'r.ew.showInactive();', 'win.moveTop();']) {
+  for (const piece of ["const ew = effectWindow(display, 'Perchbot effects');", 'r.ew.showInactive();', 'win.moveTop();']) {
     assert.ok(body.includes(piece), piece);
   }
   // The effect windows (the rampage, the rocket fist): click-through, never focused, a listen-only page.

@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Agent Buddy overlay: Electron main process.
+ * Perchbot overlay: Electron main process.
  *
  *   hooks/send.js --HTTP--> server.js --> core.js (state machine) --IPC--> renderer
  *
@@ -62,6 +62,7 @@ const perchLib = require('./perch');
 const { createScanner } = require('./winscan');
 const { createHands } = require('./hands');
 const FEATURES = require('./features');
+const names = require('../lib/names');
 const { createLogger } = require('./log');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -137,23 +138,23 @@ const isDev = process.argv.includes('--dev');
  */
 const ACCOUNT = instances.accountArg(process.argv);
 /**
- * Developers only (npm run dev): AGENT_BUDDY_PERF=1 logs how often and how long the
+ * Developers only (npm run dev): PERCHBOT_PERF=1 logs how often and how long the
  * window is moved and resized, and turns on the page's frame trace ("[perf]" lines).
  */
-const PERF = isDev && process.env.AGENT_BUDDY_PERF === '1';
+const PERF = isDev && names.envValue('PERF') === '1';
 /**
- * Developers only (npm run dev): AGENT_BUDDY_DEMO=duel | trips | plays | cheers | menu | chat
+ * Developers only (npm run dev): PERCHBOT_DEMO=duel | trips | plays | cheers | menu | chat
  * plays that part of fun mode by itself (menu: opens the hover menu; chat: asks two questions), for
  * screenshots and trying things out.
  */
 const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers', 'menu', 'chat']);
-const demo = isDev && DEMOS.has(process.env.AGENT_BUDDY_DEMO) ? process.env.AGENT_BUDDY_DEMO : null;
+const demo = isDev && DEMOS.has(names.envValue('DEMO')) ? names.envValue('DEMO') : null;
 const DEMO_TRIPS = ['stroll', 'hop', 'screen', 'inspect', 'home'];
 /** Short lines in the speech bubble when it is hit or fights (locales: "quip"). */
 const QUIPS = ['whoa', 'welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'rampage', 'rampageFix', 'focusOn', 'lensHmm', 'guestHi', 'guestSpar', 'guestBow', 'sleepy', 'petCat', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
 
 // Keep Chromium's own data (caches, the single-instance lock) under
-// ~/.agent-buddy too, so there is exactly one folder to delete on uninstall
+// ~/.perchbot too, so there is exactly one folder to delete on uninstall
 // (one per account with one buddy per account: each has its own lock).
 app.setPath('userData', path.join(HOME, ACCOUNT ? `electron-${ACCOUNT}` : 'electron'));
 
@@ -532,11 +533,11 @@ function start() {
       const message =
         err && err.code === 'EADDRINUSE'
           ? `Port ${port} on 127.0.0.1 is already in use by another program.\n\n` +
-            'Agent Buddy does not switch ports automatically. Close the other program, ' +
+            'Perchbot does not switch ports automatically. Close the other program, ' +
             `or set a different "port" in:\n${settingsPath()}\n\nThe hook script reads the same setting.`
           : `Could not start the local server on 127.0.0.1:${port}: ${err && err.message}`;
       log.error(message.replace(/\n+/g, ' '));
-      dialog.showErrorBox('Agent Buddy', message);
+      dialog.showErrorBox('Perchbot', message);
       app.exit(1);
       return;
     }
@@ -828,7 +829,7 @@ function start() {
       // Tool window on Windows: also keeps it out of Alt+Tab.
       ...(process.platform === 'win32' ? { type: 'toolbar' } : {}),
       backgroundColor: '#00000000',
-      title: 'Agent Buddy',
+      title: 'Perchbot',
       icon: path.join(ASSETS_DIR, 'icon.png'),
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
@@ -1305,7 +1306,7 @@ function start() {
     const origin = { x: display.bounds.x, y: display.bounds.y };
     const local = (p) => ({ x: p.x - origin.x, y: p.y - origin.y });
     const plan = fistLib.planFist({ from: local(pose.elbow), to: local(at), scale: scale() });
-    const ew = effectWindow(display, 'Agent Buddy fist');
+    const ew = effectWindow(display, 'Perchbot fist');
     const ff = { ew, timers: [], started: false, press: null };
     fist = ff;
     log.info(`hands: rocket fist at ${target} (${plan.outMs} ms out)`);
@@ -1742,7 +1743,7 @@ function start() {
       fullscreenable: false,
       ...(process.platform === 'win32' ? { type: 'toolbar' } : {}),
       backgroundColor: '#00000000',
-      title: 'Agent Buddy helper',
+      title: 'Perchbot helper',
       webPreferences: {
         preload: path.join(__dirname, 'helper-preload.js'),
         contextIsolation: true,
@@ -1938,7 +1939,7 @@ function start() {
     const chase = rampageStreak.next(Date.now());
     const plan = rampageLib.planRampage({ area, eyes: req.eyes.map(local), hatch: local(req.hatch), face: req.face, chase });
     lastRampage = Date.now();
-    const ew = effectWindow(display, 'Agent Buddy effects');
+    const ew = effectWindow(display, 'Perchbot effects');
     const r = { ew, timers: [], started: false, aim: null };
     rampage = r;
     log.info(chase ? 'rampage: laser eyes and missiles, then after the cursor' : 'rampage: laser eyes and missiles');
@@ -2451,7 +2452,7 @@ function start() {
   function createTray() {
     const icon = nativeImage.createFromPath(path.join(ASSETS_DIR, 'tray.png'));
     tray = new Tray(icon);
-    tray.setToolTip(ACCOUNT ? `Agent Buddy · ${ACCOUNT}` : 'Agent Buddy');
+    tray.setToolTip(ACCOUNT ? `Perchbot · ${ACCOUNT}` : 'Perchbot');
     if (process.platform === 'win32') tray.on('click', () => tray && tray.popUpContextMenu());
     refreshTray();
   }

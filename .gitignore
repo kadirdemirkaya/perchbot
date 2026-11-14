@@ -15,6 +15,7 @@ hook-debug*.txt
 .test-artifacts/
 
 # Backups written by setup/uninstall when run against a local test folder
+*.perchbot-*.bak
 *.agent-buddy-*.bak
 
 # Local Claude Code config (commands, settings) is not shared

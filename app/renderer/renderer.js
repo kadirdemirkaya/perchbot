@@ -106,7 +106,7 @@
   }
 
   /**
-   * Developers (npm run dev with AGENT_BUDDY_PERF=1): frame times around every
+   * Developers (npm run dev with PERCHBOT_PERF=1): frame times around every
    * transition, long tasks and long animation frames, as "[perf]" lines in the
    * dev log (lib/perf.js). Not created otherwise.
    */
@@ -281,13 +281,13 @@
     try {
       await crew.setCharacter(next.mini || null);
     } catch (err) {
-      console.error(`Agent Buddy: mini artwork: ${err.message}`);
+      console.error(`Perchbot: mini artwork: ${err.message}`);
       await crew.setCharacter(null);
     }
     try {
       await pet.setPet(next.pet || null);
     } catch (err) {
-      console.error(`Agent Buddy: pet artwork: ${err.message}`);
+      console.error(`Perchbot: pet artwork: ${err.message}`);
     }
   }
 
@@ -2911,7 +2911,7 @@
   // ---------------------------------------------------------------- wiring
 
   /**
-   * Developers only (main sends data.demo in npm run dev with AGENT_BUDDY_DEMO):
+   * Developers only (main sends data.demo in npm run dev with PERCHBOT_DEMO):
    * play a duel, the idle plays or the cheers by themselves, no mouse needed.
    */
   /** The simulator (npm run simulate -- life) asks for one behaviour. */
@@ -3107,7 +3107,7 @@
     try {
       await loadCharacter(data.character);
     } catch (err) {
-      console.error(`Agent Buddy: ${err.message}`);
+      console.error(`Perchbot: ${err.message}`);
     }
     applyView(data.view || view);
     crewList = Array.isArray(data.crew) ? data.crew : [];

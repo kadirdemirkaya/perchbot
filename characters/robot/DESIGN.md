@@ -1,6 +1,6 @@
 # Robo: design notes
 
-Robo is **original artwork drawn from scratch for Agent Buddy** and released under the
+Robo is **original artwork drawn from scratch for Perchbot** and released under the
 project's MIT license. It is not based on, traced from or "inspired by" any existing
 character, mascot, toy, logo or brand.
 
@@ -139,7 +139,7 @@ away from:
 - Cozmo / Vector (forklift, black screen face with glowing rounded-rectangle eyes).
 - Doraemon (blue body with a white belly and a pocket): this is why Robo is **not** blue.
 - Claude / Anthropic visuals: no terracotta or orange accents, no starburst shapes, no
-  brand names. Agent Buddy is unofficial and must not look like an Anthropic product.
+  brand names. Perchbot is unofficial and must not look like an Anthropic product.
 
 ## Rig
 

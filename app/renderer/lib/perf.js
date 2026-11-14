@@ -1,6 +1,6 @@
 /*
  * Performance trace for developers: frame times around transitions, long tasks
- * and long animation frames. Only with `npm run dev` and AGENT_BUDDY_PERF=1; it
+ * and long animation frames. Only with `npm run dev` and PERCHBOT_PERF=1; it
  * is never created otherwise, so it costs nothing in normal use.
  *
  *   PerfTrace   the page calls mark('idle→typing') at each transition; the trace

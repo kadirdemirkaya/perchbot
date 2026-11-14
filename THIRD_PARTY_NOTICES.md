@@ -3,7 +3,7 @@
 ## Assets in this repository
 
 **None from third parties.** Every visual asset in this repository is original work
-created for Agent Buddy and is released under the project's MIT license:
+created for Perchbot and is released under the project's MIT license:
 
 | Asset | Origin |
 |---|---|
@@ -30,7 +30,7 @@ with its license and source.
 
 ## Software dependencies
 
-Agent Buddy has one runtime dependency, installed by `npm install` and **not**
+Perchbot has one runtime dependency, installed by `npm install` and **not**
 included in this repository:
 
 | Package | Version | License | Purpose |
@@ -57,7 +57,7 @@ its binary during installation:
 | sumchecker | Apache-2.0 |
 | undici | MIT |
 
-All of these licenses are permissive and compatible with distributing Agent Buddy
+All of these licenses are permissive and compatible with distributing Perchbot
 under the MIT license. None of them is copyleft (GPL/LGPL/AGPL).
 
 `hooks/send.js`, `setup.js`, `uninstall.js` and the scripts in `scripts/` use only

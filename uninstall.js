@@ -2,22 +2,22 @@
 'use strict';
 
 /**
- * Removes Agent Buddy's hooks from Claude Code settings files, and nothing
+ * Removes Perchbot's hooks from Claude Code settings files, and nothing
  * else. By default from every Claude Code account on this computer; takes the
  * same options as setup.js (see --help).
  *
- *   agent-buddy uninstall              (or: npm run uninstall-hooks)
- *   agent-buddy uninstall --dry-run
+ *   perchbot uninstall              (or: npm run uninstall-hooks)
+ *   perchbot uninstall --dry-run
  *
  * A backup of every file is written before it is changed.
  */
 
 const path = require('node:path');
-const os = require('node:os');
 const cli = require('./lib/cli');
 const hooks = require('./lib/hooks-config');
+const names = require('./lib/names');
 
-const USAGE = 'Usage: agent-buddy uninstall [options]   (or: npm run uninstall-hooks -- [options])';
+const USAGE = 'Usage: perchbot uninstall [options]   (or: npm run uninstall-hooks -- [options])';
 
 /** Look at one settings file: what would be removed. Prints its part of the report. */
 function plan({ file, why }) {
@@ -33,10 +33,10 @@ function plan({ file, why }) {
   }
   const { settings, removed } = hooks.removeHooks(current.data);
   if (removed === 0) {
-    console.log('  No Agent Buddy hooks found. Nothing to do.');
+    console.log('  No Perchbot hooks found. Nothing to do.');
     return { file, none: true };
   }
-  console.log(`  Will remove ${removed} Agent Buddy hook(s):`);
+  console.log(`  Will remove ${removed} Perchbot hook(s):`);
   for (const [event, groups] of Object.entries(current.data.hooks || {})) {
     if (!Array.isArray(groups)) continue;
     for (const group of groups) {
@@ -60,11 +60,11 @@ async function main(argv = process.argv.slice(2)) {
     return 2;
   }
   if (opts.help) {
-    console.log(`${USAGE}\n\nRemoves only the hooks Agent Buddy added.\n\n${cli.USAGE_TARGETS}`);
+    console.log(`${USAGE}\n\nRemoves only the hooks Perchbot added.\n\n${cli.USAGE_TARGETS}`);
     return 0;
   }
 
-  console.log('Agent Buddy: remove hooks');
+  console.log('Perchbot: remove hooks');
   const plans = cli.resolveTargets(opts).map(plan);
   if (plans.some((p) => p.error)) {
     console.error('\n  Nothing was written: the files were NOT changed.');
@@ -94,9 +94,9 @@ async function main(argv = process.argv.slice(2)) {
     console.log(`\n  Done. Removed ${p.removed} hook(s) from ${p.file}. Backup: ${p.backup}`);
   }
 
-  const home = process.env.AGENT_BUDDY_HOME || path.join(os.homedir(), '.agent-buddy');
+  const home = names.homeDir();
   console.log(
-    `\n  Agent Buddy's own settings, logs and cache are in ${home}\n` +
+    `\n  Perchbot's own settings, logs and cache are in ${home}\n` +
       '  Delete that folder too if you want to remove everything.',
   );
   return 0;

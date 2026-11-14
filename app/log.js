@@ -3,7 +3,7 @@
 /**
  * Logging.
  *  - Console output only when the app runs with --dev.
- *  - File output (~/.agent-buddy/logs/overlay.log, or overlay-<account>.log) only when "debug": true
+ *  - File output (~/.perchbot/logs/overlay.log, or overlay-<account>.log) only when "debug": true
  *    in settings. It is off by default.
  *
  * Privacy rule for callers: never pass file contents, full commands,

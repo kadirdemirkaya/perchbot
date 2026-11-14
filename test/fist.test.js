@@ -72,7 +72,7 @@ test('wiring: main fires it only for a press, presses when it hits, ends it on a
   assert.ok(main.includes('if (fireFist(at, target, next, fist)) return undefined;'));
   const body = main.slice(main.indexOf('function fireFist(at, target, next, force)'), main.indexOf('function endFist(why'));
   for (const piece of [
-    "const ew = effectWindow(display, 'Agent Buddy fist');",
+    "const ew = effectWindow(display, 'Perchbot fist');",
     'const sameScreen = pointInside(display.bounds, at);',
     "ff.press = hands.press(target).then((done) => {",
     '}, plan.hitAt),',

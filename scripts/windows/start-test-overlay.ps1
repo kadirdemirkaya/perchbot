@@ -1,6 +1,6 @@
 param(
   [int]$Port = 7790,
-  [string]$TestHome = (Join-Path $env:TEMP 'agent-buddy-test-home'),
+  [string]$TestHome = (Join-Path $env:TEMP 'perchbot-test-home'),
   [int]$X = 0,
   [int]$Y = 0,
   # Ambient life, play mode and the cat are OFF here by default: a trip in the
@@ -36,8 +36,8 @@ $settings = @{ quiet = $false; ambientLife = [bool]$Fun; playMode = [bool]$Fun; 
 if ($X -or $Y) { $settings.position = @{ x = $X; y = $Y } }
 $settings | ConvertTo-Json -Compress | Out-File -Encoding ascii (Join-Path $TestHome 'settings.json')
 
-$env:AGENT_BUDDY_PORT = "$Port"
-$env:AGENT_BUDDY_HOME = $TestHome
+$env:PERCHBOT_PORT = "$Port"
+$env:PERCHBOT_HOME = $TestHome
 # Start-Process -RedirectStandardOutput would let Electron inherit the caller's
 # pipes, so a caller that captures this script's output would hang until the
 # overlay exits. cmd.exe does the redirection instead (started via
@@ -60,5 +60,5 @@ for ($i = 0; $i -lt 40 -and -not $up; $i++) {
 }
 if (-not $up) { throw "test overlay did not answer on 127.0.0.1:$Port (see $TestHome\dev-err.log)" }
 "test overlay running: pid $($proc.Id), port $Port, home $TestHome"
-"send it events with:  `$env:AGENT_BUDDY_PORT='$Port'; `$env:AGENT_BUDDY_HOME='$TestHome'; npm run simulate"
+"send it events with:  `$env:PERCHBOT_PORT='$Port'; `$env:PERCHBOT_HOME='$TestHome'; npm run simulate"
 "stop it with:         Stop-Process -Id $($proc.Id)   (or end the simulated session)"

@@ -57,7 +57,7 @@ function hook(input) {
     // (with --keep, until the idle timeout), as before.
     const child = spawn(process.execPath, [SEND, input.hook_event_name], {
       stdio: ['pipe', 'pipe', 'ignore'],
-      env: { ...process.env, AGENT_BUDDY_NO_PID: '1' },
+      env: { ...process.env, PERCHBOT_NO_PID: '1' },
     });
     let stdout = '';
     child.stdout.on('data', (d) => {
@@ -240,6 +240,7 @@ const lines = require('node:readline').createInterface({ input: process.stdin })
 lines.on('line', (line) => {
   // What Claude Code gives its hooks: its own pid, and CLAUDECODE=1.
   const env = { ...process.env, CLAUDE_PID: String(process.pid), CLAUDECODE: '1' };
+  delete env.PERCHBOT_NO_PID;
   delete env.AGENT_BUDDY_NO_PID;
   const event = JSON.parse(line).hook_event_name;
   const child = spawn(process.execPath, [${JSON.stringify(SEND)}, event], { stdio: ['pipe', 'ignore', 'ignore'], env });

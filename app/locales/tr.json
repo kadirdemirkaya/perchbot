@@ -32,7 +32,7 @@
     "doneSummary": "Bitti! {time} içinde {count} adım"
   },
   "menu": {
-    "title": "Agent Buddy",
+    "title": "Perchbot",
     "sessions": "Aktif oturum: {count}",
     "corner": "Konum",
     "bottomRight": "Sağ alt",

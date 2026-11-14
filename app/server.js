@@ -5,7 +5,7 @@
  *
  *   POST /event   body: one event (see app/validate.js)   -> 204
  *                 (421 when it is meant for another overlay: one buddy per account)
- *   GET  /health  -> 200 { app: "agent-buddy", ... }
+ *   GET  /health  -> 200 { app: "perchbot", ... }
  *
  * Hardening: binds to 127.0.0.1 only; rejects browser requests (Origin /
  * Sec-Fetch-* headers), foreign Host headers (DNS rebinding), non-JSON
@@ -58,7 +58,7 @@ function startServer({ port, onEvent, getHealth = () => ({}), accept = () => tru
 
     if (pathname === '/health') {
       if (req.method !== 'GET') return reply(405, { error: 'method not allowed' });
-      return reply(200, { app: 'agent-buddy', ...getHealth() });
+      return reply(200, { app: 'perchbot', ...getHealth() });
     }
 
     if (pathname !== '/event') return reply(404, { error: 'not found' });

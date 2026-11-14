@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const hooks = require('../lib/hooks-config');
 
-const SEND = 'C:\\Users\\Some One\\GitHub Projects\\agent-buddy\\hooks\\send.js';
+const SEND = 'C:\\Users\\Some One\\GitHub Projects\\perchbot\\hooks\\send.js';
 
 const otherTools = () => ({
   model: 'opus',
@@ -19,9 +19,9 @@ const otherTools = () => ({
 test('commands quote the path with forward slashes and carry the tag', () => {
   assert.equal(
     hooks.hookCommand(SEND, 'PreToolUse'),
-    'node "C:/Users/Some One/GitHub Projects/agent-buddy/hooks/send.js" PreToolUse --agent-buddy',
+    'node "C:/Users/Some One/GitHub Projects/perchbot/hooks/send.js" PreToolUse --perchbot',
   );
-  assert.equal(hooks.hookCommand('/home/me/agent-buddy/hooks/send.js', 'Stop'), 'node "/home/me/agent-buddy/hooks/send.js" Stop --agent-buddy');
+  assert.equal(hooks.hookCommand('/home/me/perchbot/hooks/send.js', 'Stop'), 'node "/home/me/perchbot/hooks/send.js" Stop --perchbot');
   assert.throws(() => hooks.hookCommand('C:\\$weird\\send.js', 'Stop'), /cannot be quoted/);
   assert.throws(() => hooks.hookCommand('/a/`b`/send.js', 'Stop'), /cannot be quoted/);
 });
@@ -58,7 +58,7 @@ test('running add twice does not duplicate; a moved repo replaces old entries', 
   assert.equal(hooks.countOurHandlers(twice), hooks.HOOK_SPECS.length);
   assert.ok(hooks.isInstalled(twice, SEND));
 
-  const moved = hooks.addHooks(once, 'D:\\elsewhere\\agent-buddy\\hooks\\send.js');
+  const moved = hooks.addHooks(once, 'D:\\elsewhere\\perchbot\\hooks\\send.js');
   assert.equal(moved.replaced, hooks.HOOK_SPECS.length);
   assert.equal(hooks.countOurHandlers(moved.settings), hooks.HOOK_SPECS.length);
   assert.ok(!JSON.stringify(moved.settings).includes('Some One'));
@@ -85,9 +85,9 @@ test('a shared matcher group keeps the other handler when ours is removed', () =
 });
 
 test('only tagged send.js commands count as ours', () => {
-  assert.ok(hooks.isOurHandler({ type: 'command', command: 'node "/x/hooks/send.js" Stop --agent-buddy' }));
+  assert.ok(hooks.isOurHandler({ type: 'command', command: 'node "/x/hooks/send.js" Stop --perchbot' }));
   assert.ok(!hooks.isOurHandler({ type: 'command', command: 'node "/x/hooks/send.js" Stop' }));
-  assert.ok(!hooks.isOurHandler({ type: 'command', command: 'echo --agent-buddy-ish send.js' }));
+  assert.ok(!hooks.isOurHandler({ type: 'command', command: 'echo --perchbot-ish send.js' }));
   assert.ok(!hooks.isOurHandler({ type: 'http', url: 'http://x' }));
   assert.ok(!hooks.isOurHandler(null));
 });

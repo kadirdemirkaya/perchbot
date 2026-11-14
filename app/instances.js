@@ -6,11 +6,11 @@
  * Off (the default): one overlay for every account, on settings.port (7777).
  * On: every account gets an overlay of its own, started by its hooks with
  * --account=<name>. Each has its own port, its own single-instance lock
- * (Chromium data in ~/.agent-buddy/electron-<name>), its own place on the
+ * (Chromium data in ~/.perchbot/electron-<name>), its own place on the
  * screen (settings.positions[<name>]) and only shows its own sessions. The
  * rest of settings.json is shared.
  *
- * The port: each instance writes ~/.agent-buddy/instances/<name>.json
+ * The port: each instance writes ~/.perchbot/instances/<name>.json
  * ({ port, pid }) once it listens, and removes it when it quits. Until then
  * (and if that file is gone) the hook tries the account's preferred port
  * (preferredPort). An instance that gets an event of another account answers

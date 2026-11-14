@@ -47,7 +47,7 @@
       const response = await fetch(msg.mini.svgUrl);
       box.replaceChildren(sanitizeSvg(await response.text()));
     } catch (err) {
-      console.error(`Agent Buddy helper: ${err.message}`);
+      console.error(`Perchbot helper: ${err.message}`);
       return;
     }
     set('tint', Number.isInteger(msg.tint) ? msg.tint : 0);

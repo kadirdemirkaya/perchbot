@@ -1,6 +1,6 @@
 <div align="center">
 
-# Agent Buddy
+# Perchbot
 
 **A little desktop robot that lets you watch Claude Code work in the background, and makes it fun.**
 
@@ -8,7 +8,7 @@
 
 </div>
 
-Agent Buddy lives in a corner of your screen and acts out what the agent is doing: it thinks, reads,
+Perchbot lives in a corner of your screen and acts out what the agent is doing: it thinks, reads,
 types, runs commands, waits for you and cheers when the work is done. Sub-agents show up as little
 helpers, a failing test brings a bug to fight, and between tasks it plays on its own.
 It runs on your computer and sends nothing anywhere.
@@ -20,12 +20,12 @@ It runs on your computer and sends nothing anywhere.
 Needs Node.js 20+ and Claude Code.
 
 ```sh
-npm install -g agent-buddy
-agent-buddy setup        # adds the hooks to every Claude Code account on this computer
+npm install -g perchbot
+perchbot setup        # adds the hooks to every Claude Code account on this computer
 ```
 
 Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows up with your next prompt.
-`agent-buddy demo` plays every state without an agent. From a clone: `npm install`, then `npm run setup`.
+`perchbot demo` plays every state without an agent. From a clone: `npm install`, then `npm run setup`.
 
 ## What it does
 
@@ -109,19 +109,19 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 
 | | |
 |---|---|
-| `agent-buddy setup` | add the hooks (`~/.claude`, `~/.claude-<name>`, `$CLAUDE_CONFIG_DIR`); asks once, backs up each file |
-| `agent-buddy doctor` | fix missing hooks, test each account live (`--account <name>` for one) |
-| `agent-buddy status` | which accounts have the hooks, is the robot running |
-| `agent-buddy start` | start the robot now |
-| `agent-buddy demo` | a tour of every state, no agent needed |
-| `agent-buddy uninstall` | remove the hooks again |
+| `perchbot setup` | add the hooks (`~/.claude`, `~/.claude-<name>`, `$CLAUDE_CONFIG_DIR`); asks once, backs up each file |
+| `perchbot doctor` | fix missing hooks, test each account live (`--account <name>` for one) |
+| `perchbot status` | which accounts have the hooks, is the robot running |
+| `perchbot start` | start the robot now |
+| `perchbot demo` | a tour of every state, no agent needed |
+| `perchbot uninstall` | remove the hooks again |
 
 ## Privacy
 
 Only the event, the tool name, a file name (not the path) and a shortened command (secrets masked)
 leave the hook, and only to `127.0.0.1`. With ambient life on, the robot also looks at the system idle
 time, where the cursor is (its position only) and, on Windows, where windows are (frames only, never
-titles or contents). Nothing of it is stored or sent anywhere. Settings: `~/.agent-buddy/settings.json`.
+titles or contents). Nothing of it is stored or sent anywhere. Settings: `~/.perchbot/settings.json`.
 
 ## Development
 

@@ -32,7 +32,7 @@
     "doneSummary": "Done! {count} steps in {time}"
   },
   "menu": {
-    "title": "Agent Buddy",
+    "title": "Perchbot",
     "sessions": "Active sessions: {count}",
     "corner": "Position",
     "bottomRight": "Bottom right",

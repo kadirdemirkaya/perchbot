@@ -1,16 +1,16 @@
 'use strict';
 
 /**
- * User settings, stored as JSON in ~/.agent-buddy/settings.json.
- * (Override the folder with the AGENT_BUDDY_HOME environment variable.)
+ * User settings, stored as JSON in ~/.perchbot/settings.json.
+ * (Override the folder with the PERCHBOT_HOME environment variable.)
  *
  * hooks/send.js reads `port` and `debug` from the same file, so keep the
  * location in sync with buddyHome() there.
  */
 
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
+const names = require('../lib/names');
 
 const CORNERS = ['bottom-right', 'bottom-left'];
 const SIZES = ['small', 'medium', 'large'];
@@ -88,9 +88,9 @@ function normalizePositions(value) {
   return out;
 }
 
+/** ~/.perchbot (or PERCHBOT_HOME; an install from before the rename keeps its old folder: lib/names.js). */
 function buddyHome() {
-  const override = process.env.AGENT_BUDDY_HOME;
-  return override ? path.resolve(override) : path.join(os.homedir(), '.agent-buddy');
+  return names.homeDir();
 }
 
 function settingsPath(home = buddyHome()) {
@@ -188,9 +188,9 @@ function saveSettings(settings, file = settingsPath()) {
   return clean;
 }
 
-/** Port actually used: AGENT_BUDDY_PORT wins over the settings file. */
+/** Port actually used: PERCHBOT_PORT wins over the settings file. */
 function effectivePort(settings) {
-  const fromEnv = Number(process.env.AGENT_BUDDY_PORT);
+  const fromEnv = Number(names.envValue('PORT'));
   if (Number.isInteger(fromEnv) && fromEnv >= 1024 && fromEnv <= 65535) return fromEnv;
   return settings.port;
 }

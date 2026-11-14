@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Agent Buddy hook script. Claude Code runs it for each configured hook event
+ * Perchbot hook script. Claude Code runs it for each configured hook event
  * and passes the event as JSON on stdin.
  *
  * Contract: it must never get in Claude Code's way.
@@ -24,16 +24,18 @@
  * launch argument, then exits without waiting. It does not do that for a
  * Claude account the user filtered out (settings.json "account").
  *
- * Usage: node hooks/send.js [EventName] [--agent-buddy]
+ * Usage: node hooks/send.js [EventName] [--perchbot]
  *   EventName is a fallback; hook_event_name from stdin wins.
- *   --agent-buddy only tags the command so setup/uninstall can recognise it.
+ *   --perchbot only tags the command so setup/uninstall can recognise it
+ *   (older installs: --agent-buddy). Any of them is ignored here. The old
+ *   AGENT_BUDDY_* names of the variables below still work (lib/names.js).
  *
  * Environment (all optional):
- *   AGENT_BUDDY_HOME       settings folder (default ~/.agent-buddy)
- *   AGENT_BUDDY_PORT       overlay port (default: settings.json "port", else 7777)
- *   AGENT_BUDDY_DEBUG=1    append one line per event to <home>/logs/hook.log
- *   AGENT_BUDDY_NO_LAUNCH=1  never start the overlay (used by tests)
- *   AGENT_BUDDY_NO_PID=1   do not look for Claude Code's process id (tests, simulator)
+ *   PERCHBOT_HOME       settings folder (default ~/.perchbot; ~/.agent-buddy while only that exists)
+ *   PERCHBOT_PORT       overlay port (default: settings.json "port", else 7777)
+ *   PERCHBOT_DEBUG=1    append one line per event to <home>/logs/hook.log
+ *   PERCHBOT_NO_LAUNCH=1  never start the overlay (used by tests)
+ *   PERCHBOT_NO_PID=1   do not look for Claude Code's process id (tests, simulator)
  *
  * Zero dependencies: Node.js built-ins only.
  */
@@ -44,6 +46,8 @@ const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn, execFile, execFileSync } = require('node:child_process');
+// The names (and the old ones, still read): built-ins only too.
+const names = require('../lib/names');
 
 const START_TS = Date.now();
 const ROOT = path.resolve(__dirname, '..');
@@ -276,7 +280,7 @@ function safeId(value, max) {
 /** agent_id -> 10 hex characters. Pairs an agent's events without passing on the id itself. */
 function agentHash(agentId) {
   if (typeof agentId !== 'string' || !agentId || agentId.length > 256) return undefined;
-  return crypto.createHash('sha256').update(`agent-buddy:${agentId}`).digest('hex').slice(0, 10);
+  return crypto.createHash('sha256').update(`perchbot:${agentId}`).digest('hex').slice(0, 10);
 }
 
 /** agent_type such as "Explore" or "plugin:reviewer": safe characters only, at most 40. */
@@ -502,7 +506,7 @@ async function findClaudePid(start = process.ppid, platform = process.platform, 
 // ---------------------------------------------------------------- config
 
 function readConfig(env = process.env) {
-  const home = env.AGENT_BUDDY_HOME ? path.resolve(env.AGENT_BUDDY_HOME) : path.join(os.homedir(), '.agent-buddy');
+  const home = names.homeDir(env);
   let settings = {};
   try {
     settings = JSON.parse(fs.readFileSync(path.join(home, 'settings.json'), 'utf8')) || {};
@@ -510,13 +514,13 @@ function readConfig(env = process.env) {
     // no settings file: defaults
   }
   const validPort = (p) => Number.isInteger(p) && p >= 1024 && p <= 65535;
-  const envPort = Number(env.AGENT_BUDDY_PORT);
+  const envPort = Number(names.envValue('PORT', env));
   return {
     home,
     port: validPort(envPort) ? envPort : validPort(settings.port) ? settings.port : DEFAULT_PORT,
-    debug: env.AGENT_BUDDY_DEBUG === '1' || settings.debug === true,
-    noLaunch: env.AGENT_BUDDY_NO_LAUNCH === '1',
-    noPid: env.AGENT_BUDDY_NO_PID === '1',
+    debug: names.envValue('DEBUG', env) === '1' || settings.debug === true,
+    noLaunch: names.envValue('NO_LAUNCH', env) === '1',
+    noPid: names.envValue('NO_PID', env) === '1',
     /** "all", or the one account the overlay shows (tray menu "Account"). */
     account: typeof settings.account === 'string' && ACCOUNT_RE.test(settings.account) ? settings.account : 'all',
     /** One buddy per account (app/instances.js): every account has an overlay of its own. */
@@ -638,7 +642,7 @@ function post(payload, port, timeoutMs = POST_TIMEOUT_MS) {
 }
 
 /**
- * The Electron binary: from Agent Buddy's own node_modules (a clone, or a
+ * The Electron binary: from Perchbot's own node_modules (a clone, or a
  * global npm install), else wherever Node would find the package from here
  * (an install where npm put Electron one level up). null when it is missing.
  */

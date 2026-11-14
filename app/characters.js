@@ -6,7 +6,7 @@
  * character with a given id (folder name) wins:
  *
  *   1. <repo>/characters/<id>/            bundled characters
- *   2. ~/.agent-buddy/characters/<id>/    your own, no repo changes needed
+ *   2. ~/.perchbot/characters/<id>/    your own, no repo changes needed
  *
  * See characters/README.md for the format.
  */

@@ -4,7 +4,7 @@ Interactive checks that unit tests cannot do: real mouse input, screenshots and 
 use of the running overlay. Windows PowerShell 5.1, no extra dependencies.
 
 All of them work on an **isolated test overlay**: its own port (7790) and its own
-settings folder (`%TEMP%\agent-buddy-test-home`). Your real settings, and the
+settings folder (`%TEMP%\perchbot-test-home`). Your real settings, and the
 overlay that your Claude Code sessions use (port 7777), are not touched.
 
 ```powershell
@@ -22,9 +22,9 @@ taskbar to see the hovering pose, or without them for the corner (on the ground)
 
 The test overlay starts with **ambient life, play mode and the cat off**, so the
 screenshots and the click-through test are repeatable. Add `-Fun` to turn all three on;
-`npm run simulate -- life` (with `$env:AGENT_BUDDY_PORT = '7790'` and `$env:AGENT_BUDDY_HOME`
+`npm run simulate -- life` (with `$env:PERCHBOT_PORT = '7790'` and `$env:PERCHBOT_HOME`
 set to the test home) then plays every behaviour in turn. Developers can also set
-`$env:AGENT_BUDDY_DEMO` to `duel`, `trips`, `plays` or `cheers` before starting it.
+`$env:PERCHBOT_DEMO` to `duel`, `trips`, `plays` or `cheers` before starting it.
 `-StayPut` starts it with **Stay here** on (no trips of its own, no fleeing, no following the cursor).
 
 If PowerShell refuses to run scripts, use

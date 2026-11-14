@@ -88,7 +88,7 @@ test('one request per connection: a client that keeps connections never loses an
 test('health endpoint', async () => {
   const r = await request({ method: 'GET', path: '/health' });
   assert.equal(r.status, 200);
-  assert.equal(JSON.parse(r.text).app, 'agent-buddy');
+  assert.equal(JSON.parse(r.text).app, 'perchbot');
 });
 
 test('rejects browser requests (Origin / Sec-Fetch-*)', async () => {

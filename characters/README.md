@@ -4,7 +4,7 @@ A character is a folder with three files. No app code changes are needed.
 
 ```
 characters/<id>/            # bundled with the repo (send a pull request), or
-~/.agent-buddy/characters/<id>/   # your own, private, no repo changes at all
+~/.perchbot/characters/<id>/   # your own, private, no repo changes at all
 ├── character.json
 ├── <something>.svg
 └── <something>.css
