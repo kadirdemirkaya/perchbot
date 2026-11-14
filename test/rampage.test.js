@@ -338,6 +338,29 @@ test('rampage wiring: a click-through effect window that only listens, ended by 
   assert.ok(DEMOS.has('rampage'));
 });
 
+test('effect windows load from their own host: their zoom 1 never resets the buddy zoom (size small / large)', () => {
+  // Chromium keeps one zoom level per host. On the buddy's host the effect windows' setZoomFactor(1)
+  // shrank a large buddy to medium for good, and the beams left from where its eyes had been.
+  const main = read('app', 'main.js');
+  assert.ok(main.includes('const ORIGIN = `${SCHEME}://local`;'));
+  assert.ok(main.includes('const EFFECTS_ORIGIN = `${SCHEME}://effects`;'));
+  for (const page of ['rampage.html', 'fist.html']) {
+    assert.ok(main.includes(`ew.loadURL(\`\${EFFECTS_ORIGIN}/renderer/${page}\`);`), page);
+    assert.ok(!main.includes(`\${ORIGIN}/renderer/${page}`), `${page} not on the buddy's host`);
+  }
+  // The buddy and its helpers (both zoomed to the size) stay on the same host.
+  assert.ok(main.includes('win.loadURL(`${ORIGIN}/renderer/index.html`);'));
+  assert.ok(main.includes('hw.loadURL(`${ORIGIN}/renderer/helper.html`);'));
+  // Every setZoomFactor(1) is an effect window's.
+  const ones = main.match(/(\w+(?:\.\w+)*)\.webContents\.setZoomFactor\(1\)/g) || [];
+  assert.ok(ones.length >= 2);
+  for (const call of ones) assert.ok(/\.ew\.webContents/.test(call), call);
+  // The effects host serves the renderer folder only, never a character.
+  const resolve = main.slice(main.indexOf('function resolveAsset(url)'), main.indexOf('function reloadCharacters()'));
+  assert.ok(resolve.includes("if (parsed.host !== 'local' && parsed.host !== 'effects') return null;"));
+  assert.ok(resolve.includes("if (parsed.host === 'effects' && parts[0] !== 'renderer') return null;"));
+});
+
 test('rampage on the page: the second blaze starts it instead of a flight; poses for every phase', () => {
   const page = read('app', 'renderer', 'renderer.js');
   assert.ok(page.includes('if (level >= TEMPER_MAX && before < TEMPER_MAX && fury.blaze() && goRampage()) return;'));

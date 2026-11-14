@@ -71,6 +71,13 @@ const ASSETS_DIR = path.join(__dirname, 'assets');
 const HOME = buddyHome();
 const SCHEME = 'buddy';
 const ORIGIN = `${SCHEME}://local`;
+/**
+ * The effect windows (rocket fist, rampage) load from a host of their own. Chromium keeps one
+ * zoom level per host: their zoom 1 would otherwise also reset the buddy window's zoom (size
+ * small / large), shrinking it on the spot and sending the beams off where its eyes were.
+ * This host serves renderer/* only.
+ */
+const EFFECTS_ORIGIN = `${SCHEME}://effects`;
 /** "Quit now" keeps the overlay from relaunching for the current sessions this long. */
 const MUTE_MS = 12 * 60 * 60 * 1000;
 /** While the window takes mouse input, check this often that the cursor is still inside. */
@@ -689,7 +696,7 @@ function start() {
     if (typeof ses.setSpellCheckerEnabled === 'function') ses.setSpellCheckerEnabled(false);
   }
 
-  /** Serves buddy://local/renderer/* and buddy://local/characters/<id>/*. */
+  /** Serves buddy://local/renderer/*, buddy://local/characters/<id>/* and buddy://effects/renderer/*. */
   function registerProtocol() {
     protocol.handle(SCHEME, async (request) => {
       const file = resolveAsset(request.url);
@@ -714,8 +721,10 @@ function start() {
     let parts;
     try {
       const parsed = new URL(url);
-      if (parsed.host !== 'local') return null;
+      if (parsed.host !== 'local' && parsed.host !== 'effects') return null;
       parts = decodeURIComponent(parsed.pathname).split('/').filter(Boolean);
+      // The effects host (EFFECTS_ORIGIN): the renderer folder only, never a character.
+      if (parsed.host === 'effects' && parts[0] !== 'renderer') return null;
     } catch {
       return null;
     }
@@ -1360,7 +1369,7 @@ function start() {
         ),
       );
     });
-    ew.loadURL(`${ORIGIN}/renderer/fist.html`);
+    ew.loadURL(`${EFFECTS_ORIGIN}/renderer/fist.html`);
     return true;
   }
 
@@ -1986,7 +1995,7 @@ function start() {
         }, rampageLib.RAMPAGE.chargeMs),
       );
     });
-    ew.loadURL(`${ORIGIN}/renderer/rampage.html`);
+    ew.loadURL(`${EFFECTS_ORIGIN}/renderer/rampage.html`);
     return undefined;
   }
 

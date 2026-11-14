@@ -76,7 +76,7 @@ test('wiring: main fires it only for a press, presses when it hits, ends it on a
     'const sameScreen = pointInside(display.bounds, at);',
     "ff.press = hands.press(target).then((done) => {",
     '}, plan.hitAt),',
-    "ew.loadURL(`${ORIGIN}/renderer/fist.html`);",
+    "ew.loadURL(`${EFFECTS_ORIGIN}/renderer/fist.html`);",
     'goReach(handPoint(at), () => pressNow(target, next));',
   ]) {
     assert.ok(body.includes(piece), piece);
