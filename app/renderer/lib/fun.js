@@ -7,6 +7,7 @@
  *   Fury              its head on fire twice in five minutes: a rampage
  *   FocusMeter        intense work: a screen of light instead of the laptop
  *   IdleStory         a long idle spell: a few things (a book, the cat, bubbles...), then a nap
+ *   Wander            idle: about once a minute a trip of its own (up in the air too)
  *   AmbientScheduler  ambient life: short plays and trips, every 15-60 s
  *   pickCheer      a different celebration for "done" now and then
  *   Duel           the sword fight started from the right-click menu
@@ -520,6 +521,104 @@
     }
   }
 
+  // ------------------------------------------------------------------ out and about
+
+  /**
+   * Out and about while it is idle: about once a minute a trip of its own, so it
+   * is seen up in the air too; then it goes on with what it was doing (the idle
+   * story, its plays) wherever it ended up. The story's beats come so often that
+   * AmbientScheduler's own trips seldom get their turn; this keeps them coming.
+   *   cruise, fly  up into the air (it hovers there afterwards)
+   *   walk         down to the ground (or along it), a little way off
+   *   perch        onto a window's title bar
+   * It never cuts anything short: when the time comes and something is going on
+   * (a play, a story beat, the pointer on it), it tries again a little later.
+   * Not allowed for a while (the cat here, a nap, work) does not start the minute
+   * over: it goes soon after it is allowed again. Any trip starts the wait over
+   * (moved()), so it stays about once a minute.
+   */
+  const WANDER = Object.freeze({
+    gapMinMs: 50000,
+    gapMaxMs: 70000,
+    retryMs: 4000,
+    weights: Object.freeze({ cruise: 3, fly: 2, walk: 2.5, perch: 1.5 }),
+  });
+
+  class Wander {
+    constructor({ clock = realClock, random = Math.random, onTrip = () => {}, ...options } = {}) {
+      this.clock = clock;
+      this.random = random;
+      this.onTrip = onTrip;
+      this.o = { ...WANDER, ...options };
+      this.on = false;
+      this.free = false;
+      this.timer = null;
+      /** The minute is up, but it could not go yet. */
+      this.due = false;
+      this.started = false;
+      this.last = null;
+    }
+
+    /**
+     * @param {{ on: boolean, free: boolean }} next
+     *   on    it may go now and then (idle, ambient life, trips allowed: no helpers, not "Stay here")
+     *   free  nothing else going on right now (no play, no story beat, no trip, not held or hovered)
+     */
+    update({ on, free }) {
+      this.on = Boolean(on);
+      this.free = Boolean(free);
+      if (!this.on) {
+        // The minute goes on counting meanwhile; only the retries stop.
+        if (this.due) this.cancel();
+        return;
+      }
+      if (!this.started) {
+        this.started = true;
+        this.wait(this.gap());
+      } else if (this.due && !this.timer) this.wait(this.o.retryMs);
+    }
+
+    /** It moved (a trip of any kind): the next one a whole gap from now. */
+    moved() {
+      this.started = true;
+      this.due = false;
+      this.wait(this.gap());
+    }
+
+    gap() {
+      return this.o.gapMinMs + this.random() * (this.o.gapMaxMs - this.o.gapMinMs);
+    }
+
+    wait(ms) {
+      this.cancel();
+      this.timer = this.clock.setTimeout(() => {
+        this.timer = null;
+        this.fire();
+      }, ms);
+    }
+
+    fire() {
+      if (!this.on || !this.free) {
+        this.due = true;
+        // Not allowed now: update() picks it up again once it is.
+        if (this.on) this.wait(this.o.retryMs);
+        return;
+      }
+      const choices = Object.entries(this.o.weights).filter(([name]) => TRIPS[name] && name !== this.last);
+      if (!choices.length) return;
+      const name = pickWeighted(choices, this.random);
+      this.last = name;
+      this.due = false;
+      this.wait(this.gap());
+      this.onTrip(TRIPS[name]);
+    }
+
+    cancel() {
+      if (this.timer) this.clock.clearTimeout(this.timer);
+      this.timer = null;
+    }
+  }
+
   // ------------------------------------------------------------------ focus mode
 
   /**
@@ -842,6 +941,8 @@
     FOCUS,
     IdleStory,
     STORY,
+    Wander,
+    WANDER,
     AmbientScheduler,
     AMBIENT_GAP,
     WEIGHTS,

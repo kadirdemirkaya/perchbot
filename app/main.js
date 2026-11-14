@@ -53,6 +53,8 @@ const outingsLib = require('./outings');
 const rampageLib = require('./rampage');
 const fistLib = require('./fist');
 const { DwellWatch, FOLLOW, FOLLOW_STATES } = require('./follow');
+const typingLib = require('./typing');
+const { createCaretWatch } = require('./caret');
 const fling = require('./fling');
 const { buildTrayTemplate, buildFunMenuTemplate } = require('./tray');
 const { buildMenuItems, MENU_IDS, switchFor } = require('./menu-items');
@@ -93,9 +95,9 @@ const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
 /** Events that start the overlay (as in hooks/send.js). */
 const LAUNCH_EVENTS = new Set(['SessionStart', 'UserPromptSubmit']);
 /** What the page may ask for (fun mode): a trip, or the right-click menu. */
-const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch', 'peek', 'cat', 'cat-away', 'guest', 'guest-away']);
+const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch', 'peek', 'cat', 'cat-away', 'guest', 'guest-away', 'typing', 'land']);
 /** What the page may not start by itself while "Stay here" is on (the menu still can). */
-const STAY_PUT_BLOCKS = new Set(['flee', 'stroll', 'hop', 'inspect', 'cruise', 'hang', 'loop', 'perch', 'peek']);
+const STAY_PUT_BLOCKS = new Set(['flee', 'stroll', 'hop', 'inspect', 'cruise', 'hang', 'loop', 'perch', 'peek', 'typing', 'land']);
 /**
  * While the window travels, the page reports every frame it draws (vsync) and
  * the window moves then. This timer only fills in if those reports stop: Node
@@ -105,6 +107,8 @@ const STAY_PUT_BLOCKS = new Set(['flee', 'stroll', 'hop', 'inspect', 'cruise', '
 const TRIP_FALLBACK_MS = 50;
 /** States that do not interrupt a trip; any other one (work) stops it at once. */
 const CALM_STATES = new Set(['idle', 'standby', 'greeting']);
+/** A prompt was sent: the work starts (thinking) from one of these. */
+const PROMPT_FROM = new Set(['idle', 'standby', 'greeting', 'done']);
 /** The cat's exit scene, before the window shrinks back. */
 const PET_EXIT_MS = 2200;
 /** Switching sides: the longest wait for the page to hide before the window moves anyway. */
@@ -160,7 +164,7 @@ const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers', 'menu', 'chat']);
 const demo = isDev && DEMOS.has(names.envValue('DEMO')) ? names.envValue('DEMO') : null;
 const DEMO_TRIPS = ['stroll', 'hop', 'screen', 'inspect', 'home'];
 /** Short lines in the speech bubble when it is hit or fights (locales: "quip"). */
-const QUIPS = ['whoa', 'welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'rampage', 'rampageFix', 'focusOn', 'lensHmm', 'guestHi', 'guestSpar', 'guestBow', 'sleepy', 'petCat', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed'];
+const QUIPS = ['whoa', 'welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'rampage', 'rampageFix', 'focusOn', 'lensHmm', 'guestHi', 'guestSpar', 'guestBow', 'sleepy', 'petCat', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed', 'typingLook', 'typingAha'];
 
 // Keep Chromium's own data (caches, the single-instance lock) under
 // ~/.perchbot too, so there is exactly one folder to delete on uninstall
@@ -239,6 +243,18 @@ function start() {
   let petTimer = null;
   /** The chat panel is open: the side column is wider (CHAT_WIDTH). The window never takes the keyboard for it. */
   let chatOpen = false;
+  /** "Watch me type" (app/typing.js, app/caret.js): where the text caret is, asked now and then. */
+  const caretWatch = createCaretWatch({ log });
+  const typingWatch = new typingLib.TypingWatch();
+  let caretTimer = null;
+  let caretEvery = 0;
+  let caretBusy = false;
+  /** The caret spot offered to the page: { x, y, w, h, at, demo } (screen DIP). */
+  let typingSpot = null;
+  /** There, reading along: { visit, from, there, aha, ahaTimer, along, demo }. */
+  let typingVisit = null;
+  /** The state before the current one (a new prompt: from idle or done to thinking). */
+  let lastCoreState = null;
 
   // ------------------------------------------------------------------ events
 
@@ -273,6 +289,10 @@ function start() {
     }
     // Hanging from the top edge when work comes in: it lets go and drops into view (the bubble shows the work).
     if (isHanging() && !CALM_STATES.has(snap.state)) dropFromEdge();
+    // Reading along as the user types: the prompt went off (from idle or done to thinking), or
+    // Claude Code needs the user now: it got it (the light bulb), then back.
+    if (typingVisit && ((snap.state === 'thinking' && PROMPT_FROM.has(lastCoreState)) || !typingLib.TYPING_STATES.has(snap.state))) typingAha();
+    lastCoreState = snap.state;
     sendView();
   });
 
@@ -409,6 +429,8 @@ function start() {
     if (action === 'context') popUpFunMenu();
     // To where the user's cursor rested a moment ago, with the magnifier (app/follow.js).
     else if (action === 'peek') settings.ambientLife && peekAtDwell();
+    // "Watch me type": to the line the user is typing in, to read along (app/typing.js).
+    else if (action === 'typing') settings.ambientLife && peekAtTyping();
     // The idle story: the cat comes over (only with the Cat switch on) or goes again;
     // a visitor drops by (the window makes room), or has left.
     else if (action === 'cat') settings.ambientLife && setPet(true);
@@ -581,6 +603,8 @@ function start() {
     }, PRESENCE.pollMs);
     // Where the cursor rests (ambient life, not "Stay here"): the page may go and have a look.
     followTimer = setInterval(followTick, FOLLOW.sampleMs);
+    // "Watch me type": only with its switch on (off by default).
+    syncTyping();
   }
 
   // ------------------------------------------------------------------ following the cursor (app/follow.js)
@@ -609,6 +633,7 @@ function start() {
       fist ||
       handsBusy ||
       peekBack ||
+      typingVisit ||
       !FOLLOW_STATES.has(core.snapshot().state)
     ) {
       dwell.hold();
@@ -670,6 +695,219 @@ function start() {
       if (plan) beginTrip(plan, 'goto', null, { peek: true });
       return undefined;
     }, FOLLOW.backAfterMs);
+  }
+
+  /**
+   * After reading along as the user typed: back home, or to where it was out on the screen
+   * (`from`), as after a look at the cursor (lookThenBack). Not if something else moved it
+   * from `there` meanwhile (a drag, a trip, hands).
+   */
+  function flyBackFrom(from, there) {
+    if (!there || !anchor || drag || trip || warping || paused || fist || handsBusy) return undefined;
+    if (Math.hypot(anchor.x - there.x, anchor.y - there.y) > 3) return undefined;
+    if (!from) return startTrip('home', { peek: true });
+    const all = displays();
+    const here = placement.nearestDisplay(anchor, all);
+    if (placement.nearestDisplay(from, all).id !== here.id) return startTrip('home', { peek: true });
+    const spans = pageSpans();
+    const plan = roam.planTrip({ kind: 'goto', to: from, from: anchor, home: homeAnchor(), workArea: here.workArea, scale: scale(), hoverMode: settings.hoverMode, ...spans });
+    if (plan) beginTrip(plan, 'goto', null, { peek: true });
+    return undefined;
+  }
+
+  // ------------------------------------------------------------------ watching the user type (app/typing.js)
+
+  /**
+   * "Watch me type" may run: its switch, ambient life, not "Stay here", hovering allowed
+   * (it reads along up in the air), Windows. Off: the caret is never asked for.
+   */
+  function typingOn() {
+    return Boolean(settings.typingPeek && settings.ambientLife && !settings.stayPut && settings.hoverMode !== 'stand' && caretWatch.supported());
+  }
+
+  /** Start or stop asking where the caret is (after any settings change). */
+  function syncTyping() {
+    if (typingOn() && !quitting) {
+      if (!caretTimer) setCaretEvery(typingLib.TYPING.sampleMs);
+      return;
+    }
+    if (caretTimer) clearInterval(caretTimer);
+    caretTimer = null;
+    caretEvery = 0;
+    typingWatch.hold();
+    typingSpot = null;
+    // Switched off while it reads along: it flies back.
+    if (typingVisit && !typingVisit.demo) finishTypingVisit({ back: true });
+    caretWatch.stop();
+  }
+
+  function setCaretEvery(ms) {
+    if (caretTimer && caretEvery === ms) return;
+    if (caretTimer) clearInterval(caretTimer);
+    caretEvery = ms;
+    caretTimer = setInterval(caretTick, ms);
+  }
+
+  /** Free to go and look (as for a look at the cursor): nothing else going on. */
+  function typingFree() {
+    return Boolean(
+      win && !win.isDestroyed() && anchor && pageLayout && !paused && !quitting && !drag && !trip && !warping && !flipping && !rampage && !fist && !handsBusy && !peekBack && !chatOpen &&
+        typingLib.TYPING_STATES.has(core.snapshot().state),
+    );
+  }
+
+  /** One look at the caret: typing? Go and look (the page decides). There: still typing? */
+  async function caretTick() {
+    if (caretBusy || !typingOn()) return;
+    if (!typingVisit && !typingFree()) {
+      typingWatch.hold();
+      return;
+    }
+    caretBusy = true;
+    let raw = null;
+    try {
+      raw = await caretWatch.where();
+    } finally {
+      caretBusy = false;
+    }
+    if (!win || win.isDestroyed() || quitting) return;
+    // A password field gives nothing (app/caret.js): as if there were no caret.
+    const caret = raw && !raw.secret ? caretToDip(raw) : null;
+    if (typingVisit) {
+      visitTick(caret);
+      return;
+    }
+    if (!typingFree()) return;
+    const spot = typingWatch.sample(caret, Date.now(), anchor);
+    if (!spot) return;
+    typingSpot = { ...spot, at: Date.now() };
+    log.devOnly(`typing: the caret keeps moving at ${Math.round(spot.x)},${Math.round(spot.y)}`);
+    if (canSend()) win.webContents.send('buddy:typing', { offer: true });
+  }
+
+  /** The helper's rectangle (physical pixels) in screen DIP, or null. */
+  function caretToDip(raw) {
+    if (typeof screen.screenToDipRect !== 'function') return null;
+    const r = screen.screenToDipRect(null, { x: raw.x, y: raw.y, width: Math.max(1, raw.w), height: raw.h });
+    return { x: r.x, y: r.y, w: r.width, h: r.height, field: raw.field };
+  }
+
+  /** The page wants to go: off to just above that line (same screen only). */
+  function peekAtTyping() {
+    const spot = typingSpot;
+    typingSpot = null;
+    if (!spot || Date.now() - spot.at > typingLib.TYPING.freshMs || !typingFree()) return;
+    if (!spot.demo && !typingOn()) return;
+    if (!spot.demo) typingWatch.visited(Date.now());
+    const all = displays();
+    const here = placement.nearestDisplay(anchor, all);
+    if (placement.nearestDisplay(spot, all).id !== here.id) return;
+    const from = roamAnchor ? { ...roamAnchor } : null;
+    log.devOnly('typing: off to read along');
+    goReadAlong(spot, here, () => startTypingVisit(from, spot));
+  }
+
+  /** A short flight to just above the caret (typing.standBy), then `then` (at once when it is there already). */
+  function goReadAlong(spot, display, then) {
+    const to = typingLib.standBy(spot, display.workArea, scale());
+    const plan = to && roam.planTrip({ kind: 'goto', to, from: anchor, home: homeAnchor(), workArea: display.workArea, scale: scale(), hoverMode: settings.hoverMode, ...pageSpans() });
+    if (!plan) {
+      then();
+      return;
+    }
+    plan.kind = 'typing';
+    beginTrip(plan, 'typing', then, { peek: true, typing: true });
+  }
+
+  /** Arrived above the line: it reads along through its magnifier until the typing is over. */
+  function startTypingVisit(from, spot) {
+    placeWindow();
+    if (!anchor || (!spot.demo && !typingOn())) return;
+    typingVisit = {
+      visit: new typingLib.TypingVisit({ start: Date.now(), caret: spot }),
+      from,
+      there: { ...anchor },
+      aha: false,
+      ahaTimer: null,
+      along: 0,
+      demo: Boolean(spot.demo),
+    };
+    log.devOnly('typing: reading along');
+    if (canSend()) win.webContents.send('buddy:typing', { phase: 'look', look: spot.x < anchor.x ? 'left' : 'right' });
+    // The simulator has no caret: it reads a moment, then the light bulb.
+    if (typingVisit.demo) typingVisit.ahaTimer = setTimeout(typingAha, typingLib.TYPING.lookMinMs + typingLib.TYPING.doneMs);
+    else setCaretEvery(typingLib.TYPING.visitSampleMs);
+  }
+
+  /** A caret sample while it is there: keep reading, move along, or the typing is over. */
+  function visitTick(caret) {
+    const v = typingVisit;
+    if (!v || v.aha || v.demo) return;
+    // Something else took over (a drag, another trip, the rampage, hands, a lock): nothing more.
+    if (drag || warping || rampage || fist || handsBusy || paused || (trip && !trip.typing)) {
+      endTypingVisit('interrupted');
+      return;
+    }
+    if (trip) return; // moving along
+    const step = v.visit.sample(caret, Date.now());
+    if (step === 'aha') {
+      typingAha();
+      return;
+    }
+    if (step !== 'along') return;
+    const all = displays();
+    const here = placement.nearestDisplay(anchor, all);
+    // Typed a lot already, or over on another screen: it got it.
+    if (v.along >= typingLib.TYPING.alongMax || placement.nearestDisplay(caret, all).id !== here.id) {
+      typingAha();
+      return;
+    }
+    v.along += 1;
+    v.visit.movedTo(caret);
+    log.devOnly('typing: moving along');
+    goReadAlong(caret, here, () => {
+      placeWindow();
+      if (typingVisit !== v || !anchor) return;
+      v.there = { ...anchor };
+      if (canSend()) win.webContents.send('buddy:typing', { phase: 'look', look: caret.x < anchor.x ? 'left' : 'right' });
+    });
+  }
+
+  /** The typing is over (or the prompt went off): the light bulb, then back. */
+  function typingAha() {
+    const v = typingVisit;
+    if (!v || v.aha) return;
+    v.aha = true;
+    clearTimeout(v.ahaTimer);
+    log.devOnly('typing: got it');
+    if (canSend()) win.webContents.send('buddy:typing', { phase: 'aha' });
+    v.ahaTimer = setTimeout(() => finishTypingVisit({ back: true }), typingLib.TYPING.ahaMs);
+  }
+
+  /** The visit is over; `back`: it flies back (home, or where it was before). */
+  function finishTypingVisit({ back = false } = {}) {
+    const v = typingVisit;
+    if (!v) return;
+    typingVisit = null;
+    clearTimeout(v.ahaTimer);
+    if (caretTimer) setCaretEvery(typingLib.TYPING.sampleMs);
+    if (canSend()) win.webContents.send('buddy:typing', { phase: null });
+    if (back) flyBackFrom(v.from, v.there);
+  }
+
+  /** Cut short by something else: no light bulb, no flight back (whatever came next moves it). */
+  function endTypingVisit(why) {
+    if (!typingVisit) return;
+    log.devOnly(`typing: over (${why})`);
+    finishTypingVisit({ back: false });
+  }
+
+  /** The simulator: as if the user were typing where the mouse cursor is now (no caret is asked for). */
+  function demoTyping() {
+    if (!win || win.isDestroyed() || !anchor || drag || trip || typingVisit) return;
+    const p = screen.getCursorScreenPoint();
+    typingSpot = { x: p.x, y: p.y, w: 10, h: 20, at: Date.now(), demo: true };
+    if (canSend()) win.webContents.send('buddy:typing', { offer: true, demo: true });
   }
 
   const presence = new PresenceWatch();
@@ -888,6 +1126,7 @@ function start() {
       endAllOutings();
       endRampage('renderer gone');
       endFist('renderer gone');
+      endTypingVisit('renderer gone');
       setCapture(false);
       chatOpen = false;
       log.error(`renderer exited (${details.reason})`);
@@ -906,6 +1145,7 @@ function start() {
       endAllOutings();
       endRampage('window closed');
       endFist('window closed');
+      endTypingVisit('window closed');
       win = null;
       rendererReady = false;
       stopWatchdog();
@@ -1607,7 +1847,7 @@ function start() {
   }
 
   /** then: what comes after arriving (the second leg of a trip to another screen). */
-  function beginTrip(plan, kind, then = null, { lens = null, peek = false } = {}) {
+  function beginTrip(plan, kind, then = null, { lens = null, peek = false, typing = false } = {}) {
     // Off on a trip: it no longer sits on a window.
     if (perching || pendingPerch) stopPerch();
     log.devOnly(`trip: ${plan.kind} by ${plan.mode}, ${plan.ms} ms`);
@@ -1626,6 +1866,8 @@ function start() {
       lens,
       // A look at where the cursor rests, or the way back: work does not stop it.
       peek,
+      // Off to read along as the user types (or moving along the line): that visit goes on.
+      typing,
     };
     // A loop-the-loop: the page turns the figure once while the window flies the circle.
     const path = plan.path || {};
@@ -2176,6 +2418,8 @@ function start() {
     else if (name === 'chat') demoChat();
     // As if the cursor had rested where it is now: the page goes for a look (no chance roll).
     else if (name === 'follow') demoFollow();
+    // As if the user were typing where the cursor is now: it reads along, then the light bulb.
+    else if (name === 'typing') demoTyping();
     // Hands, for a test overlay only (--dev): a real tab is opened or closed, so a plain
     // overlay never does this for an event, only for the user in its chat panel.
     else if (chat.HAND_SET.has(name) && isDev) runHands(name, { confirmed: true });
@@ -2267,6 +2511,7 @@ function start() {
     if (value) endAllOutings();
     if (value) endRampage('paused');
     if (value) endFist('paused');
+    if (value) endTypingVisit('paused');
     if (canSend()) win.webContents.send('buddy:paused', value);
   }
 
@@ -2512,6 +2757,8 @@ function start() {
       log.error(`could not save settings: ${err.message}`);
     }
     if (after) after();
+    // "Watch me type" starts or stops with its switch (and with ambient life, "Stay here", hovering).
+    syncTyping();
     sendSettings();
     refreshTray();
   }
@@ -2671,6 +2918,8 @@ function start() {
       updateSettings({ cat }, () => {
         if (!cat) setPet(false);
       }),
+    // "Watch me type" (Windows): updateSettings starts or stops asking where the caret is.
+    setTypingPeek: (typingPeek) => updateSettings({ typingPeek }),
     backToCorner: () => {
       roamAnchor = null;
       updateSettings(withPlace(null), placeWindow);
@@ -2719,6 +2968,10 @@ function start() {
     stopPerch();
     scanner.stop();
     hands.stop();
+    if (caretTimer) clearInterval(caretTimer);
+    caretTimer = null;
+    endTypingVisit('quit');
+    caretWatch.stop();
     endAllOutings();
     endRampage('quit');
     endFist('quit');

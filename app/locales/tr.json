@@ -67,7 +67,8 @@
     "volume_low": "Düşük",
     "volume_medium": "Orta",
     "volume_high": "Yüksek",
-    "hands": "Eller: Chrome"
+    "hands": "Eller: Chrome",
+    "typingPeek": "Yazarken izlesin"
   },
   "hover": {
     "hideBubble": "Baloncuğu gizle",
@@ -223,6 +224,8 @@
     "giggle": "Hihi!",
     "sneeze": "Hapşu!",
     "bugFixed": "Hata çözüldü!",
+    "typingLook": "Ooo, bir okuyayım…",
+    "typingAha": "Aha! Anladım!",
     "commit": "Commit'lendi!",
     "push": "Push'landı, uçtu gitti!",
     "phew": "Oh be!",

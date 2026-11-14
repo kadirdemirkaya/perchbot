@@ -2636,6 +2636,63 @@
   65% { transform: translateY(0.5px) rotate(1.5deg); }
 }
 
+/* ------------------------------------------------------------ got it (data-aha)
+
+   "Watch me type" (app/typing.js): it read along while the user typed (data-lens),
+   the typing is over and it got it: the light bulb of its idea pose flickers on
+   above its head and a finger goes up. The app drops the magnifier first. */
+
+.buddy-character[data-aha] .rb-thought {
+  opacity: 0;
+}
+
+.buddy-character[data-aha] .rb-bulb {
+  opacity: 1;
+}
+
+.buddy-character[data-aha]:not([data-skill='open']) .rb-arm-back {
+  transform: rotate(150deg);
+}
+
+.buddy-character[data-aha]:not([data-skill='open']) .rb-forearm-back {
+  transform: rotate(20deg);
+}
+
+.buddy-character[data-aha] .rb-head {
+  transform: rotate(3deg);
+}
+
+.buddy-character[data-aha] .rb-face {
+  transform: translate(2px, -3px);
+}
+
+.buddy-character[data-aha]:not([data-rest]) .rb-bulb-glass {
+  animation: rb-aha 1.1s steps(1) both;
+}
+
+.buddy-character[data-aha]:not([data-rest]) .rb-bulb-rays {
+  animation: rb-aha-rays 1.1s steps(1) both;
+}
+
+@keyframes rb-aha {
+  0%, 18% { fill: #fff6e8; }
+  19%, 30% { fill: #ffd25a; }
+  31%, 42% { fill: #fff6e8; }
+  43%, 100% { fill: #ffd25a; }
+}
+
+@keyframes rb-aha-rays {
+  0%, 42% { opacity: 0; }
+  43%, 100% { opacity: 1; }
+}
+
+/* Without motion: simply on. */
+@media (prefers-reduced-motion: reduce) {
+  .buddy-character[data-aha] .rb-bulb-glass {
+    fill: #ffd25a;
+  }
+}
+
 /* ------------------------------------------------------------ the duel (data-duel) */
 
 /* Sword out, laptop away. */

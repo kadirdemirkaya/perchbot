@@ -60,6 +60,12 @@ const DEFAULTS = Object.freeze({
   playMode: false,
   /** The cat: it can be called from the menu, plays with the buddy, then naps. */
   cat: false,
+  /**
+   * Watch me type (Windows, app/typing.js): now and then, while the user types in a
+   * terminal, it flies over and reads along, then a light bulb: it got it. Only the
+   * position of the text caret is asked for, never any text. Off until the user turns it on.
+   */
+  typingPeek: false,
   /** Little robot sounds made in code (taps, the duel, the ball, the cat, the rampage, a visitor). */
   sound: false,
   soundVolume: 'low',
@@ -120,6 +126,7 @@ function normalizeSettings(raw) {
   if (typeof raw.stayPut === 'boolean') s.stayPut = raw.stayPut;
   if (typeof raw.playMode === 'boolean') s.playMode = raw.playMode;
   if (typeof raw.cat === 'boolean') s.cat = raw.cat;
+  if (typeof raw.typingPeek === 'boolean') s.typingPeek = raw.typingPeek;
   if (typeof raw.sound === 'boolean') s.sound = raw.sound;
   if (SOUND_VOLUMES.includes(raw.soundVolume)) s.soundVolume = raw.soundVolume;
   if (typeof raw.workSounds === 'boolean') s.workSounds = raw.workSounds;

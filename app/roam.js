@@ -22,6 +22,8 @@
  *   hang     up to the top edge of the screen, to hang from it upside down:
  *            the only trip that ends with part of the window above the work
  *            area (HANG_REACH: its boots hook over the edge)
+ *   land     hovering: down to the ground right below (the cat and a visitor
+ *            need the ground under its feet)
  *
  * Flight paths (path.style, only for the buddy's own flights: fancy = true):
  *   arc    the usual gentle arc upwards (every other flight: helpers, inspect,
@@ -51,7 +53,7 @@ const MIN_TRIP_MS = 700;
 const EDGE = 8;
 /** Distance kept between the character's slot and the cursor (DIP at medium size). */
 const CURSOR_GAP = 60;
-const KINDS = new Set(['stroll', 'hop', 'inspect', 'home', 'flee', 'goto', 'cruise', 'hang', 'reach']);
+const KINDS = new Set(['stroll', 'hop', 'inspect', 'home', 'flee', 'goto', 'cruise', 'hang', 'reach', 'land']);
 /**
  * Reaching for a button near the top of the screen (hands, app/hands.js): the
  * anchor may come this close to the top of the work area (DIP at medium size).
@@ -197,6 +199,12 @@ function planTrip({ kind, from, home, workArea, cursor = null, scale = 1, hoverM
       let dir = random() < 0.5 ? -1 : 1;
       if (from.x + dir * far > b.maxX || from.x + dir * far < b.minX) dir = -dir;
       to = { x: from.x + dir * far, y: b.ground - (80 * scale + random() * Math.max(0, b.ground - b.minY - 80 * scale)) };
+      break;
+    }
+    case 'land': {
+      // Down to the ground right below; on the ground already: nothing to do.
+      if (onGround) return null;
+      to = { x: from.x, y: b.ground };
       break;
     }
     case 'hang': {

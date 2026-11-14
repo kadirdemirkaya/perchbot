@@ -18,7 +18,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const on = (channel) => (callback) => ipcRenderer.on(channel, (_event, data) => callback(data));
 const DRAG_PHASES = new Set(['start', 'move', 'end', 'cancel']);
 const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
-const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch', 'peek', 'cat', 'cat-away', 'guest', 'guest-away']);
+const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch', 'peek', 'cat', 'cat-away', 'guest', 'guest-away', 'typing', 'land']);
 const CHAT_OPS = new Set(['open', 'close', 'ask']);
 /** The hands commands (app/chat.js HAND_INTENTS; a test keeps the two lists equal). */
 const HAND_INTENTS = new Set(['openchrome', 'closechrome', 'newtab', 'closetab', 'youtube']);
@@ -54,6 +54,8 @@ contextBridge.exposeInMainWorld('buddy', {
   onOutingBack: on('buddy:outing-back'),
   onRampage: on('buddy:rampage'),
   onFollow: on('buddy:follow'),
+  /** "Watch me type": go and look? ({ offer }), and the phases there ({ phase: 'look' | 'aha' | null }). */
+  onTyping: on('buddy:typing'),
   onGuest: on('buddy:guest'),
   ready: () => ipcRenderer.send('buddy:ready'),
   capture: (wanted) => ipcRenderer.send('buddy:capture', wanted === true),

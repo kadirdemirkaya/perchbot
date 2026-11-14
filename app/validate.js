@@ -113,6 +113,8 @@ const DEMOS = new Set([
   // As if the cursor rested where it is: it flies over and looks through its magnifier; 'lens': the pose only.
   'follow',
   'lens',
+  // "Watch me type": as if the user were typing where the mouse cursor is (it reads along, then the light bulb).
+  'typing',
   // The idle story: reads a book, blows bubbles, throws a paper plane, pets the cat; a visitor
   // drops by (sit, chat, sword practice); the whole story at once.
   'read',

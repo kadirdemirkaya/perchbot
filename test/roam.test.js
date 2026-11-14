@@ -274,6 +274,19 @@ test('hang: up to the top edge, the hands at the edge (the only trip above the w
   assert.equal(planTrip({ kind: 'hang', from: home, home, workArea, hoverMode: 'stand' }), null, 'no flying, no hanging');
 });
 
+test('land: hovering, straight down to the ground below (for the cat or a visitor); on the ground, nothing', () => {
+  for (const scale of [0.8, 1, 1.3]) {
+    const from = { x: 700, y: 420 };
+    const land = planTrip({ kind: 'land', from, home, workArea, scale, random: randoms(2) });
+    assert.equal(land.mode, 'fly');
+    assert.deepEqual(land.to, { x: 700, y: 912 }, `scale ${scale}: on the ground right below`);
+    assert.equal(land.path.style, 'arc', 'no wave or loop on the way down');
+    assert.ok(inside(land.to, scale));
+  }
+  assert.equal(planTrip({ kind: 'land', from: { x: 700, y: 912 }, home, workArea }), null, 'on the ground already');
+  assert.equal(planTrip({ kind: 'land', from: home, home, workArea }), null);
+});
+
 test('flight paths: only the buddy own hops and cruises wave, soar or loop; the rest keep the arc', () => {
   const from = { x: 300, y: 700 };
   const to = { x: 1200, y: 600 };

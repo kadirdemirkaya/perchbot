@@ -26,6 +26,7 @@ screenshots and the click-through test are repeatable. Add `-Fun` to turn all th
 set to the test home) then plays every behaviour in turn. Developers can also set
 `$env:PERCHBOT_DEMO` to `duel`, `trips`, `plays` or `cheers` before starting it.
 `-StayPut` starts it with **Stay here** on (no trips of its own, no fleeing, no following the cursor).
+`-Typing` (with `-Fun`) turns **Watch me type** on: type in a terminal and now and then it reads along.
 
 If PowerShell refuses to run scripts, use
 `powershell -NoProfile -ExecutionPolicy Bypass -File <script>`.

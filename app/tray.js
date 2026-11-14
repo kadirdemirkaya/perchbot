@@ -147,6 +147,7 @@ function lifeToggles(settings, t, on) {
     box('playMode', Boolean(settings.playMode), on.setPlayMode),
     box('cat', Boolean(settings.cat), on.setCat),
     box('hands', Boolean(settings.hands), on.setHands),
+    box('typingPeek', Boolean(settings.typingPeek), on.setTypingPeek),
   ];
 }
 

@@ -9,7 +9,9 @@ param(
   # Hands (open / close Chrome, tabs, YouTube when asked): off unless -Hands.
   [switch]$Hands,
   # Stay here (no trips of its own, no fleeing, no following the cursor): off unless -StayPut.
-  [switch]$StayPut
+  [switch]$StayPut,
+  # Watch me type (reads along while you type in a terminal; needs -Fun too): off unless -Typing.
+  [switch]$Typing
 )
 # Starts an ISOLATED overlay for interactive tests: its own port and its own
 # settings folder, so the hooks of a live Claude Code session (which talk to
@@ -32,7 +34,7 @@ $busy = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Silentl
 if ($busy) { throw "port $Port is already in use (pid $($busy.OwningProcess)); stop that process first, e.g. an older test overlay" }
 
 New-Item -ItemType Directory -Force $TestHome | Out-Null
-$settings = @{ quiet = $false; ambientLife = [bool]$Fun; playMode = [bool]$Fun; cat = [bool]$Fun; hands = [bool]$Hands; stayPut = [bool]$StayPut }
+$settings = @{ quiet = $false; ambientLife = [bool]$Fun; playMode = [bool]$Fun; cat = [bool]$Fun; hands = [bool]$Hands; stayPut = [bool]$StayPut; typingPeek = [bool]$Typing }
 if ($X -or $Y) { $settings.position = @{ x = $X; y = $Y } }
 $settings | ConvertTo-Json -Compress | Out-File -Encoding ascii (Join-Path $TestHome 'settings.json')
 

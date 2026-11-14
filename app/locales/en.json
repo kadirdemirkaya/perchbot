@@ -67,7 +67,8 @@
     "volume_low": "Low",
     "volume_medium": "Medium",
     "volume_high": "High",
-    "hands": "Hands: Chrome"
+    "hands": "Hands: Chrome",
+    "typingPeek": "Watch me type"
   },
   "hover": {
     "hideBubble": "Hide speech bubble",
@@ -223,6 +224,8 @@
     "giggle": "Hehe!",
     "sneeze": "Achoo!",
     "bugFixed": "Bug fixed!",
+    "typingLook": "Ooh, let me read along…",
+    "typingAha": "Aha! Got it!",
     "commit": "Committed!",
     "push": "Pushed! Off it goes!",
     "phew": "Phew!",

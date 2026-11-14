@@ -34,7 +34,9 @@
  *   data-inspect ("left" | "right")  data-duel (phase, see lib/fun.js)
  *   data-rampage ("charge" | "laser" | "missile" | "smug" | "heal"; see "the rampage")
  *   data-holo (focus mode: intense work, see "focus mode")
- *   data-lens (a look through the magnifier where the cursor rested, see "following the cursor")
+ *   data-lens (a look through the magnifier where the cursor rested, see "following the cursor";
+ *     also while it reads along as the user types, see "watching the user type")
+ *   data-aha (it got what the user typed: the light bulb, see "watching the user type")
  *   data-seated ("down" | "up": sitting with a visitor, see "the idle story")
  *   data-hunt (fights a bug at its feet, with data-duel phases; see "bug hunt")
  *   --look-x / --look-y (-1..1)  --type-line (0..7)  --fly-tilt (-1..1)
@@ -45,7 +47,7 @@
 
 (() => {
   const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay, pageLeft } = window.BuddyInteraction;
-  const { TapMeter, Temper, TEMPER_MAX, Fury, FocusMeter, FOCUS, IdleStory, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight } = window.BuddyFun;
+  const { TapMeter, Temper, TEMPER_MAX, Fury, FocusMeter, FOCUS, IdleStory, Wander, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight } = window.BuddyFun;
 
   const root = document.documentElement;
   const stage = document.getElementById('stage');
@@ -1617,6 +1619,8 @@
   const fury = new Fury();
   /** The rampage's phase while it lasts ('charge', 'laser', 'missile', 'chase', 'smug', 'heal'; 'away': work came in). */
   let raging = null;
+  /** Reading along while the user types ("Watch me type", see "watching the user type"). */
+  let typingLook = false;
   const ambient = new AmbientScheduler({
     onPlay: (name) => {
       if (name) trace(`ambient: ${name}`);
@@ -1640,6 +1644,37 @@
       window.buddy.fun(kind);
     },
   });
+  /**
+   * Idle: about once a minute a trip of its own, up in the air too (lib/fun.js Wander).
+   * The cat cannot come along: the one the story brought, napping beside it, goes first
+   * (as for a visitor); any other cat keeps it on the ground.
+   */
+  const WANDER_CAT_AWAY_MS = 2600;
+  const wander = new Wander({
+    onTrip: (kind) => {
+      trace(`wander: ${kind}`);
+      if (!pet.here) {
+        window.buddy.fun(kind);
+        return;
+      }
+      storyCat = false;
+      window.buddy.fun('cat-away');
+      later('wander-go', WANDER_CAT_AWAY_MS, () => {
+        if (!pet.here && wanderOn() && wanderFree()) window.buddy.fun(kind);
+      });
+    },
+  });
+  /** It may wander now and then: idle, ambient life, no helpers, not "Stay here"; a cat only the story's napping one. */
+  function wanderOn() {
+    const catStays = pet.here && !(storyCat && !cuddling && !patPending);
+    return ambientOn() && AMBIENT_STATES.has(view.state) && !rest.resting && !paused && crewCount === 0 && !catStays && !settings.stayPut;
+  }
+  /** Nothing else going on (no play, no story beat, no trip, not held or hovered). */
+  function wanderFree() {
+    const calm =
+      !typingLook && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !chatOpen && !raging && !guest && !cuddling && !guestPending && !lasering;
+    return calm && !fisting && !ambient.playing && !story.playing && !patPending;
+  }
   const duel = new Duel({ onPhase: onDuelPhase });
 
   /** robot.css rb-sneeze-head: the "choo" at ~50 % of 2.6 s. */
@@ -1657,9 +1692,9 @@
     // Helpers may roam the screen: ambient life on (with motion), awake, not paused.
     crew.setRoam(ambientOn() && !rest.resting);
     const calm =
-      ambientOn() && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen && !raging && !guest && !cuddling && !guestPending && !lasering;
+      ambientOn() && !typingLook && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen && !raging && !guest && !cuddling && !guestPending && !lasering;
     // The idle story runs while it is idle with ambient life on; anything else ends it.
-    if (ambientOn() && AMBIENT_STATES.has(view.state)) story.start();
+    if (ambientOn() && AMBIENT_STATES.has(view.state) && !typingLook) story.start();
     else if (story.running || story.finished) story.stop();
     if (guest && (!ambientOn() || !AMBIENT_STATES.has(view.state) || moving || drag || crewCount > 0 || raging || duel.active || hunt.active || paused)) {
       endGuest('interrupted');
@@ -1673,6 +1708,8 @@
       grounded: !flight.airborne,
       hanging: Boolean(holder.dataset.hang),
     });
+    // Out and about now and then, never in the middle of a play or a story beat.
+    wander.update({ on: wanderOn(), free: wanderFree() });
   }
 
   /**
@@ -2288,6 +2325,8 @@
     if (m.mode) {
       // The window moves in step with the frames drawn here (see main.js stepTrip).
       if (!moving) requestAnimationFrame(tripTick);
+      // Any trip: its own next one about a minute from now.
+      if (!moving) wander.moved();
       moving = m.mode;
       updateHunt(); // off on a trip: the fight stops before the trip turns it round
       // (No rest.activity(): a trip of its own must not keep it from resting.)
@@ -2408,9 +2447,13 @@
       ambient.run(name);
       return 'busy';
     }
-    if (name === 'pat') return startPat() ? 'busy' : 'skip';
+    if (name === 'pat') {
+      if (canPat() && landFirst()) return 'later';
+      return startPat() ? 'busy' : 'skip';
+    }
     if (name === 'cat') {
       if (!settings.cat || !character || !character.pet || pet.here) return 'skip';
+      if (landFirst()) return 'later';
       storyCat = true;
       window.buddy.fun('cat');
       later('story-cat', STORY_CAT_MS, () => story.done());
@@ -2420,6 +2463,7 @@
       if (crewCount > 0 || !character || !character.mini) return 'skip';
       // The user's own cat stays; then there is no room for a visitor.
       if (pet.here && !storyCat) return 'skip';
+      if (landFirst()) return 'later';
       // Nothing of its own (a stroll...) until the visitor is here: it would send it away again.
       guestPending = true;
       ambient.stop();
@@ -2442,11 +2486,27 @@
   }
 
   /**
+   * The cat and the visitor stay on the ground: hovering (after a flight of its
+   * own), it comes down first and the beat tries again once it has landed.
+   */
+  function landFirst() {
+    if (!flight.airborne) return false;
+    trace('story: down to the ground first');
+    window.buddy.fun('land');
+    return true;
+  }
+
+  /** The cat can be petted now (the Cat switch on, no helpers around). */
+  function canPat() {
+    return Boolean(settings.cat && character && character.pet && crewCount === 0 && motionAllowed());
+  }
+
+  /**
    * It pets the cat: the cat comes close (from its nap, or called in first:
    * then it comes over as soon as it has walked in). True when it started.
    */
   function startPat() {
-    if (!settings.cat || !character || !character.pet || crewCount > 0 || !motionAllowed()) return false;
+    if (!canPat()) return false;
     ambient.stop();
     if (pet.here) {
       if (!pet.cuddle()) return false;
@@ -2732,6 +2792,62 @@
     });
     // Now and then it asks what that is, after a good look.
     if (Math.random() < CURIOUS_CHANCE) later('curious', 2200, askWhatsThis);
+  }
+
+  // ---------------------------------------------------------------- watching the user type (app/typing.js)
+
+  /**
+   * "Watch me type" (opt-in, Windows): main.js sees the text caret of a terminal keep
+   * moving (its position only, never any text) and, now and then, offers a visit. Free to
+   * go (as for a look at the cursor: idle or at work, nobody else around, not "Stay here"),
+   * it flies to just above that line and reads along through its magnifier ('look'), as
+   * long as the typing goes on. Then a light bulb goes on above its head ('aha', data-aha):
+   * it got it. Then main.js flies it back (phase null).
+   */
+  const AHA_MS = 1900;
+
+  function onTyping(msg) {
+    if (!msg) return;
+    if (msg.offer) {
+      if (settings.stayPut || !ambientOn() || raging || moving || drag || duel.active || hunt.active || chatOpen || guest || fisting || typingLook) return;
+      if (!FOLLOW_STATES.has(view.state) || crewCount > 0 || pet.here || zone !== null) return;
+      // Napping: it wakes up to have a look.
+      if (rest.resting) rest.activity();
+      trace(`typing: off to read along${msg.demo ? ' (demo)' : ''}`);
+      window.buddy.fun('typing');
+      return;
+    }
+    if (msg.phase === 'look') {
+      typingLook = true;
+      cancel('lens');
+      cancel('aha');
+      flag('aha', null);
+      // The magnifier on the side of the line (the artwork holds it up to the far eye).
+      flag('face', msg.look === 'right' ? 'left' : null);
+      flag('inspect', 'left');
+      flag('lens', true, true);
+      quip('typingLook', 1800);
+      sfx('chirp', 1.15);
+      trace('typing: reading along');
+    } else if (msg.phase === 'aha') {
+      typingLook = true;
+      flag('lens', null);
+      flag('inspect', null);
+      flag('aha', true, true);
+      quip('typingAha', AHA_MS);
+      sfx('chirp', 1.3);
+      later('aha', AHA_MS, () => flag('aha', null));
+      trace('typing: got it');
+    } else {
+      typingLook = false;
+      cancel('aha');
+      flag('aha', null);
+      flag('lens', null);
+      flag('inspect', null);
+      if (!moving && !hunt.active) flag('face', null);
+      trace('typing: over');
+    }
+    updateFun();
   }
 
   // ---------------------------------------------------------------- chat
@@ -3174,6 +3290,7 @@
   window.buddy.onBug((bug) => applyBug(bug));
   window.buddy.onRampage((msg) => onRampage(msg));
   window.buddy.onFollow((msg) => onFollow(msg));
+  window.buddy.onTyping((msg) => onTyping(msg));
   window.buddy.onGuest((msg) => onGuest(msg));
   window.buddy.onOutingBack((id) => {
     if (typeof id !== 'string') return;

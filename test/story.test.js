@@ -171,8 +171,9 @@ test('the book, the bubbles and the plane are plays of the story only: never pic
 test('petting the cat: a story beat (Cat switch on); the cat comes close, the buddy turns to it and strokes it', () => {
   const page = read('app', 'renderer', 'renderer.js');
   for (const piece of [
-    "if (name === 'pat') return startPat() ? 'busy' : 'skip';",
-    'if (!settings.cat || !character || !character.pet || crewCount > 0 || !motionAllowed()) return false;',
+    "return startPat() ? 'busy' : 'skip';",
+    'return Boolean(settings.cat && character && character.pet && crewCount === 0 && motionAllowed());',
+    'if (!canPat()) return false;',
     "window.buddy.fun('cat');",
     "if (name === 'cuddle') onCuddle(on);",
     "const ok = ambientOn() && AMBIENT_STATES.has(view.state) && motionAllowed() && pet.cuddle();",
@@ -245,4 +246,79 @@ test('the visitor on the page: sit and chat, spar, bow and off; work or a drag s
     for (const key of ['guestHi', 'guestSpar', 'guestBow', 'sleepy']) assert.ok(quips[key], `${lang}: ${key}`);
   }
   for (const demo of ['read', 'guest', 'story']) assert.ok(DEMOS.has(demo), demo);
+});
+
+test('out and about: about once a minute a trip of its own while idle, up in the air too; never in the middle of something', () => {
+  const { Wander, WANDER, TRIPS } = require('../app/renderer/lib/fun');
+  assert.ok(WANDER.gapMinMs >= 45000 && WANDER.gapMaxMs <= 75000, 'about once a minute');
+  assert.ok(WANDER.weights.cruise > 0 && WANDER.weights.fly > 0, 'up in the air');
+  assert.ok(WANDER.weights.walk > 0, 'and down to the ground somewhere else');
+  const clock = new FakeClock();
+  const trips = [];
+  const w = new Wander({ clock, random: () => 0.5, onTrip: (kind) => trips.push(kind) });
+  // Not allowed (work, the cat, helpers, "Stay here"): nothing at all.
+  w.update({ on: false, free: true });
+  clock.tick(5 * 60000);
+  assert.equal(trips.length, 0);
+  // Idle: the first one about a minute in.
+  const gap = WANDER.gapMinMs + 0.5 * (WANDER.gapMaxMs - WANDER.gapMinMs);
+  w.update({ on: true, free: true });
+  clock.tick(gap - 1);
+  assert.equal(trips.length, 0, 'not before about a minute');
+  clock.tick(1);
+  assert.equal(trips.length, 1);
+  // Something going on (a play, a story beat, the pointer on it): it waits, never cuts it short.
+  w.update({ on: true, free: false });
+  clock.tick(gap + WANDER.retryMs * 3);
+  assert.equal(trips.length, 1);
+  w.update({ on: true, free: true });
+  clock.tick(WANDER.retryMs);
+  assert.equal(trips.length, 2, 'off as soon as it is free');
+  // Any trip (an ambient one, a look at the cursor) starts the wait over.
+  clock.tick(gap - 1000);
+  w.moved();
+  clock.tick(gap - 1);
+  assert.equal(trips.length, 2);
+  clock.tick(1);
+  assert.equal(trips.length, 3);
+  // Trips the page may ask for, never the same one twice in a row.
+  for (const kind of trips) assert.ok(Object.values(TRIPS).includes(kind), kind);
+  for (let i = 1; i < trips.length; i++) assert.notEqual(trips[i], trips[i - 1]);
+  // Not allowed any more (work): none meanwhile.
+  w.update({ on: false, free: true });
+  clock.tick(10 * 60000);
+  assert.equal(trips.length, 3);
+  // ...and allowed again after the minute was up: off soon, not a whole minute later.
+  w.update({ on: true, free: true });
+  clock.tick(WANDER.retryMs);
+  assert.equal(trips.length, 4, 'soon after it is allowed again');
+  // The cat for a while (or a nap) halfway through the minute does not start it over.
+  clock.tick(gap / 2);
+  w.update({ on: false, free: true });
+  clock.tick(gap / 2);
+  assert.equal(trips.length, 4);
+  w.update({ on: true, free: true });
+  clock.tick(WANDER.retryMs);
+  assert.equal(trips.length, 5);
+});
+
+test('out and about on the page: idle, no cat or helpers, not "Stay here"; the cat and the visitor only on the ground', () => {
+  const page = read('app', 'renderer', 'renderer.js');
+  assert.ok(page.includes('wander.update({ on: wanderOn(), free: wanderFree() });'));
+  assert.ok(page.includes('return ambientOn() && AMBIENT_STATES.has(view.state) && !rest.resting && !paused && crewCount === 0 && !catStays && !settings.stayPut;'));
+  assert.ok(page.includes('return calm && !fisting && !ambient.playing && !story.playing && !patPending;'), 'never in the middle of a play or a story beat');
+  // The cat cannot come along: the story's napping cat goes first (as for a visitor), any other cat keeps it down.
+  assert.ok(page.includes('const catStays = pet.here && !(storyCat && !cuddling && !patPending);'));
+  assert.ok(page.includes("later('wander-go', WANDER_CAT_AWAY_MS, () => {"));
+  assert.ok(page.includes('if (!pet.here && wanderOn() && wanderFree()) window.buddy.fun(kind);'));
+  assert.ok(page.includes('if (!moving) wander.moved();'), 'any trip starts the wait over');
+  // Hovering after a flight: down to the ground first for the cat, the petting and the visitor.
+  assert.ok(page.includes("if (canPat() && landFirst()) return 'later';"));
+  assert.equal((page.match(/if \(landFirst\(\)\) return 'later';/g) || []).length, 2, 'the cat and the visitor');
+  assert.ok(page.includes("window.buddy.fun('land');"));
+  assert.ok(page.includes('if (!flight.airborne) return false;'));
+  // main.js: 'land' is a trip like the others ("Stay here" keeps it where it is).
+  const main = read('app', 'main.js');
+  assert.ok(/const FUN_ACTIONS = new Set\(\[[^\]]*'land'/.test(main));
+  assert.ok(/const STAY_PUT_BLOCKS = new Set\(\[[^\]]*'land'/.test(main));
 });
