@@ -75,6 +75,9 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
     <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/waiting.gif" width="380" alt="The robot waits for approval, whispers psst, then knocks"><br><sub><b>Waiting for you:</b> a psst, then a knock</sub></td>
     <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/squeeze.gif" width="380" alt="A compaction squeezes its head; on /exit it waves goodbye"><br><sub><b>Compaction</b> squeezes its head, <b>/exit</b> waves goodbye</sub></td>
   </tr>
+  <tr>
+    <td align="center" colspan="2"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/typing.gif" width="560" alt="While a prompt is typed in the terminal, the robot flies over, reads along through its magnifier, then a light bulb goes on"><br><sub><b>Watch me type</b> (Windows, opt-in): it reads along, then "Aha! Got it!"</sub></td>
+  </tr>
 </table>
 
 <details>
