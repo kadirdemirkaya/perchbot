@@ -83,6 +83,9 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
   <tr>
     <td align="center" colspan="2"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/typing.gif" width="560" alt="While a prompt is typed in the terminal, the robot flies over, reads along through its magnifier, then a light bulb goes on"><br><sub><b>Watch me type</b> (Windows, opt-in): it reads along, then "Aha! Got it!"</sub></td>
   </tr>
+  <tr>
+    <td align="center" colspan="2"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/slash.gif" width="560" alt="Files on the desktop are deleted one by one: each time the robot flies over and slashes the ghost of the file with its sword, coloured by type (text teal, folder yellow, photo green, Word blue, PDF red)"><br><sub><b>Follow Windows</b> (Windows, opt-in): delete a file and it slashes its ghost, coloured by type</sub></td>
+  </tr>
 </table>
 
 <details>
