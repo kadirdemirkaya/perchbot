@@ -41,6 +41,8 @@ const EVENTS = new Set([
   'SubagentStart',
   'SubagentStop',
   'UserPromptExpansion',
+  // The conversation is about to be compacted (nothing else comes with it).
+  'PreCompact',
   // Not a hook event: the simulator (scripts/simulate.js) asks for one of the
   // character's own behaviours. hooks/send.js never sends it.
   'Demo',
@@ -80,12 +82,17 @@ const DEMOS = new Set([
   // The rocket fist for sure: it presses the new tab button from where it is.
   'fist',
   // Moments of the work: a flag (commit), a rocket (push), sweat, phew, a squeezed head (compaction),
-  // and the nudges while Claude Code waits for the user.
+  // the rubber duck (stuck: it explains it to the duck, which then sits on its head, and is thanked),
+  // popcorn (a command that runs on and on), and the nudges while Claude Code waits for the user.
   'commit',
   'push',
   'sweat',
   'phew',
   'squeeze',
+  'duck',
+  'popcorn',
+  // The press: it pumps a little press over a stack of paper (as during a compaction), then a cube of paper pops out.
+  'compact',
   'psst',
   'knock',
   // A slow, long, wavy flight; up to the top edge to hang from it; a hop with a loop-the-loop.

@@ -1341,6 +1341,28 @@ html[data-duel] .duel-pad {
 }
 
 /* A commit (app/moments.js): a flag pops up beside the character and waves. */
+/* The press is done (a compaction): a cube of paper pops out beside it and bounces (2.4 s). */
+.fx-cube {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin: -22px 0 0 -11px;
+  overflow: visible;
+  opacity: 0;
+  transform-origin: 11px 22px;
+  animation: buddy-cube 2.4s ease-out forwards;
+}
+
+@keyframes buddy-cube {
+  0% { opacity: 0; transform: translate(-6px, -4px) scale(0.3); }
+  10% { opacity: 1; transform: translate(4px, -30px) rotate(-90deg) scale(1); }
+  24% { transform: translate(14px, 0) rotate(-180deg) scale(1.1, 0.85); }
+  34% { transform: translate(20px, -12px) rotate(-250deg); }
+  44% { transform: translate(25px, 0) rotate(-270deg) scale(1.06, 0.9); }
+  52%, 82% { opacity: 1; transform: translate(26px, 0) rotate(-270deg); }
+  100% { opacity: 0; transform: translate(26px, 2px) rotate(-270deg) scale(0.9); }
+}
+
 .fx-flag {
   position: absolute;
   width: 33px;

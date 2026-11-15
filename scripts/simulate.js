@@ -27,6 +27,16 @@
  *                                       a helper's lint fails (the helper jumps), the main
  *                                       session fixes it and the helpers cheer. Last, a failing
  *                                       build whose session ends: that bug escapes.
+ *   npm run simulate -- popcorn         a command that runs on and on: after 20 s it sits back
+ *                                       with popcorn (the bubble keeps the command), then the
+ *                                       command ends and it gets up again
+ *   npm run simulate -- duck            stuck: five steps fail in a row (it sweats from the
+ *                                       third), out comes the rubber duck; the sixth works:
+ *                                       "Thanks, duck!" and the duck hops off
+ *   npm run simulate -- press           a compaction: PreCompact (the hook sends the event only),
+ *                                       it pumps a little press for a while; then the session
+ *                                       comes back compacted: its head is squeezed and a cube of
+ *                                       paper pops out
  *   npm run simulate -- --fast          shorter pauses
  *   npm run simulate -- --keep          skip the final SessionEnd (overlay stays open)
  */
@@ -498,6 +508,58 @@ async function bugHunt() {
   if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
 }
 
+/** A command that runs on and on (core.js snackMs): popcorn after 20 s, then it ends. */
+async function popcornScenario() {
+  const s = `sim-popcorn-${randomId()}`;
+  const id = 'toolu_pop_1';
+  const input = { command: 'npm install', description: 'Install the dependencies' };
+  console.log(`Session ${s}\n`);
+  await step('greeting', base(s, 'SessionStart', { source: 'startup' }), 2500);
+  await step('thinking', base(s, 'UserPromptSubmit', { prompt: '(simulated prompt)' }), 1500);
+  // Not halved by --fast: the 20 s are the overlay's own.
+  await step('running   npm install (20 s, then popcorn)', tool(s, 'PreToolUse', 'Bash', input, id), 0);
+  await new Promise((resolve) => setTimeout(resolve, 30000));
+  await step('(it ends: up it gets)', tool(s, 'PostToolUse', 'Bash', input, id), 3000);
+  await step('done', base(s, 'Stop', { stop_hook_active: false }), 3500);
+  if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
+}
+
+/** Stuck (app/moments.js DUCK_AFTER): the sweat at 3, the rubber duck at 5, thanks at the fix. */
+async function duckScenario() {
+  const s = `sim-duck-${randomId()}`;
+  let n = 0;
+  const edit = async (label, ok, holdMs, afterMs) => {
+    const id = `toolu_duck_${(n += 1)}`;
+    const input = { file_path: path.join(ROOT, 'app', 'core.js'), old_string: 'a', new_string: 'b' };
+    await step(label, tool(s, 'PreToolUse', 'Edit', input, id), holdMs);
+    await step(ok ? '(it worked)' : '(failed)', tool(s, ok ? 'PostToolUse' : 'PostToolUseFailure', 'Edit', input, id), afterMs);
+  };
+  console.log(`Session ${s}\n`);
+  await step('greeting', base(s, 'SessionStart', { source: 'startup' }), 2500);
+  await step('thinking', base(s, 'UserPromptSubmit', { prompt: '(simulated prompt)' }), 1500);
+  await edit('typing    core.js (1)', false, 1200, 1500);
+  await edit('typing    core.js (2)', false, 1200, 1500);
+  await edit('typing    core.js (3: it sweats)', false, 1200, 2500);
+  await edit('typing    core.js (4)', false, 1200, 1500);
+  await edit('typing    core.js (5: the duck)', false, 1200, 6000);
+  await edit('typing    core.js (duck on its head)', true, 3000, 4000);
+  await step('done', base(s, 'Stop', { stop_hook_active: false }), 3500);
+  if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
+}
+
+/** A compaction (PreCompact, then SessionStart with source "compact"): the press, the squeeze, a cube. */
+async function pressScenario() {
+  const s = `sim-press-${randomId()}`;
+  console.log(`Session ${s}\n`);
+  await step('greeting', base(s, 'SessionStart', { source: 'startup' }), 2500);
+  await step('thinking', base(s, 'UserPromptSubmit', { prompt: '(simulated prompt)' }), 1500);
+  // Its custom instructions never leave the hook (see the privacy test).
+  await step('compacting: the press', base(s, 'PreCompact', { trigger: 'auto', custom_instructions: '(never sent)' }), 8000);
+  await step('compacted: squeeze + a cube', base(s, 'SessionStart', { source: 'compact' }), 3500);
+  await step('done', base(s, 'Stop', { stop_hook_active: false }), 3500);
+  if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
+}
+
 async function chatScenario() {
   const s = `sim-chat-${randomId()}`;
   console.log(`Session ${s}\n`);
@@ -527,8 +589,11 @@ async function chatScenario() {
   else if (scenario === 'lifecycle') await lifecycle();
   else if (scenario === 'chat') await chatScenario();
   else if (scenario === 'bug') await bugHunt();
+  else if (scenario === 'popcorn') await popcornScenario();
+  else if (scenario === 'duck') await duckScenario();
+  else if (scenario === 'press') await pressScenario();
   else {
-    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life", "lifecycle", "chat" or "bug".`);
+    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life", "lifecycle", "chat", "bug", "popcorn", "duck" or "press".`);
     process.exitCode = 1;
   }
 })();

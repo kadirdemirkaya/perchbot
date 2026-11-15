@@ -120,7 +120,8 @@ Use whatever you like; ignore the rest.
 | `--look-x`, `--look-y` | cursor direction from `lookAnchor`, each from -1 to 1 (0 when the cursor is away) |
 | `--type-line` | while typing: 0-7, advances every few key presses |
 | `data-mood` | `worried` for the rest of a tool's hold time after the tool failed; `sweat` while at work after three failed tools in a row, until one works (app/moments.js) |
-| `data-moment` | `phew` (~1.7 s: a tool worked after a failure streak) or `squeeze` (~1.9 s: the conversation was compacted). The app adds a flag for a `git commit` and a rocket for a `git push` itself |
+| `data-moment` | `phew` (~1.7 s: a tool worked after a failure streak), `squeeze` (~1.9 s: the conversation was compacted) or `duck` (~3.6 s: five failed tools in a row, stuck: Robo takes a rubber duck from its pocket, explains it all to it, and the duck hops onto its head). The app adds a flag for a `git commit`, a rocket for a `git push` and a cube of paper after a compaction itself |
+| `data-duck` | `on` while stuck (five or more failed tools in a row, at work or waiting for the user), until a tool works or the turn ends; `bye` for ~1.3 s when a tool works at last ("Thanks, duck!") |
 | `data-nudge` | Claude Code waits for the user (`waiting` / `asking`): `psst` after ~30 s (a hop), `knock` after ~90 s and then every minute (a knock on the glass; the app adds the rings), ~2.4 s each |
 | `data-fly` | `hover` while the character is placed above the ground (hover mode "auto"), `boost` while it is dragged through the air |
 | `data-land` | present for ~0.9 s when it comes back to the ground |
@@ -129,7 +130,7 @@ Use whatever you like; ignore the rest.
 | `data-brief`, `data-receive` | present for ~1.7 s when a helper is briefed / reports back. The value (`left` / `right`) is the side the helper stands on |
 | `data-press` | ~1.2 s: it presses a button with the near hand (hands: a Chrome button). The app puts that hand ~46 px right of and ~115 px above the anchor (main.js `HAND_OFFSET`, medium size); raise the hand there. `"chest"`: a press on its own body ("Open Chrome", no button on the screen); `"type"`: ~2.6 s, typing at the same spot (the address bar) |
 | `data-fist` | the rocket fist (hands, app/fist.js): `"aim"` the near arm points at a button (the app sets `--fist-rot` on the wrapper: the turn from hanging down, in the figure's own frame; `data-face` mirrors it when the button is on the left), `"out"` the forearm is off (hide it: the effect window flies the robot's forearm), `"dock"` it clicks back on |
-| `data-task` | at work, what it works on (from the tool, app/tools.js `taskFor`): `book` (reading a file, `data-state="reading"`), `search` (Grep / Glob, `reading`), `web` (WebSearch / WebFetch, `working`). Absent: the plain look of the state |
+| `data-task` | at work, what it works on (from the tool, app/tools.js `taskFor`): `book` (reading a file, `data-state="reading"`), `search` (Grep / Glob, `reading`), `web` (WebSearch / WebFetch, `working`), `popcorn` (a command still running after 20 s with nothing else going on, `running`), `compact` (the conversation is being compacted, `working`). Absent: the plain look of the state |
 | `data-think` | while thinking the app changes the pose every ~7 s: absent (the plain thinking look), `bulb` (an idea) or `pace` (pacing up and down; the app flips `data-face` every ~2.4 s) |
 | `data-talk` | up to ~1.8 s while it answers a question from the chat panel (talk, nod); also while it chats with a visitor |
 | `data-seated` | `down` while it sits with a visitor (the idle story), `up` for ~0.5 s as it gets up again |

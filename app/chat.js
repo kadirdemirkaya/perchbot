@@ -64,6 +64,7 @@ function typeList(types) {
 
 /** What it is doing now (key + vars), from the state and the current tool. */
 function doing(f) {
+  if (f.message && f.message.key === 'compacting') return ['doingCompacting'];
   const last = f.turn && f.turn.last;
   const tool = last ? last.tool : null;
   const detail = last && last.detail ? last.detail : null;

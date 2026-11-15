@@ -45,6 +45,9 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 | a test or check fails | a bug turns up and they fight until a check passes ("Bug fixed!") |
 | a commit, a push | plants a flag, launches a rocket |
 | checks keep failing | sweats, then "Phew!" when it is green again |
+| the work gets stuck (five steps fail in a row) | takes a rubber duck out of its pocket and explains it all to it; the duck sits on its head until something works: "Thanks, duck!" |
+| a command runs on and on | after 20 s it sits back with a bucket of popcorn, eyes on the command, until it is done |
+| the conversation is compacted | pumps a little press over a stack of paper; when it is done, a cube of paper pops out |
 | the work gets intense | puts on a headband and codes on a screen of light |
 | you tap it | loves it, up to a point: then it fumes, catches fire and goes on a rampage across your screen |
 | you start a duel | a sword fight against your cursor, three hearts each |
@@ -95,6 +98,13 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/focus.gif" width="380" alt="Headband on, the robot codes on a screen and keys of light"><br><sub><b>Focus mode</b> when the work gets intense</sub></td>
     <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/moments.gif" width="380" alt="A flag for a commit, a rocket for a push, sweat, then phew"><br><sub><b>Commit, push, sweat, phew</b></sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/duck.gif" width="380" alt="Five edits fail in a row: the robot takes a rubber duck from its pocket, explains the problem to it and the duck hops onto its head; when an edit works it says Phew! Thanks, duck!"><br><sub><b>Stuck:</b> it asks a rubber duck, then "Thanks, duck!"</sub></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/popcorn.gif" width="380" alt="npm install runs on and on: after 20 seconds the robot sits down with a bucket of popcorn until it is done"><br><sub><b>A long command:</b> popcorn time</sub></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/press.gif" width="380" alt="While the conversation is compacted the robot pumps a little press over a stack of paper; then its head is squeezed and a cube of paper pops out"><br><sub><b>Compaction:</b> a little press, then a cube of paper</sub></td>
   </tr>
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/chat.gif" width="380" alt="The chat panel with buttons and ready-made questions"><br><sub><b>Chat:</b> ask what it is doing</sub></td>
@@ -162,7 +172,8 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 ## Privacy
 
 Only the event, the tool name, a file name (not the path) and a shortened command (secrets masked)
-leave the hook, and only to `127.0.0.1`. With ambient life on, the robot also looks at the system idle
+leave the hook, and only to `127.0.0.1`. Before a compaction it sends the event alone: never your
+compact instructions. With ambient life on, the robot also looks at the system idle
 time, where the cursor is (its position only) and, on Windows, where windows are (frames only, never
 titles or contents). With *Watch me type* on, it also asks Windows where the text cursor of the window
 in front is: a position only, never the text, never your keys. Terminals say when a field is a password
@@ -176,7 +187,7 @@ missing), with Electron's own installer. The robot never goes online.
 
 ## Development
 
-`npm test` · `npm run dev` · `npm run simulate [-- bug | life | chat]` · `npm pack`.
+`npm test` · `npm run dev` · `npm run simulate [-- bug | life | chat | duck | popcorn | press]` · `npm pack`.
 Make your own character: [characters/README.md](https://github.com/kadirdemirkaya/perchbot/blob/main/characters/README.md).
 
 MIT, see [LICENSE](https://github.com/kadirdemirkaya/perchbot/blob/main/LICENSE) and [THIRD_PARTY_NOTICES.md](https://github.com/kadirdemirkaya/perchbot/blob/main/THIRD_PARTY_NOTICES.md).

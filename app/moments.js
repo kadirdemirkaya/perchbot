@@ -8,8 +8,14 @@
  *   commit   a `git commit` ran and worked: a flag goes up
  *   push     a `git push` ran and worked: a rocket takes off
  *   sweat    SWEAT_AFTER tools failed in a row: it sweats until one works
+ *   duck     DUCK_AFTER tools failed in a row (still sweating): stuck, so out
+ *            comes a rubber duck to explain it to; the duck stays on its head
+ *            until a tool works or the turn ends (core.js snapshot().duck)
  *   phew     the first tool that works after that
  *   squeeze  the conversation was compacted (SessionStart, source "compact")
+ *   cube     ...and the press had been running (PreCompact came first): a
+ *            cube of paper pops out of it (installs from before 0.6.0 have
+ *            no PreCompact hook: just the squeeze, as before)
  *
  * Also: the greeting by the time of day (greetingKey) and the "done" summary
  * of a longer turn (doneSummary).
@@ -19,6 +25,8 @@
 const COMMAND_TOOLS = new Set(['Bash', 'PowerShell']);
 /** Failed tools in a row before it sweats. */
 const SWEAT_AFTER = 3;
+/** Failed tools in a row before the rubber duck comes out (a layer after the sweat). */
+const DUCK_AFTER = 5;
 /** Tool ids remembered between start and end (per watch). */
 const PENDING_LIMIT = 64;
 /** git options that take a value as the next word. */
@@ -57,10 +65,17 @@ class MomentWatch {
     /** session|id -> ['commit' | 'push'] waiting for the tool to end. */
     this.pending = new Map();
     this.failures = 0;
+    /** Sessions whose PreCompact came: the press runs until their compaction is over. */
+    this.pressing = new Set();
   }
 
   get sweating() {
     return this.failures >= SWEAT_AFTER;
+  }
+
+  /** Stuck: the rubber duck is out (on its head) until a tool works or the streak is reset. */
+  get ducking() {
+    return this.failures >= DUCK_AFTER;
   }
 
   /** A tool starts: remember the git moments its command would make. */
@@ -84,6 +99,7 @@ class MomentWatch {
     if (!ok) {
       this.failures += 1;
       if (this.failures === SWEAT_AFTER) out.push('sweat');
+      if (this.failures === DUCK_AFTER) out.push('duck');
       return out;
     }
     if (this.sweating) out.push('phew');
@@ -97,9 +113,17 @@ class MomentWatch {
     this.failures = 0;
   }
 
-  /** SessionStart: after a compaction it squeezes its head. */
-  sessionStart(source) {
-    return source === 'compact' ? ['squeeze'] : [];
+  /** PreCompact: the press starts (core.js shows it). */
+  preCompact(session) {
+    this.pressing.add(session);
+    while (this.pressing.size > PENDING_LIMIT) this.pressing.delete(this.pressing.values().next().value);
+  }
+
+  /** SessionStart: after a compaction it squeezes its head; a press that ran gives a cube. */
+  sessionStart(source, session) {
+    const pressed = this.pressing.delete(session);
+    if (source !== 'compact') return [];
+    return pressed ? ['squeeze', 'cube'] : ['squeeze'];
   }
 }
 
@@ -129,4 +153,4 @@ function doneMessage(turn, endedAt) {
   return { key: 'doneSummary', vars: { count: String(tools), ms } };
 }
 
-module.exports = { MomentWatch, gitMoments, greetingKey, doneMessage, SWEAT_AFTER, SUMMARY, COMMAND_TOOLS };
+module.exports = { MomentWatch, gitMoments, greetingKey, doneMessage, SWEAT_AFTER, DUCK_AFTER, SUMMARY, COMMAND_TOOLS };

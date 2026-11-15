@@ -5,7 +5,7 @@
  *
  * From the main process:
  *   init       { character, settings, view, layout, menu, flight, crew, paused }
- *   view       { state, cssState, text, mono, mood, skill }   every state change
+ *   view       { state, cssState, text, mono, mood, skill, task, steps, duck }   every state change
  *   settings   { quiet, eyeTracking, ambientLife, playMode, sound, soundVolume, strings }
  *   layout     { side, slotLeft, width, height } where the menu column goes
  *   menu-items [{ id, icon, label }]
@@ -28,7 +28,13 @@
  * Attributes this page sets on the character wrapper (the character's CSS
  * may use any of them; see characters/README.md):
  *   data-state  data-blink  data-hover  data-greet  data-boop  data-rest
- *   data-mood ("worried")  data-tap ("down" | "up")  data-sway ("a" | "b")
+ *   data-mood ("worried" | "sweat")  data-tap ("down" | "up")  data-sway ("a" | "b")
+ *   data-task ("book" | "search" | "web" | "popcorn" | "compact": what it works on; popcorn: a
+ *     command that runs on and on, it sits back and munches; compact: the conversation is
+ *     compacted, it pumps a little press, see "moments")
+ *   data-moment ("phew" | "squeeze" | "duck": a little show of the work, see "moments")
+ *   data-duck ("on" | "bye": stuck, the rubber duck sits on its head; "bye" when a tool
+ *     finally works and the duck hops off, see "moments")
  *   data-fly ("hover" | "boost")  data-land
  *   data-skill ("open" | "stow")  data-brief / data-receive ("left" | "right": where the mini stands)
  *   fun mode: data-play  data-cheer  data-annoyed  data-glee (tapped and liked it)
@@ -346,15 +352,27 @@
 
   // ---------------------------------------------------------------- view
 
+  /** What it can show it works on (robot.css data-task). */
+  const TASKS = new Set(['book', 'search', 'web', 'popcorn', 'compact']);
+
   function applyView(next) {
     const previous = view;
     view = next;
     // A new state: what the old one was animating eases into the new pose (see blendFrom).
-    const parts = holder.dataset.state !== (next.cssState || next.state) ? snapshotAnimated() : null;
+    // (Also when the popcorn comes out or goes again: the munching arm eases into the next pose.)
+    const popcornTurn = (holder.dataset.task === 'popcorn') !== (next.task === 'popcorn');
+    const parts = holder.dataset.state !== (next.cssState || next.state) || popcornTurn ? snapshotAnimated() : null;
     holder.dataset.state = next.cssState || next.state;
     flag('mood', next.mood === 'worried' || next.mood === 'sweat' ? next.mood : null);
-    // What it works on: a book, a search, the web (robot.css data-task).
-    flag('task', next.task === 'book' || next.task === 'search' || next.task === 'web' ? next.task : null);
+    // What it works on: a book, a search, the web, popcorn (robot.css data-task).
+    flag('task', TASKS.has(next.task) ? next.task : null);
+    // Stuck: the duck on its head ("bye" plays out by itself, see onMoment).
+    flag('duck', next.duck ? 'on' : holder.dataset.duck === 'bye' ? 'bye' : null);
+    // A command that runs on and on: out comes the popcorn (the bubble keeps the command).
+    if (next.task === 'popcorn' && previous.task !== 'popcorn') {
+      trace('popcorn: a long command, it sits back and munches');
+      if (!next.duck) quip('popcorn', 2600);
+    }
     stage.classList.toggle('leaving', next.state === 'goodbye');
     applySkill(next.skill || null);
     // Claude Code needs the character: anything but idle / standby ends a duel at
@@ -1409,10 +1427,38 @@
 
   // ---------------------------------------------------------------- moments (app/moments.js)
 
-  /** A commit (a flag), a push (a rocket), a failure streak over (phew), a compaction (squeeze). */
-  const MOMENT_MS = { phew: 1700, squeeze: 1900 };
+  /**
+   * A commit (a flag), a push (a rocket), a failure streak over (phew), a compaction (squeeze),
+   * stuck (duck: it takes a rubber duck from its pocket, explains it all to the duck, and the
+   * duck hops up onto its head, where it stays while the streak lasts: data-duck from the view).
+   */
+  const MOMENT_MS = { phew: 1700, squeeze: 1900, duck: 3600 };
+  /** The duck hops off when a tool finally works (robot.css data-duck="bye"). */
+  const DUCK_BYE_MS = 1300;
   function onMoment(kind) {
     trace(`moment: ${kind}`);
+    if (kind === 'cube') {
+      popCube();
+      return;
+    }
+    if (kind === 'duck') {
+      if (motionAllowed()) {
+        flag('moment', 'duck', true);
+        later('moment', MOMENT_MS.duck, () => flag('moment', null));
+      }
+      quip('duck', 3000);
+      return;
+    }
+    // It worked at last with the duck on its head: thanks, and off it hops.
+    if (kind === 'phew' && holder.dataset.duck === 'on') {
+      duckBye();
+      if (motionAllowed()) {
+        flag('moment', 'phew', true);
+        later('moment', MOMENT_MS.phew, () => flag('moment', null));
+      }
+      quip('duckThanks', 1800);
+      return;
+    }
     if (kind === 'commit') {
       plantFlag();
       if (motionAllowed()) glee.trigger();
@@ -1427,6 +1473,31 @@
       }
       quip(kind, 1500);
     }
+  }
+
+  /** The duck hops off (a jump, a spin, gone), then the view decides again. */
+  function duckBye() {
+    trace('duck: it worked, thanks, off it hops');
+    flag('duck', 'bye', true);
+    later('duck-bye', DUCK_BYE_MS, () => flag('duck', view.duck ? 'on' : null));
+  }
+
+  /** The press is done (a compaction): a cube of paper pops out where the press stood. */
+  const CUBE_MS = 2400;
+  function popCube() {
+    if (!motionAllowed() || !character) return;
+    trace('cube: the press is done');
+    const at = figurePoint(holder.dataset.face === 'left' ? 0.26 : 0.74, 0.8);
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'fx-cube');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    const use = document.createElementNS(SVG_NS, 'use');
+    use.setAttribute('href', '#i-cube');
+    svg.appendChild(use);
+    svg.style.left = `${Math.round(at.x)}px`;
+    svg.style.top = `${Math.round(at.y)}px`;
+    fx.appendChild(svg);
+    setTimeout(() => svg.remove(), CUBE_MS + 200);
   }
 
   /** The center of the character's feet and the top of its head, in page px. */
@@ -3431,6 +3502,28 @@
       onPresence({ kind: 'back', awayMs: 600000 });
     } else if (name === 'commit' || name === 'push' || name === 'phew' || name === 'squeeze') {
       onMoment(name);
+    } else if (name === 'duck') {
+      // Stuck: sweat, out comes the duck and sits on its head; a while later it works: thanks.
+      flag('mood', 'sweat');
+      onMoment('duck');
+      later('demo-duck-on', MOMENT_MS.duck - 200, () => flag('duck', 'on'));
+      later('demo-duck-thanks', MOMENT_MS.duck + 3800, () => {
+        flag('mood', view.mood === 'worried' || view.mood === 'sweat' ? view.mood : null);
+        onMoment('phew');
+      });
+    } else if (name === 'compact') {
+      // A compaction: the press for a while, then the squeeze and a cube of paper.
+      flag('task', 'compact');
+      later('demo-compact', 6000, () => {
+        flag('task', TASKS.has(view.task) ? view.task : null);
+        onMoment('squeeze');
+        onMoment('cube');
+      });
+    } else if (name === 'popcorn') {
+      // A command that runs on and on: it sits back with popcorn for a while.
+      flag('task', 'popcorn');
+      quip('popcorn', 2600);
+      later('demo-popcorn', 9000, () => flag('task', TASKS.has(view.task) ? view.task : null));
     } else if (name === 'sweat') {
       flag('mood', 'sweat');
       later('demo-sweat', 4000, () => flag('mood', view.mood === 'worried' || view.mood === 'sweat' ? view.mood : null));

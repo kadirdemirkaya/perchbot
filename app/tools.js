@@ -80,7 +80,9 @@ function bubbleForTool(tool, detail) {
 /**
  * What the character shows it works on (robot.css data-task), from the bubble's
  * message key: a book for reading a file, a magnifier for a search, a globe for
- * the web. null: the plain look of the state.
+ * the web, popcorn for a command that runs on and on (core.js armSnack), the
+ * press while the conversation is compacted (PreCompact).
+ * null: the plain look of the state.
  */
 const TASK_BY_MESSAGE = Object.freeze({
   reading: 'book',
@@ -91,6 +93,9 @@ const TASK_BY_MESSAGE = Object.freeze({
   webSearch: 'web',
   webFetch: 'web',
   webFetchNoHost: 'web',
+  runningLong: 'popcorn',
+  runningLongNoCommand: 'popcorn',
+  compacting: 'compact',
 });
 
 function taskFor(messageKey) {

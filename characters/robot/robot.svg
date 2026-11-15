@@ -42,6 +42,14 @@
       rb-pointer  a laser pointer in the near hand, for playing with the cat (data-pet="laser")
       rb-mug, rb-coffee-steam  mornings: a mug of coffee in the near hand, steam rising from it
       rb-nightcap  a nightcap while it naps late at night (data-night with data-rest)
+      rb-duck, rb-duck-held  stuck (data-moment="duck", then data-duck): a rubber duck from its
+                 pocket, held up beside its head to explain things to, then sitting on its head
+                 (both draw #rb-duck-art)
+      rb-compactor, rb-press-ram, rb-press-stack, rb-press-loose-*  the conversation is compacted
+                 (data-task="compact"): a little press; the near hand pumps its T-handle, the plate
+                 comes down on a stack of paper, loose sheets drift in
+      rb-popcorn, rb-kernel-*, rb-kernel-held  a command that runs on and on
+                 (data-task="popcorn"): a bucket of popcorn on its lap, a kernel in the near hand
     Elements marked data-nohit never count as "the character" for the mouse.
   -->
   <defs>
@@ -61,6 +69,19 @@
     <clipPath id="rb-body-clip">
       <path d="M71 103 H105 Q113 103 114 111 L116 143 Q117 157 103 157 H73 Q59 157 60 143 L62 111 Q63 103 71 103 Z"/>
     </clipPath>
+    <!-- a little yellow rubber duck facing right (beak pink, from the palette), drawn once: on the
+         head (rb-duck) and in the far hand (rb-duck-held) -->
+    <g id="rb-duck-art">
+      <path d="M95.6 31.2 Q98.5 33.4 102 32.6 L108.5 32.2 Q117.2 31.6 117.3 35.4 Q117 38.2 111.5 38.2 H100.4 Q95 38.2 94.9 34.6 Q94.8 32.4 95.6 31.2 Z" fill="#FFD25A"/>
+      <path d="M108.6 38.1 Q115.8 38.1 116.9 35.2 Q114.6 36.6 108.2 36.6 Z" fill="#E8B53C"/>
+      <path d="M95.6 31.2 Q98.5 33.4 102 32.6 L108.5 32.2 Q117.2 31.6 117.3 35.4 Q117 38.2 111.5 38.2 H100.4 Q95 38.2 94.9 34.6 Q94.8 32.4 95.6 31.2 Z" fill="none" stroke="#2A2650" stroke-width="1.8" stroke-linejoin="round"/>
+      <path d="M100.8 34 Q104.6 36.6 108.6 34.3" fill="none" stroke="#E8B53C" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M115.4 25.6 Q120.6 25 121 27.2 Q120.3 29.4 115.6 28.8 Z" fill="#FF9DB0" stroke="#2A2650" stroke-width="1.5" stroke-linejoin="round"/>
+      <circle cx="110.6" cy="26.4" r="5.6" fill="#FFD25A" stroke="#2A2650" stroke-width="1.8"/>
+      <circle cx="112.4" cy="25.2" r="1.2" fill="#2A2650"/>
+      <circle cx="112.8" cy="24.8" r="0.45" fill="#FFFFFF"/>
+      <path d="M106.6 24.4 Q107.2 22.4 109.2 21.8" fill="none" stroke="#FFF6E8" stroke-width="1.2" stroke-linecap="round"/>
+    </g>
     <clipPath id="rb-cap-clip">
       <path d="M60 37 C62 22 74 10 92 9 C108 8 122 16 131 28 C135 33 138 39 139 44 C133 41 127 39 121 38 L116 37 Z"/>
     </clipPath>
@@ -190,6 +211,11 @@
             <path d="M60 37 C62 22 74 10 92 9 C108 8 122 16 131 28 C135 33 138 39 139 44 C133 41 127 39 121 38 L116 37 Z" fill="none" stroke="#2A2650" stroke-width="2.4" stroke-linejoin="round"/>
             <path d="M48.6 48 Q48.8 36.5 63 35.5 H113 Q127.2 36.5 127.4 48 Q88 42 48.6 48 Z" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.4" stroke-linejoin="round"/>
             <circle cx="139.5" cy="46.5" r="5.6" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.2"/>
+          </g>
+
+          <!-- stuck: the rubber duck sits on its head (data-duck), it hops up there in data-moment="duck" -->
+          <g class="rb-duck" data-nohit="">
+            <use href="#rb-duck-art"/>
           </g>
 
           <!-- face screen -->
@@ -348,6 +374,10 @@
               <circle cx="83.5" cy="144.6" r="12.5" fill="#8AB6FF" fill-opacity=".14" stroke="#2A2650" stroke-width="3"/>
               <circle cx="83.5" cy="144.6" r="10.2" fill="none" stroke="#FFD25A" stroke-width="1.8"/>
             </g>
+            <!-- stuck: the rubber duck in this hand (data-moment="duck"), upright with the arm up at 140deg -->
+            <g class="rb-duck-held" data-nohit="">
+              <use href="#rb-duck-art" transform="rotate(-140 58 112) translate(-71.1 39.4)"/>
+            </g>
             <circle cx="58" cy="148" r="6.8" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.6"/>
             <!-- polish: a little yellow cloth in this hand (hidden otherwise) -->
             <g class="rb-cloth" data-nohit="">
@@ -372,6 +402,29 @@
           <path class="rb-book-page" d="M84 112.5 Q94 109 103 113 V136.5 Q94 132.5 84 136 Z" fill="#FFF6E8" stroke="#2A2650" stroke-width="2" stroke-linejoin="round"/>
           <path d="M63.5 135.5 Q74 131 84 134.8 Q94 131 104.5 135.5 L104.5 138.5 Q94 134 84 137.8 Q74 134 63.5 138.5 Z" fill="#4FD6B4" stroke="#2A2650" stroke-width="2" stroke-linejoin="round"/>
           <path d="M84 112.5 V137.6" stroke="#2A2650" stroke-width="1.6"/>
+        </g>
+
+        <!-- a command that runs on and on: a bucket of popcorn on its lap (data-task="popcorn"),
+             two kernels hop out of it now and then -->
+        <g class="rb-popcorn" data-nohit="">
+          <g fill="#FFF6E8" stroke="#2A2650" stroke-width="1.4">
+            <circle class="rb-kernel rb-kernel-1" cx="99" cy="129" r="2.6"/>
+            <circle class="rb-kernel rb-kernel-2" cx="111" cy="128.5" r="2.4"/>
+          </g>
+          <g fill="#FFF6E8" stroke="#2A2650" stroke-width="1.6">
+            <circle cx="96" cy="134" r="4"/>
+            <circle cx="114" cy="134.4" r="3.8"/>
+            <circle cx="102" cy="131.2" r="4.4"/>
+            <circle cx="108.6" cy="131.6" r="4.2"/>
+            <circle cx="105.2" cy="134.6" r="3.8"/>
+          </g>
+          <circle cx="101" cy="130.4" r="1.1" fill="#FFD25A"/>
+          <circle cx="109.8" cy="130.9" r="1" fill="#FFD25A"/>
+          <circle cx="96.4" cy="133.2" r="0.9" fill="#FFD25A"/>
+          <path d="M91.5 136 H118.5 L115.5 159 Q115.3 160.6 113.6 160.6 H96.4 Q94.7 160.6 94.5 159 Z" fill="#FFF6E8"/>
+          <path d="M91.5 136 H96 L98 160.6 H94.5 Z M102.75 136 H107.25 L106.75 160.6 H103.25 Z M114 136 H118.5 L115.5 160.6 H112 Z" fill="#E2577A"/>
+          <path d="M91.5 136 H118.5 L115.5 159 Q115.3 160.6 113.6 160.6 H96.4 Q94.7 160.6 94.5 159 Z" fill="none" stroke="#2A2650" stroke-width="2.2" stroke-linejoin="round"/>
+          <rect x="90" y="134.2" width="30" height="4" rx="2" fill="#FFF6E8" stroke="#2A2650" stroke-width="2"/>
         </g>
 
         <!-- laptop: open in front of the robot, or closed and tucked under its arm -->
@@ -445,6 +498,38 @@
           </g>
           <path class="rb-base" d="M124 143 H188 L194 151 Q195 154 191 154 H121 Q117 154 118 151 Z" fill="#D9D6EA" stroke="#2A2650" stroke-width="3" stroke-linejoin="round"/>
           <path d="M138 148 H174" stroke="#8F89B3" stroke-width="2" stroke-linecap="round"/>
+        </g>
+
+        <!-- the conversation is compacted (data-task="compact"): a little press beside it. The near
+             hand pumps the T-handle (up 146,96.5 / down 146,108.5), the plate comes down 12 on the stack
+             of paper, loose sheets drift in from above. -->
+        <g class="rb-compactor" data-nohit="">
+          <g class="rb-press-loose" fill="#FFF6E8" stroke="#2A2650" stroke-width="1.4" stroke-linejoin="round">
+            <path class="rb-press-loose-1" d="M128 76 L139 74.5 L140.2 82 L129.2 83.5 Z"/>
+            <path class="rb-press-loose-2" d="M150 70 L160 70 L160 77 L150 77 Z"/>
+          </g>
+          <g class="rb-press-stand">
+            <rect x="130" y="157" width="4.5" height="31" rx="1.5" fill="#3A3566" stroke="#2A2650" stroke-width="1.8"/>
+            <rect x="161.5" y="157" width="4.5" height="31" rx="1.5" fill="#3A3566" stroke="#2A2650" stroke-width="1.8"/>
+            <rect x="126.5" y="186.5" width="11.5" height="4" rx="2" fill="#4A4380" stroke="#2A2650" stroke-width="1.8"/>
+            <rect x="158" y="186.5" width="11.5" height="4" rx="2" fill="#4A4380" stroke="#2A2650" stroke-width="1.8"/>
+          </g>
+          <rect x="126" y="136" width="44" height="24" rx="4" fill="#4A4380" stroke="#2A2650" stroke-width="2.4"/>
+          <rect x="127.2" y="142.5" width="41.6" height="4" fill="#4FD6B4"/>
+          <path d="M133 152.5 H163" stroke="#3A3566" stroke-width="2" stroke-linecap="round"/>
+          <rect x="128" y="110" width="5.5" height="27" rx="1.5" fill="#3A3566" stroke="#2A2650" stroke-width="2"/>
+          <rect x="162.5" y="110" width="5.5" height="27" rx="1.5" fill="#3A3566" stroke="#2A2650" stroke-width="2"/>
+          <g class="rb-press-stack" stroke="#2A2650" stroke-width="1.5" stroke-linejoin="round">
+            <rect x="135.5" y="129.5" width="25" height="6.5" rx="1" fill="#FFF6E8" transform="rotate(-3 148 133)"/>
+            <rect x="137" y="123" width="23" height="6.5" rx="1" fill="#FFFFFF" transform="rotate(4 148 126)"/>
+            <path d="M139.5 132.6 H155 M141 126.4 H156" fill="none" stroke="#B3A8F7" stroke-width="1.2" stroke-linecap="round"/>
+          </g>
+          <g class="rb-press-ram">
+            <rect x="143" y="96" width="6" height="22" fill="#B3A8F7" stroke="#2A2650" stroke-width="1.8"/>
+            <rect x="136" y="94" width="20" height="5" rx="2.5" fill="#FF9DB0" stroke="#2A2650" stroke-width="2"/>
+            <rect x="133.5" y="116" width="29" height="5.5" rx="2" fill="#8C7BEA" stroke="#2A2650" stroke-width="2"/>
+          </g>
+          <rect x="124" y="107" width="48" height="6.5" rx="3" fill="#4A4380" stroke="#2A2650" stroke-width="2.4"/>
         </g>
 
         <!-- focus mode: a screen of light projected from the near eye, and a keyboard of light -->
@@ -544,6 +629,8 @@
                 <path d="M100.8 150 H113.2" stroke="#4FD6B4" stroke-width="3"/>
               </g>
             </g>
+            <!-- popcorn: a kernel on its way to the mouth (data-task="popcorn") -->
+            <circle class="rb-kernel-held" data-nohit="" cx="116" cy="154" r="2.5" fill="#FFF6E8" stroke="#2A2650" stroke-width="1.4"/>
             <circle cx="118" cy="148" r="6.8" fill="#FFF6E8" stroke="#2A2650" stroke-width="2.6"/>
           </g>
           <circle cx="118" cy="112" r="7" fill="#4FD6B4" stroke="#2A2650" stroke-width="2.6"/>

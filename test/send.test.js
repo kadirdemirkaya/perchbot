@@ -170,7 +170,8 @@ test('search patterns, web hosts and notification / session fields', () => {
 });
 
 test('unknown events are dropped, bad ids fall back, argv names the event', () => {
-  assert.equal(send.buildPayload({ hook_event_name: 'PreCompact', session_id: 's' }), null);
+  // (PreCompact was the example here until 0.6.0, which handles it: see the press tests.)
+  assert.equal(send.buildPayload({ hook_event_name: 'SomeFutureEvent', session_id: 's' }), null);
   assert.equal(send.buildPayload(null), null);
   assert.equal(send.buildPayload({ session_id: 's' }, 'Stop').event, 'Stop');
   assert.equal(send.buildPayload('garbage', 'Stop').session, 'unknown');

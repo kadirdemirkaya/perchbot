@@ -74,6 +74,8 @@ const EVENTS = new Set([
   'SubagentStart',
   'SubagentStop',
   'UserPromptExpansion',
+  // Nothing of its input leaves (its trigger and custom_instructions are dropped): the event only.
+  'PreCompact',
 ]);
 const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse', 'PostToolUseFailure']);
 const AGENT_EVENTS = new Set(['SubagentStart', 'SubagentStop']);

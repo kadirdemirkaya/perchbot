@@ -19,9 +19,12 @@
  *    events of other accounts are ignored, apart from noting the account.
  *
  * Emits
- *  - 'state' ({ state, message, mood, skill })  whenever the view changes.
+ *  - 'state' ({ state, message, mood, skill, duck })  whenever the view changes.
  *      message is null or { key, vars?, mono? }; translation happens elsewhere.
  *      skill is null or the name of the skill in use (the book comes out).
+ *      duck: stuck (app/moments.js DUCK_AFTER failures in a row), the rubber
+ *      duck sits on its head. A command that runs on and on with nothing else
+ *      going on turns its message into runningLong (popcorn, timings.snackMs).
  *  - 'crew'  (agents)              whenever the list of sub-agents changes (see app/agents.js).
  *  - 'account' (name)              the first event of an account in this run.
  *  - 'gone'  (session, why)        a session closed because its process is gone.
@@ -35,7 +38,7 @@
  */
 
 const { EventEmitter } = require('node:events');
-const { stateForTool, bubbleForTool, stepForTool, isFileTool, TOOL_STATES } = require('./tools');
+const { stateForTool, bubbleForTool, stepForTool, isFileTool, TOOL_STATES, COMMAND_TOOLS } = require('./tools');
 const { MomentWatch, doneMessage } = require('./moments');
 const { AgentRegistry } = require('./agents');
 const { LivenessWatch } = require('./liveness');
@@ -46,6 +49,12 @@ const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse', 'PostToolUseFailure'])
 const DEFAULT_TIMINGS = Object.freeze({
   /** How long a tool state stays after the tool finished. */
   holdMs: 1500,
+  /**
+   * A command (Bash / PowerShell) still running after this long, with nothing
+   * else going on meanwhile: it sits back with popcorn (message runningLong,
+   * robot.css data-task="popcorn"). 0 = never.
+   */
+  snackMs: 20000,
   /** How long "done" plays before falling back to idle. */
   doneMs: 3000,
   /** How long the greeting plays. */
@@ -60,6 +69,11 @@ const DEFAULT_TIMINGS = Object.freeze({
   endGraceMs: 2500,
   /** The same after SessionEnd with reason clear / resume: a new session nearly always follows. */
   clearGraceMs: 4000,
+  /**
+   * PreCompact: the press runs until the next event (normally SessionStart,
+   * source "compact"); a compaction that never reports back stops it after this.
+   */
+  compactMs: 180000,
   /** How long a calm notification (idle_prompt, unknown types) stays up. */
   idlePromptMs: 10000,
   /** Quit after this long without any event. 0 disables the safety net. */
@@ -91,6 +105,8 @@ const STEP_LIMIT = 4;
 const NOTICE_STATES = new Set(['waiting', 'asking', 'standby']);
 /** States in which a failure streak shows (app/moments.js): at work. */
 const SWEAT_STATES = new Set(['thinking', 'typing', 'reading', 'running', 'working']);
+/** States in which the rubber duck shows (stuck): at work, or waiting on the user mid-streak. */
+const DUCK_STATES = new Set([...SWEAT_STATES, 'waiting', 'asking']);
 const FINISHED_ID_LIMIT = 256;
 /** Ended sessions remembered, so a late event from one does not bring it back. */
 const ENDED_ID_LIMIT = 64;
@@ -114,7 +130,7 @@ class BuddyCore extends EventEmitter {
     this.sessions = new Map();
     /** owner: the session whose event produced the view (null for fallbacks). */
     this.view = { state: 'idle', message: null, owner: null };
-    this.timers = { revert: null, quit: null, idle: null, empty: null };
+    this.timers = { revert: null, quit: null, idle: null, empty: null, snack: null };
     this.leaving = false;
     this.disposed = false;
     /** The skill the main character holds the book for: { name, session } or null. */
@@ -197,6 +213,8 @@ class BuddyCore extends EventEmitter {
       mood: this.moments.sweating && SWEAT_STATES.has(this.view.state) ? 'sweat' : this.view.mood || null,
       skill: this.skill ? this.skill.name : null,
       steps: this.steps.slice(),
+      // Stuck (DUCK_AFTER failures in a row): the rubber duck sits on its head.
+      duck: this.moments.ducking && DUCK_STATES.has(this.view.state),
     };
   }
 
@@ -315,7 +333,7 @@ class BuddyCore extends EventEmitter {
       case 'SessionStart':
         session.turnActive = false;
         this.show('greeting', { key: 'greeting' }, this.timings.greetingMs, owner);
-        for (const moment of this.moments.sessionStart(evt.source)) this.emit('moment', moment);
+        for (const moment of this.moments.sessionStart(evt.source, owner)) this.emit('moment', moment);
         break;
 
       case 'UserPromptSubmit':
@@ -349,6 +367,8 @@ class BuddyCore extends EventEmitter {
         this.bugs.toolStart(owner, evt.id, evt.tool, evt.detail);
         this.moments.toolStart(owner, evt.id, evt.tool, evt.detail);
         this.show(stateForTool(evt.tool), bubbleForTool(evt.tool, evt.detail), 0, owner);
+        // A command that may take a while: popcorn if it runs on (armSnack).
+        if (COMMAND_TOOLS.has(evt.tool)) this.armSnack();
         break;
 
       case 'PostToolUse':
@@ -363,14 +383,23 @@ class BuddyCore extends EventEmitter {
         this.bugs.toolEnd(owner, evt.id, evt.event === 'PostToolUse');
         {
           const wasSweating = this.moments.sweating;
+          const wasDucking = this.moments.ducking;
           for (const moment of this.moments.toolEnd(owner, evt.id, evt.event === 'PostToolUse')) this.emit('moment', moment);
-          if (wasSweating !== this.moments.sweating) this.refresh();
+          if (wasSweating !== this.moments.sweating || wasDucking !== this.moments.ducking) this.refresh();
         }
         // A failed tool gets a worried look for the rest of its hold time.
         if (evt.event === 'PostToolUseFailure' && TOOL_STATES.has(this.view.state)) this.setMood('worried');
         if (session.inflight.size > 0 || session.anonymous > 0) return; // parallel tools still running
+        this.clearTimer('snack'); // nothing runs any more: no popcorn now
         if (!TOOL_STATES.has(this.view.state)) return; // e.g. waiting on another approval
         this.scheduleRevert(this.timings.holdMs);
+        break;
+
+      case 'PreCompact':
+        // Manual /compact or auto: it pumps the press over its stack of paper (robot.css
+        // data-task="compact"); SessionStart (source "compact") ends it with a cube.
+        this.moments.preCompact(owner);
+        this.show('working', { key: 'compacting' }, this.timings.compactMs, owner);
         break;
 
       case 'Notification': {
@@ -545,8 +574,28 @@ class BuddyCore extends EventEmitter {
   }
 
   setView(state, message, owner = null) {
+    this.clearTimer('snack');
     this.view = { state, message: message || null, owner, mood: null };
     this.emit('state', this.snapshot());
+  }
+
+  /**
+   * The command just shown keeps running and nothing else happens for
+   * snackMs: the same view, now as runningLong (the bubble keeps the command;
+   * robot.css sits it back with popcorn). Any new view (another tool, a
+   * notification, the tool's own end and hold) cancels it.
+   */
+  armSnack() {
+    this.clearTimer('snack');
+    if (!(this.timings.snackMs > 0)) return;
+    const view = this.view;
+    this.timers.snack = this.clock.setTimeout(() => {
+      this.timers.snack = null;
+      if (this.disposed || this.leaving || this.view !== view || view.state !== 'running') return;
+      const message = view.message && view.message.key === 'running' ? { ...view.message, key: 'runningLong' } : { key: 'runningLongNoCommand' };
+      this.view = { ...view, message };
+      this.emit('state', this.snapshot());
+    }, this.timings.snackMs);
   }
 
   setMood(mood) {
