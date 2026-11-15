@@ -789,7 +789,8 @@ function start() {
     caretBusy = true;
     let raw = null;
     try {
-      raw = await caretWatch.where();
+      // Typing in its own chat panel is not "your" typing: as if there were no caret.
+      if (!BrowserWindow.getFocusedWindow()) raw = await caretWatch.where();
     } finally {
       caretBusy = false;
     }

@@ -50,7 +50,7 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 | you start a duel | a sword fight against your cursor, three hearts each |
 | it is idle | backflips, moonwalks, blows bubbles, throws paper planes, gets visitors, plays with its cat, flies off now and then and carries on wherever it lands, has a coffee in the morning, naps (in a nightcap late at night) |
 | the cursor rests somewhere | now and then it flies over for a look through its magnifier |
-| you type in a terminal (Windows, opt-in) | now and then it flies over, reads along above the line, and a light bulb goes on: got it! |
+| you type in a terminal, VS Code or another app (Windows, opt-in) | now and then it flies over, reads along above the line, and a light bulb goes on: got it! |
 | you open the chat | answers questions about the work; on Windows (opt-in) it opens Chrome, a tab or YouTube for you |
 
 ## See it in action
@@ -140,8 +140,9 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 - **Hands** (Windows, tray, off by default): Chrome, tab and YouTube buttons in the chat panel. It presses
   them through Windows UI Automation; your mouse is not moved, tab titles and addresses are not read.
 - **Watch me type** (Windows, tray, off by default; needs ambient life): while you type in a terminal
-  (Windows Terminal or the classic console), it comes over now and then (at most once a minute) to read
-  along, then a light bulb goes on. It only asks Windows where the text cursor is: never what you type.
+  (Windows Terminal or the classic console), VS Code or another app that tells Windows where its text
+  cursor is, it comes over now and then (at most once a minute) to read along, then a light bulb goes on.
+  It only asks Windows where the text cursor is: never what you type.
 - **Follow Windows** (Windows, last button of the hover menu, off by default): when you delete a file or a
   folder in Windows (it goes to the Recycle Bin), it comes over and slashes a ghost of it with its sword,
   coloured by type. It deletes nothing itself. Shift+Delete and command-line deletes skip the Recycle Bin,
@@ -163,8 +164,11 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 Only the event, the tool name, a file name (not the path) and a shortened command (secrets masked)
 leave the hook, and only to `127.0.0.1`. With ambient life on, the robot also looks at the system idle
 time, where the cursor is (its position only) and, on Windows, where windows are (frames only, never
-titles or contents). With *Watch me type* on, it also asks Windows where the text cursor of the terminal
-in front is: a position only, never the text, never your keys, nothing in password fields. With *Follow
+titles or contents). With *Watch me type* on, it also asks Windows where the text cursor of the window
+in front is: a position only, never the text, never your keys. Terminals say when a field is a password
+field and then give nothing; other apps (VS Code, browsers) do not say it, so there too it is a position
+only. It asks other apps through the caret Windows keeps for its Magnifier, not through their screen
+reader support, so they do not change their behaviour for it. With *Follow
 Windows* on, it watches your Recycle Bin for new deletes and takes only the type of each item (its
 extension, or that it was a folder): never its name or where it was. Nothing of it is stored or sent anywhere. Settings: `~/.perchbot/settings.json`.
 The only download is Electron itself: once, by `perchbot setup` (or `start` / `demo` while it is still

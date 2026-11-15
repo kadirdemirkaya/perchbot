@@ -9,7 +9,7 @@ const path = require('node:path');
 const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
 const { TYPING, TYPING_STATES, TypingWatch, TypingVisit, standBy } = require('../app/typing');
-const { createCaretWatch, parseCaret, encodedCommand, SCRIPT, TERMINALS } = require('../app/caret');
+const { createCaretWatch, parseCaret, encodedCommand, SCRIPT, TERMINALS, CARET_OBJECT } = require('../app/caret');
 const { FOLLOW_STATES } = require('../app/follow');
 const { SLOT } = require('../app/placement');
 
@@ -153,15 +153,26 @@ test('states: as for a look at the cursor (idle or at work, not while Claude Cod
 });
 
 test('the caret helper: the caret rectangle only, never any text, keys, titles or files', () => {
-  // What it asks Windows: the window in front, its class (terminals only), the focused
-  // element of that process, whether it is a password field, the caret's rectangle.
+  // What it asks Windows: the window in front, its class, then way 1 for terminals (the
+  // focused element of that process, whether it is a password field, the caret's rectangle)
+  // and way 2 when way 1 gives nothing (the focus window's caret object, its location only).
   assert.ok(SCRIPT.includes('GetForegroundWindow') && SCRIPT.includes('AutomationElement.FocusedElement'));
   assert.ok(SCRIPT.includes('if (el.Current.IsPassword) return "{\\"secret\\":true}";'), 'a password field gives nothing');
   assert.ok(SCRIPT.includes('el.Current.ProcessId != (int)pid'), 'only the window in front');
   assert.ok(SCRIPT.includes('ExpandToEnclosingUnit(TextUnit.Character)') && SCRIPT.includes('GetBoundingRectangles()'));
   for (const t of TERMINALS) assert.ok(SCRIPT.includes(`"${t}"`), t);
+  // UI Automation (screen reader support: VS Code would change its editor) only for terminals.
+  assert.ok(SCRIPT.includes('if (Array.IndexOf(Terminals, kind.ToString()) >= 0) {\n      string first = FromTerminal(pid);\n      if (first != null) return first;\n    }\n    return FromCaretObject(front, thread);'), 'way 2 only when way 1 gives nothing');
+  assert.equal((SCRIPT.match(/AutomationElement\.FocusedElement/g) || []).length, 1, 'UI Automation asked in way 1 only');
+  assert.ok(SCRIPT.includes('IsHungAppWindow(front)'), 'never waits on a hung window');
+  // Way 2: the caret object's location, nothing else of it.
+  assert.ok(SCRIPT.includes('AccessibleObjectFromWindow(focus, OBJID_CARET,') && SCRIPT.includes('const uint OBJID_CARET = 0xFFFFFFF8;'));
+  assert.ok(SCRIPT.includes('.accLocation(out x, out y, out w, out h, 0);'));
+  assert.ok(SCRIPT.includes('if (w <= 0 || h < 4) return "{}";'), 'a hidden caret gives nothing');
+  assert.ok(SCRIPT.includes('if (x < box.L || x > box.R || y < box.T + band || y + h > box.B) return "{}";'), 'outside the window or in its top band: nothing');
+  assert.ok(SCRIPT.includes(`const int TopBand = ${CARET_OBJECT.topBand};`));
   // ...and nothing else: no text of any kind, no keyboard, no input, no files, no network.
-  const forbidden = /GetText|DocumentRange|RangeFromPoint|\.Current\.Name|\.Name\b|ValuePattern|LegacyIAccessible|GetWindowText|HelpText|Clipboard|SetWindowsHookEx|GetAsyncKeyState|GetKeyState|GetKeyboardState|keybd_event|SendInput|SendKeys|SetFocus|Out-File|Set-Content|Add-Content|Invoke-WebRequest|Invoke-RestMethod|Start-Process|Get-Process/i;
+  const forbidden = /GetText|DocumentRange|RangeFromPoint|\.Current\.Name|\.Name\b|ValuePattern|LegacyIAccessible|accName|accValue|accDescription|accHelp|accRole|accState|accKeyboardShortcut|accDefaultAction|accChild|accSelect|accDoDefaultAction|OBJID_CLIENT|AccessibleChildren|GetWindowText|HelpText|Clipboard|SetWindowsHookEx|GetAsyncKeyState|GetKeyState|GetKeyboardState|keybd_event|SendInput|SendKeys|SetFocus|Out-File|Set-Content|Add-Content|Invoke-WebRequest|Invoke-RestMethod|Start-Process|Get-Process/i;
   assert.ok(!forbidden.test(SCRIPT), String(SCRIPT.match(forbidden)));
   // Only what main.js needs goes back: numbers, and the password flag.
   assert.ok(!/ProcessId\s*\+|\+\s*kind|cls\.ToString\(\)\s*\+/.test(SCRIPT), 'no class name or process in the answer');
@@ -246,6 +257,7 @@ test('watch me type: wired through main.js, the bridge and the page', () => {
   assert.ok(main.includes('syncTyping();\n    sendSettings();'), 'settings changes start or stop it');
   assert.ok(main.includes("if (typingVisit && ((snap.state === 'thinking' && PROMPT_FROM.has(lastCoreState)) || !typingLib.TYPING_STATES.has(snap.state))) typingAha();"));
   assert.ok(main.includes('caretWatch.stop();'));
+  assert.ok(main.includes('if (!BrowserWindow.getFocusedWindow()) raw = await caretWatch.where();'), 'its own chat panel is not asked about');
   for (const q of ['typingLook', 'typingAha']) assert.ok(main.includes(`'${q}'`), q);
   // The bridge: the page hears about it, and may ask to go.
   const preload = read('app', 'preload.js');
