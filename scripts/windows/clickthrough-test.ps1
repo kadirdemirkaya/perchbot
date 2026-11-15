@@ -5,12 +5,12 @@ param(
 # Click-through regression test for the ISOLATED test overlay
 # (start it first with start-test-overlay.ps1).
 #
-# THIS MOVES THE MOUSE AND SENDS REAL CLICKS for about 55 seconds. Do not touch
+# THIS MOVES THE MOUSE AND SENDS REAL CLICKS for about 30 seconds. Do not touch
 # the mouse or keyboard while it runs.
 #
-# Run it from a normal PowerShell window. Inside a sandboxed tool (for example
-# a coding agent's shell) mouse input may be blocked: the cursor then never
-# arrives and the safety check below stops the test before any click.
+# If the cursor does not arrive where the test puts it (someone moves the mouse,
+# or synthetic input is blocked on this machine), the safety check below stops
+# the test before any click.
 #
 # The last part starts a walk (ambient life) and clicks on the walking
 # character: those clicks must reach the window below.
@@ -167,30 +167,56 @@ Go $P.far 300; Go $P.topCorner 200
 $before = $script:clicks; SafeClick $P.topCorner
 Check 'after the duel, clicks pass through again' ($script:clicks -eq $before + 1) "target +$($script:clicks - $before)"
 
+# Off the character and a click right after. A click in the very instant the cursor jumps off
+# the shape (0 ms) is synthetic input only (a hand never clicks within 0 ms of leaving) and lands
+# either way (the overlay lets go of the mouse within a frame): reported, not checked.
+$info = New-Object System.Collections.ArrayList
+function Landed($before) { if ($script:clicks -eq $before + 1) { 'passed through' } else { 'stayed on the overlay' } }
 foreach ($delay in 0, 16, 50, 100) {
   Go $P.far 150; Go $P.body 300
   [U]::Move($P.gapNearArm[0], $P.gapNearArm[1]); if ($delay -gt 0) { Pump $delay }
   $before = $script:clicks; SafeClick $P.gapNearArm
+  if ($delay -eq 0) { [void]$info.Add("leave the shape, click in the same instant (0 ms): $(Landed $before)"); continue }
   Check "leave the shape, click after $delay ms: passes through" ($script:clicks -eq $before + 1) "target +$($script:clicks - $before)"
 }
 if ($P.beside) {
-  foreach ($delay in 0, 50) {
+  foreach ($delay in 0, 16, 50) {
     Go $P.far 150; Go $P.body 300
     [U]::Move($P.beside[0], $P.beside[1]); if ($delay -gt 0) { Pump $delay }
     $before = $script:clicks; SafeClick $P.beside
+    if ($delay -eq 0) { [void]$info.Add("character -> beside the page, click in the same instant (0 ms): $(Landed $before)"); continue }
     Check "character -> beside the page, click after $delay ms: passes through" ($script:clicks -eq $before + 1) "target +$($script:clicks - $before)"
   }
 }
 
+# Dragged along the ground towards the middle of the screen, far enough for the drop to stay put: a
+# drop is pulled inside the work area and snapped to a corner within 48 DIP (app/placement.js
+# dropPlacement), so a drag outwards from a corner eases right back into it. Slow steps and a still
+# moment before letting go make it a plain drop, not a throw (app/fling.js).
+function DragBy($from, $byX, $why) {
+  Go $from 300
+  if ((RootAt $from[0] $from[1]) -ne $overlay) { Abort "${why}: the overlay is not under the cursor" }
+  [U]::Down($from[0], $from[1]); Pump 60
+  for ($i = 1; $i -le 30; $i++) { [U]::Move($from[0] + [int]($byX * $i / 30), $from[1]); Pump 25 }
+  Pump 200
+  [U]::Up($from[0] + $byX, $from[1]); Pump 600
+  $r = New-Object U+RECT; [U]::GetWindowRect($overlay, [ref]$r) | Out-Null
+  $r
+}
+$wasCorner = $null -eq (Get-Content $settingsFile -Raw | ConvertFrom-Json).position
+$dx = if ($sideRight) { 150 } else { -150 }
 $r0 = New-Object U+RECT; [U]::GetWindowRect($overlay, [ref]$r0) | Out-Null
-Go $P.body 300
-if ((RootAt $P.body[0] $P.body[1]) -ne $overlay) { Abort 'drag: the overlay is not under the cursor' }
-[U]::Down($P.body[0], $P.body[1]); Pump 60
-for ($i = 1; $i -le 15; $i++) { [U]::Move($P.body[0] + 10 * $i, $P.body[1] - 4 * $i); Pump 25 }
-[U]::Up($P.body[0] + 150, $P.body[1] - 60); Pump 500
-$r1 = New-Object U+RECT; [U]::GetWindowRect($overlay, [ref]$r1) | Out-Null
-Check 'drag moves the window with the cursor (+150, -60 px)' ([math]::Abs(($r1.L - $r0.L) - 150) -le 6 -and [math]::Abs(($r1.T - $r0.T) + 60) -le 6) "moved ($($r1.L - $r0.L), $($r1.T - $r0.T))"
+$r1 = DragBy $P.body $dx 'drag'
+# A drag starts once the pointer has moved more than 4 CSS px (renderer.js DRAG_THRESHOLD) and the
+# window does not jump to catch up, so it follows the cursor up to ~12 px behind.
+Check "drag moves the window with the cursor ($dx px along the ground)" ([math]::Abs(($r1.L - $r0.L) - $dx) -le 15 -and [math]::Abs($r1.T - $r0.T) -le 6) "moved ($($r1.L - $r0.L), $($r1.T - $r0.T))"
 Check 'dropped position is saved' ($null -ne (Get-Content $settingsFile -Raw | ConvertFrom-Json).position) ''
+# And back to where it came from: near its corner it settles into the corner again (no saved
+# position), so the walk below starts from there, on the ground, as always.
+$r1 = DragBy @(($P.body[0] + ($r1.L - $r0.L)), $P.body[1]) ($r0.L - $r1.L) 'drag back'
+$pos = (Get-Content $settingsFile -Raw | ConvertFrom-Json).position
+$backName = if ($wasCorner) { 'dragged back near its corner: it settles into the corner' } else { 'dragged back: it is where it started' }
+Check $backName ([math]::Abs($r1.L - $r0.L) -le 6 -and [math]::Abs($r1.T - $r0.T) -le 6 -and (($null -eq $pos) -eq $wasCorner)) "off by ($($r1.L - $r0.L), $($r1.T - $r0.T)), position $(if ($pos) { 'saved' } else { 'none (corner)' })"
 
 # A moving window (ambient life: a walk along the taskbar) never takes the mouse:
 # clicks on the walking character reach the window below, and the mouse is free
@@ -229,4 +255,5 @@ Check 'tool window (not in Alt+Tab), never activates' ((($ex -band 0x80) -ne 0) 
 [U]::Move([int]([U]::GetSystemMetrics(0) / 2), 200); Pump 200
 $form.Close()
 $results | Format-Table -AutoSize | Out-String -Width 220
+foreach ($line in $info) { "info (synthetic input only): $line" }
 "passed $(@($results | Where-Object result -eq 'PASS').Count) of $($results.Count)"

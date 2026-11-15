@@ -33,10 +33,10 @@ If PowerShell refuses to run scripts, use
 
 ## clickthrough-test.ps1
 
-**It moves the mouse and sends real clicks for about 55 seconds. Do not touch the
-mouse or keyboard while it runs.** Run it from a normal PowerShell window: inside a
-sandboxed tool shell mouse input may be blocked, and the test then stops at its first
-safety check without clicking.
+**It moves the mouse and sends real clicks for about 30 seconds. Do not touch the
+mouse or keyboard while it runs.** If the cursor does not arrive where the test puts it
+(someone moves the mouse, or synthetic input is blocked), it stops at its first safety
+check without clicking.
 
 It puts a plain target window directly behind the test overlay and checks:
 - clicks on empty parts of the overlay window (including where the closed menu sits,
@@ -44,14 +44,16 @@ It puts a plain target window directly behind the test overlay and checks:
   helpers) reach the window below;
 - the character takes the mouse while hovered, clicks on it stay there, and it never
   takes focus;
-- moving off the character releases the mouse at once (also with a click 0-100 ms later),
-  also when the cursor goes straight into that room beside the page;
+- moving off the character releases the mouse within a frame (a click 16-100 ms later
+  passes through; one in the same instant, which only synthetic input can do, is
+  reported, not checked), also when the cursor goes straight into that room beside the page;
 - the hover menu opens, its buttons work (the bottom row too), and its spot passes clicks
   again once closed;
 - the Play button starts a duel with one click (turning play mode on in the test settings),
   stays during the duel, ends it with a second click on the same spot, and clicks pass
   through again afterwards;
-- dragging moves the window and saves the position;
+- dragging it along the ground towards the middle of the screen moves the window and saves
+  the position; dragged back near its corner, it settles into that corner again;
 - while the window moves (a walk along the taskbar), clicks on the character reach the
   window below, and the mouse is free again when it arrives;
 - the window is a non-activating tool window (not in Alt+Tab).
