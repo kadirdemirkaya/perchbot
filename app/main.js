@@ -56,6 +56,7 @@ const { DwellWatch, FOLLOW, FOLLOW_STATES } = require('./follow');
 const typingLib = require('./typing');
 const { createCaretWatch } = require('./caret');
 const findLib = require('./find');
+const recycleLib = require('./recycle');
 const fling = require('./fling');
 const { buildTrayTemplate, buildFunMenuTemplate } = require('./tray');
 const { buildMenuItems, MENU_IDS, switchFor } = require('./menu-items');
@@ -96,7 +97,7 @@ const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
 /** Events that start the overlay (as in hooks/send.js). */
 const LAUNCH_EVENTS = new Set(['SessionStart', 'UserPromptSubmit']);
 /** What the page may ask for (fun mode): a trip, or the right-click menu. */
-const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch', 'peek', 'cat', 'cat-away', 'guest', 'guest-away', 'typing', 'land', 'find']);
+const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch', 'peek', 'cat', 'cat-away', 'guest', 'guest-away', 'typing', 'land', 'find', 'slash', 'slash-here']);
 /** What the page may not start by itself while "Stay here" is on (the menu still can). */
 const STAY_PUT_BLOCKS = new Set(['flee', 'stroll', 'hop', 'inspect', 'cruise', 'hang', 'loop', 'perch', 'peek', 'typing', 'land', 'find']);
 /**
@@ -165,7 +166,7 @@ const DEMOS = new Set(['duel', 'trips', 'plays', 'cheers', 'menu', 'chat']);
 const demo = isDev && DEMOS.has(names.envValue('DEMO')) ? names.envValue('DEMO') : null;
 const DEMO_TRIPS = ['stroll', 'hop', 'screen', 'inspect', 'home'];
 /** Short lines in the speech bubble when it is hit or fights (locales: "quip"). */
-const QUIPS = ['whoa', 'welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'rampage', 'rampageFix', 'focusOn', 'lensHmm', 'guestHi', 'guestSpar', 'guestBow', 'sleepy', 'petCat', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed', 'typingLook', 'typingAha', 'foundYou', 'coffee', 'lateNight', 'happyFriday'];
+const QUIPS = ['whoa', 'welcomeBack', 'welcomeBackLong', 'whatsThis', 'choiceCode', 'choiceGame', 'choiceNone', 'curiousCode', 'curiousGame', 'curiousNone', 'commit', 'push', 'phew', 'squeeze', 'nudge', 'knock', 'ouch', 'hey', 'enough', 'fedUp', 'fuming', 'blazing', 'erupt', 'rampage', 'rampageFix', 'focusOn', 'lensHmm', 'guestHi', 'guestSpar', 'guestBow', 'sleepy', 'petCat', 'enGarde', 'gotYou', 'parried', 'hurt', 'blocked', 'robotWins', 'youWin', 'busy', 'giggle', 'sneeze', 'bugFixed', 'typingLook', 'typingAha', 'foundYou', 'coffee', 'lateNight', 'happyFriday', 'slashed'];
 
 // Keep Chromium's own data (caches, the single-instance lock) under
 // ~/.perchbot too, so there is exactly one folder to delete on uninstall
@@ -260,6 +261,13 @@ function start() {
   let findDue = null;
   /** Offered to the page: { at } until it answers. */
   let findOffer = null;
+  /** Follow Windows (app/recycle.js): the Recycle Bin watcher (only while its switch is on) and the start in progress. */
+  let recycleWatch = null;
+  let recycleStarting = null;
+  /** A delete offered to the page: { kind, count, at } until it answers. */
+  let slashOffer = null;
+  /** Cutting (or off to cut and back): deletes until then are let go. */
+  let slashUntil = 0;
 
   // ------------------------------------------------------------------ events
 
@@ -442,6 +450,8 @@ function start() {
     else if (action === 'typing') settings.ambientLife && peekAtTyping();
     // "Come and tell me": a long turn is done, over to the cursor and back (app/find.js).
     else if (action === 'find') settings.ambientLife && goFind();
+    // Follow Windows: a file went to the Recycle Bin; off to the cursor to cut it, or on the spot (app/recycle.js).
+    else if (action === 'slash' || action === 'slash-here') goSlash(action === 'slash-here');
     // The idle story: the cat comes over (only with the Cat switch on) or goes again;
     // a visitor drops by (the window makes room), or has left.
     else if (action === 'cat') settings.ambientLife && setPet(true);
@@ -616,6 +626,8 @@ function start() {
     followTimer = setInterval(followTick, FOLLOW.sampleMs);
     // "Watch me type": only with its switch on (off by default).
     syncTyping();
+    // Follow Windows: the Recycle Bin is watched only with its switch on (off by default).
+    syncWindows();
   }
 
   // ------------------------------------------------------------------ following the cursor (app/follow.js)
@@ -1021,6 +1033,157 @@ function start() {
     offerFind(null, { demo: true });
   }
 
+  // ------------------------------------------------------------------ follow windows (app/recycle.js)
+
+  const SLASH = Object.freeze({
+    /** The page answers an offer within this long (ms). */
+    freshMs: 4000,
+    /** A cut on the spot takes this long (lib/fun.js SLASH_TIMINGS and the ghost's exit). */
+    showMs: 3000,
+    /** Off to the cursor: it flies back this long after it got there. */
+    backAfterMs: 3400,
+    /** The cursor closer than this (DIP at medium size) to the middle of its slot: it cuts where it is. */
+    nearPx: 260,
+  });
+  /** Free = Claude Code idle (work, a question, a done bubble: busy). */
+  const SLASH_STATES = new Set(['idle', 'standby']);
+
+  /** Its switch is on and it can work here (Windows; a test overlay may watch a folder of its own instead). */
+  function windowsOn() {
+    return Boolean(settings.followWindows && (recycleLib.supported() || devRecycleDir()));
+  }
+
+  /** Developers only (npm run dev): PERCHBOT_RECYCLE_DIR watches that folder instead of the real Recycle Bin. */
+  function devRecycleDir() {
+    const dir = isDev ? names.envValue('RECYCLE_DIR') : null;
+    return dir ? path.resolve(dir) : null;
+  }
+
+  /** Start or stop watching the Recycle Bin (after any settings change). Switched off: nothing is watched. */
+  function syncWindows() {
+    if (windowsOn() && !quitting) {
+      if (!recycleWatch && !recycleStarting) startRecycleWatch();
+      return;
+    }
+    stopRecycleWatch();
+  }
+
+  async function startRecycleWatch() {
+    const token = {};
+    recycleStarting = token;
+    let watch = null;
+    try {
+      const dev = devRecycleDir();
+      const dirs = dev ? [dev] : await recycleLib.recycleDirs(await recycleLib.userSid());
+      if (recycleStarting === token && dirs.length) watch = await recycleLib.createRecycleWatcher({ dirs, onDelete: onRecycle, log });
+    } catch (err) {
+      log.warn(`follow windows: could not start (${err && err.message})`);
+    }
+    // Switched off (or off and on again) meanwhile: this start is not wanted any more.
+    if (recycleStarting !== token) {
+      if (watch) watch.stop();
+      return;
+    }
+    recycleStarting = null;
+    if (!watch) {
+      log.warn('follow windows: no Recycle Bin folder to watch');
+      return;
+    }
+    recycleWatch = watch;
+    log.info(`follow windows: watching ${watch.dirs.length} Recycle Bin folder(s)`);
+  }
+
+  function stopRecycleWatch() {
+    recycleStarting = null;
+    slashOffer = null;
+    if (!recycleWatch) return;
+    recycleWatch.stop();
+    recycleWatch = null;
+    log.info('follow windows: stopped');
+  }
+
+  /** Free to cut (what main knows; the page checks its own side): Claude Code idle, nothing else going on. */
+  function slashFree() {
+    return Boolean(
+      win && !win.isDestroyed() && anchor && pageLayout && !paused && !quitting && !drag && !trip && !warping && !flipping && !rampage && !fist && !handsBusy && !peekBack && !typingVisit && !chatOpen &&
+        Date.now() >= slashUntil && SLASH_STATES.has(core.snapshot().state),
+    );
+  }
+
+  /**
+   * Files went to the Recycle Bin ({ kind, count }, never a name). Busy: let go (no queue,
+   * no show later). Free: the page is asked (it may be busy in its own ways).
+   */
+  function onRecycle(batch, { demo = false } = {}) {
+    if (!batch || (!demo && !windowsOn())) return;
+    const what = `${batch.count} deleted (${batch.kind}${batch.count > 1 ? ' first' : ''})`;
+    if (!slashFree()) {
+      log.devOnly(`follow windows: ${what}, busy: let go`);
+      return;
+    }
+    slashOffer = { kind: batch.kind, count: batch.count, at: Date.now() };
+    log.devOnly(`follow windows: ${what}${demo ? ' (demo)' : ''}: offering the cut`);
+    if (canSend()) win.webContents.send('buddy:windows', { offer: true, kind: batch.kind, count: batch.count, demo });
+  }
+
+  /** The page said yes: off to the cursor to cut it there, or (`here`) on the spot. */
+  function goSlash(here) {
+    const offer = slashOffer;
+    slashOffer = null;
+    if (!offer || Date.now() - offer.at > SLASH.freshMs || !slashFree()) return;
+    const from = roamAnchor ? { ...roamAnchor } : null;
+    const plan = here ? null : slashLeg();
+    if (!plan) {
+      slashHere(offer, null, false);
+      return;
+    }
+    log.devOnly('follow windows: off to the cursor');
+    beginTrip(plan, 'slash', () => slashHere(offer, from, true), { peek: true });
+  }
+
+  /**
+   * Beside the cursor (where the file most likely was) as for a look, or null: it cuts where it
+   * is (ambient life off, "Stay here", "Always stand", the cursor close by or on another screen).
+   */
+  function slashLeg() {
+    if (!settings.ambientLife || settings.stayPut || settings.hoverMode === 'stand') return null;
+    const cursor = screen.getCursorScreenPoint();
+    const all = displays();
+    const here = placement.nearestDisplay(anchor, all);
+    if (placement.nearestDisplay(cursor, all).id !== here.id) return null;
+    const slot = { x: anchor.x, y: anchor.y - (placement.SLOT.height * scale()) / 2 };
+    if (!isHanging() && Math.hypot(cursor.x - slot.x, cursor.y - slot.y) < SLASH.nearPx * scale()) return null;
+    const plan = roam.planTrip({ kind: 'inspect', from: anchor, home: homeAnchor(), workArea: here.workArea, cursor, scale: scale(), hoverMode: settings.hoverMode, ...pageSpans() });
+    if (plan) plan.kind = 'slash';
+    return plan;
+  }
+
+  /** There (or where it stands): the ghost at its feet and the cut; then back, if it flew. */
+  function slashHere(offer, from, flew) {
+    placeWindow();
+    if (!anchor || !pageLayout) return;
+    slashUntil = Date.now() + (flew ? SLASH.backAfterMs : SLASH.showMs);
+    log.devOnly(`follow windows: the cut (${flew ? 'there' : 'on the spot'})`);
+    const spot = placement.bugSpot(pageLayout.side, 0.5);
+    if (canSend()) win.webContents.send('buddy:windows', { phase: 'here', kind: offer.kind, count: offer.count, spot });
+    if (!flew) return;
+    // Back after the cut (home, or where it was out on the screen), as after a look at the cursor;
+    // peekBack keeps the other trips of its own away meanwhile.
+    const there = { ...anchor };
+    clearTimeout(peekBack);
+    peekBack = setTimeout(() => {
+      peekBack = null;
+      flyBackFrom(from, there);
+    }, SLASH.backAfterMs);
+  }
+
+  /** The simulator: as if a file had just been deleted (each time another type), with the switch on or off. */
+  let demoSlashIndex = 0;
+  function demoSlash() {
+    const kind = recycleLib.KINDS[demoSlashIndex++ % recycleLib.KINDS.length];
+    onRecycle({ kind, count: 1, kinds: { [kind]: 1 } }, { demo: true });
+  }
+
   const presence = new PresenceWatch();
   let presenceTimer = null;
 
@@ -1238,6 +1401,7 @@ function start() {
       endRampage('renderer gone');
       endFist('renderer gone');
       endTypingVisit('renderer gone');
+      slashOffer = null;
       setCapture(false);
       chatOpen = false;
       log.error(`renderer exited (${details.reason})`);
@@ -2533,6 +2697,8 @@ function start() {
     else if (name === 'typing') demoTyping();
     // As if a long turn had just ended: it flies over to the cursor, cheers, and back.
     else if (name === 'find') demoFind();
+    // As if a file had just been deleted in Windows: it cuts its ghost (Follow Windows, each time another type).
+    else if (name === 'slash') demoSlash();
     // Hands, for a test overlay only (--dev): a real tab is opened or closed, so a plain
     // overlay never does this for an event, only for the user in its chat panel.
     else if (chat.HAND_SET.has(name) && isDev) runHands(name, { confirmed: true });
@@ -2710,7 +2876,7 @@ function start() {
   }
 
   function menuItems() {
-    return buildMenuItems(settings, { catHere: petOn, pet: hasPet(), chatOpen, soundAvailable: FEATURES.sound });
+    return buildMenuItems(settings, { catHere: petOn, pet: hasPet(), chatOpen, soundAvailable: FEATURES.sound, windows: recycleLib.supported() });
   }
 
   function canSend() {
@@ -2800,6 +2966,9 @@ function start() {
       case 'sound':
         if (FEATURES.sound) actions.setSound(!settings.sound);
         break;
+      case 'windows':
+        if (recycleLib.supported()) actions.setFollowWindows(!settings.followWindows);
+        break;
       case 'settings':
         popUpSettings();
         break;
@@ -2870,6 +3039,8 @@ function start() {
       log.error(`could not save settings: ${err.message}`);
     }
     if (after) after();
+    // Follow Windows: the Recycle Bin is watched while its switch is on.
+    syncWindows();
     // "Watch me type" starts or stops with its switch (and with ambient life, "Stay here", hovering).
     syncTyping();
     sendSettings();
@@ -3033,6 +3204,7 @@ function start() {
       }),
     // "Watch me type" (Windows): updateSettings starts or stops asking where the caret is.
     setTypingPeek: (typingPeek) => updateSettings({ typingPeek }),
+    setFollowWindows: (followWindows) => updateSettings({ followWindows }),
     backToCorner: () => {
       roamAnchor = null;
       updateSettings(withPlace(null), placeWindow);
@@ -3085,6 +3257,7 @@ function start() {
     caretTimer = null;
     endTypingVisit('quit');
     caretWatch.stop();
+    stopRecycleWatch();
     endAllOutings();
     endRampage('quit');
     endFist('quit');

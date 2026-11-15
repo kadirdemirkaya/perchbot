@@ -85,7 +85,9 @@
     "chat": "Sohbet: bana sor",
     "chatClose": "Sohbeti kapat",
     "soundOn": "Sesleri aç",
-    "soundOff": "Sesleri kapat"
+    "soundOff": "Sesleri kapat",
+    "windowsOn": "Windows'u takip et",
+    "windowsOff": "Windows'u takip etme"
   },
   "page": {
     "helpers": "{count} yardımcı",
@@ -230,6 +232,7 @@
     "coffee": "Oh, kahve!",
     "lateNight": "Geç oldu… yatsan mı?",
     "happyFriday": "Mutlu cumalar!",
+    "slashed": "Kestim!",
     "commit": "Commit'lendi!",
     "push": "Push'landı, uçtu gitti!",
     "phew": "Oh be!",

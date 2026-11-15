@@ -27,6 +27,9 @@ set to the test home) then plays every behaviour in turn. Developers can also se
 `$env:PERCHBOT_DEMO` to `duel`, `trips`, `plays` or `cheers` before starting it.
 `-StayPut` starts it with **Stay here** on (no trips of its own, no fleeing, no following the cursor).
 `-Typing` (with `-Fun`) turns **Watch me type** on: type in a terminal and now and then it reads along.
+`-Windows` turns **Follow Windows** on: delete a file in Windows and it slashes its ghost. Add
+`-RecycleDir <dir>` to watch that folder instead of your real Recycle Bin (test overlay only); a delete
+there is a `$R<id>.<ext>` item plus a `$I<id>.<ext>` record (version 2 layout, see `app/recycle.js`).
 
 If PowerShell refuses to run scripts, use
 `powershell -NoProfile -ExecutionPolicy Bypass -File <script>`.

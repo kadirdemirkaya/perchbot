@@ -18,6 +18,8 @@
  *   chat       { open, strings } the panel opens / closes; { answer, intent } an answer
  *   bug        { id, phase: 'open' | 'fixed' | 'escaped', agent } or null: the bug hunt
  *              (app/bugs.js); agent = the helper that found it, or null
+ *   windows    { offer, kind, count } a file went to the Recycle Bin (Follow Windows):
+ *              free to cut it? | { phase: 'here', kind, count, spot } cut it now
  *
  * To the main process (window.buddy): ready(), capture(bool), drag(phase), menu(id),
  * crewLeft(id), fun(action) (a trip, or the right-click menu), chat(op, intent)
@@ -38,7 +40,8 @@
  *     also while it reads along as the user types, see "watching the user type")
  *   data-aha (it got what the user typed: the light bulb, see "watching the user type")
  *   data-seated ("down" | "up": sitting with a visitor, see "the idle story")
- *   data-hunt (fights a bug at its feet, with data-duel phases; see "bug hunt")
+ *   data-hunt (fights a bug at its feet, with data-duel phases; see "bug hunt"; also the
+ *     cut through the ghost of a deleted file, see "follow windows")
  *   --look-x / --look-y (-1..1)  --type-line (0..7)  --fly-tilt (-1..1)
  *
  * The character SVG is inlined after removing scripts, event handlers and
@@ -47,7 +50,7 @@
 
 (() => {
   const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay, pageLeft, trailFits, besideRow } = window.BuddyInteraction;
-  const { TapMeter, Temper, TEMPER_MAX, Fury, FocusMeter, FOCUS, IdleStory, Wander, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight, daytime, DAYTIME } = window.BuddyFun;
+  const { TapMeter, Temper, TEMPER_MAX, Fury, FocusMeter, FOCUS, IdleStory, Wander, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight, SlashShow, daytime, DAYTIME } = window.BuddyFun;
 
   const root = document.documentElement;
   const stage = document.getElementById('stage');
@@ -1677,6 +1680,8 @@
   let raging = null;
   /** Reading along while the user types ("Watch me type", see "watching the user type"). */
   let typingLook = false;
+  /** Cutting the ghost of a file deleted in Windows (see "follow windows"). */
+  let slashing = false;
   const ambient = new AmbientScheduler({
     onPlay: (name) => {
       if (name) trace(`ambient: ${name}`);
@@ -1730,7 +1735,7 @@
   /** Nothing else going on (no play, no story beat, no trip, not held or hovered). */
   function wanderFree() {
     const calm =
-      !typingLook && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !chatOpen && !raging && !guest && !cuddling && !guestPending && !lasering;
+      !slashing && !typingLook && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !chatOpen && !raging && !guest && !cuddling && !guestPending && !lasering;
     return calm && !fisting && !ambient.playing && !story.playing && !patPending;
   }
   const duel = new Duel({ onPhase: onDuelPhase });
@@ -1748,11 +1753,13 @@
    * no duel, not already on a trip. Trips only without helpers or the cat.
    */
   function updateFun() {
+    // Follow Windows: something else took the character (a duel, a drag, a trip...): the cut stops.
+    if (slashing && slashTakenOver()) slash.stop();
     syncRest();
     // Helpers may roam the screen: ambient life on (with motion), awake, not paused.
     crew.setRoam(ambientOn() && !rest.resting);
     const calm =
-      ambientOn() && !typingLook && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen && !raging && !guest && !cuddling && !guestPending && !lasering;
+      ambientOn() && !typingLook && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen && !raging && !guest && !cuddling && !guestPending && !lasering && !slashing;
     // The idle story runs while it is idle with ambient life on; anything else ends it.
     if (ambientOn() && AMBIENT_STATES.has(view.state) && !typingLook) story.start();
     else if (story.running || story.finished) story.stop();
@@ -2237,6 +2244,7 @@
     !rest.resting &&
     !moving &&
     !duel.active &&
+    !slashing &&
     (HUNT_STATES.has(view.state) || (AMBIENT_STATES.has(view.state) && helpersAtWork()));
 
   /** From the main process (and init). */
@@ -2993,6 +3001,104 @@
     }
   }
 
+  // ---------------------------------------------------------------- follow windows (app/recycle.js)
+
+  /**
+   * Follow Windows (opt-in, Windows; main.js watches the Recycle Bin): the user deleted a file
+   * or a folder in Windows. Free (Claude Code idle, nothing else going on; resting, it wakes
+   * up for it), it says yes: main flies it over to the cursor, or it stays where it is ("Stay
+   * here", ambient life off, the cat around; main also keeps it there when the cursor is close
+   * by or on another screen). There the ghost of the file rises at its feet (ghost-view.js, in
+   * the colour of its type) and one sword cut splits it, with the duel's poses plus data-hunt
+   * (lib/fun.js SlashShow), then "Slashed!". Busy: nothing at all (no queue, no show later).
+   */
+  const SLASH_QUIP_MS = 1400;
+  /** The spark shows when the blade arrives (as for the bug: robot.css, the lunge takes 0.12 s). */
+  const SLASH_LANDS_MS = 110;
+  const ghostView = window.BuddyGhostView.createGhostView({ actors, trace });
+  const slash = new SlashShow({ onPhase: onSlashPhase, onStrike: onSlashStrike });
+
+  /** No cut now: something else has the character, or the work matters more. */
+  function slashBlocked() {
+    return Boolean(
+      !motionAllowed() || raging || moving || drag || duel.active || hunt.active || bugView.here || chatOpen || guest || guestPending || fisting || typingLook || lasering || cuddling || patPending ||
+        crew.isPressing() || zone !== null || slashing || !AMBIENT_STATES.has(view.state) || crewCount > 0,
+    );
+  }
+
+  /** Taken over in the middle of the cut. */
+  const slashTakenOver = () => Boolean((drag && drag.moved) || moving || duel.active || hunt.active || raging || fisting || !motionAllowed());
+
+  function onWindows(msg) {
+    if (!msg) return;
+    if (msg.offer) {
+      if (slashBlocked()) {
+        trace('windows: a delete, busy: let go');
+        return;
+      }
+      const here = Boolean(settings.stayPut || !ambientOn() || pet.here);
+      trace(`windows: a ${msg.kind} went to the bin${msg.count > 1 ? ` (x${msg.count})` : ''}: ${here ? 'cut it here' : 'off to cut it'}${msg.demo ? ' (demo)' : ''}`);
+      // Resting: it wakes up for it (and carries on as usual afterwards).
+      if (rest.resting) rest.activity();
+      window.buddy.fun(here ? 'slash-here' : 'slash');
+      return;
+    }
+    if (msg.phase === 'here') startSlash(msg);
+  }
+
+  /** There (or where it stands): the ghost rises and the cut begins. */
+  function startSlash(msg) {
+    // Something came up on the way (a drag, a duel, work): no cut after all.
+    if (slashing || !motionAllowed() || raging || drag || duel.active || hunt.active || bugView.here || chatOpen || fisting || typingLook || !AMBIENT_STATES.has(view.state)) {
+      trace('windows: no cut after all');
+      return;
+    }
+    if (rest.resting) rest.activity();
+    // A play of its own makes way.
+    ambient.stop();
+    slashing = true;
+    ghostView.show({ kind: msg.kind, count: msg.count, spot: msg.spot });
+    slash.start();
+    updateFun();
+  }
+
+  function onSlashPhase(phase) {
+    trace(`windows: ${phase}`);
+    if (phase === 'end') {
+      cancel('slash-strike');
+      const parts = snapshotAnimated();
+      // (A duel or the bug hunt that took over keeps its own poses.)
+      if (!hunt.active) flag('hunt', null);
+      if (!hunt.active && !duel.active) flag('duel', null);
+      if (!hunt.active && !duel.active && !moving) flag('face', null);
+      blendFrom(parts);
+      ghostView.clear();
+      slashing = false;
+      updateHunt();
+      updateFun();
+      return;
+    }
+    if (slashTakenOver()) {
+      slash.stop();
+      return;
+    }
+    if (phase === 'guard') {
+      // Turn towards the ghost (it stands where the bug would).
+      flag('face', layout.side === 'right' ? null : 'left');
+      flag('hunt', true);
+    }
+    flag('duel', phase);
+    if (phase === 'win') quip('slashed', SLASH_QUIP_MS);
+  }
+
+  function onSlashStrike() {
+    later('slash-strike', SLASH_LANDS_MS, () => {
+      const at = ghostView.point();
+      if (at) effect('spark', at.x, at.y);
+      ghostView.cut();
+    });
+  }
+
   // ---------------------------------------------------------------- chat
 
   /**
@@ -3454,6 +3560,7 @@
   window.buddy.onFollow((msg) => onFollow(msg));
   window.buddy.onTyping((msg) => onTyping(msg));
   window.buddy.onFind((msg) => onFind(msg));
+  window.buddy.onWindows((msg) => onWindows(msg));
   window.buddy.onGuest((msg) => onGuest(msg));
   window.buddy.onOutingBack((id) => {
     if (typeof id !== 'string') return;

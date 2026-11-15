@@ -121,6 +121,8 @@ const DEMOS = new Set([
   'typing',
   // "Come and tell me": as if a long turn had just ended (it flies over to the cursor, cheers, and back).
   'find',
+  // A file deleted in Windows: its ghost is cut with the sword (Follow Windows), each time another type.
+  'slash',
   // The idle story: reads a book, blows bubbles, throws a paper plane, pets the cat; a visitor
   // drops by (sit, chat, sword practice); the whole story at once.
   'read',

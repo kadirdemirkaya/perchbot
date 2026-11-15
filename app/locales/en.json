@@ -85,7 +85,9 @@
     "chat": "Chat: ask me",
     "chatClose": "Close the chat",
     "soundOn": "Turn sounds on",
-    "soundOff": "Turn sounds off"
+    "soundOff": "Turn sounds off",
+    "windowsOn": "Follow Windows",
+    "windowsOff": "Stop following Windows"
   },
   "page": {
     "helpers": "{count} helpers",
@@ -230,6 +232,7 @@
     "coffee": "Ahh, coffee!",
     "lateNight": "It's late… bed soon?",
     "happyFriday": "Happy Friday!",
+    "slashed": "Slashed!",
     "commit": "Committed!",
     "push": "Pushed! Off it goes!",
     "phew": "Phew!",

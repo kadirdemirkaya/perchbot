@@ -11,7 +11,11 @@ param(
   # Stay here (no trips of its own, no fleeing, no following the cursor): off unless -StayPut.
   [switch]$StayPut,
   # Watch me type (reads along while you type in a terminal; needs -Fun too): off unless -Typing.
-  [switch]$Typing
+  [switch]$Typing,
+  # Follow Windows (a file deleted in Windows gets its ghost cut by the sword): off unless -Windows.
+  [switch]$Windows,
+  # With -Windows: watch this folder instead of the real Recycle Bin (drop test $I records in it).
+  [string]$RecycleDir
 )
 # Starts an ISOLATED overlay for interactive tests: its own port and its own
 # settings folder, so the hooks of a live Claude Code session (which talk to
@@ -34,12 +38,16 @@ $busy = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Silentl
 if ($busy) { throw "port $Port is already in use (pid $($busy.OwningProcess)); stop that process first, e.g. an older test overlay" }
 
 New-Item -ItemType Directory -Force $TestHome | Out-Null
-$settings = @{ quiet = $false; ambientLife = [bool]$Fun; playMode = [bool]$Fun; cat = [bool]$Fun; hands = [bool]$Hands; stayPut = [bool]$StayPut; typingPeek = [bool]$Typing }
+$settings = @{ quiet = $false; ambientLife = [bool]$Fun; playMode = [bool]$Fun; cat = [bool]$Fun; hands = [bool]$Hands; stayPut = [bool]$StayPut; typingPeek = [bool]$Typing; followWindows = [bool]$Windows }
 if ($X -or $Y) { $settings.position = @{ x = $X; y = $Y } }
 $settings | ConvertTo-Json -Compress | Out-File -Encoding ascii (Join-Path $TestHome 'settings.json')
 
 $env:PERCHBOT_PORT = "$Port"
 $env:PERCHBOT_HOME = $TestHome
+if ($RecycleDir) {
+  New-Item -ItemType Directory -Force $RecycleDir | Out-Null
+  $env:PERCHBOT_RECYCLE_DIR = (Resolve-Path $RecycleDir).Path
+}
 # Start-Process -RedirectStandardOutput would let Electron inherit the caller's
 # pipes, so a caller that captures this script's output would hang until the
 # overlay exits. cmd.exe does the redirection instead (started via

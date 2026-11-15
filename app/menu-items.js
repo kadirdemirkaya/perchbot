@@ -61,15 +61,24 @@ const ITEMS = [
   },
   { id: 'settings', icon: () => 'gear', label: () => 'moreSettings' },
   { id: 'quit', icon: () => 'power', label: () => 'quit' },
+  // Follow Windows (app/recycle.js): a file or folder deleted in Windows gets cut by its
+  // sword. Windows only, off by default. Last, so every other button keeps its place.
+  {
+    id: 'windows',
+    icon: (s) => (s.followWindows ? 'bin' : 'bin-off'),
+    label: (s) => (s.followWindows ? 'windowsOff' : 'windowsOn'),
+    visible: (s, x) => x.windows === true,
+  },
 ];
 
 const MENU_IDS = new Set(ITEMS.map((item) => item.id));
 
 /**
  * @param {object} settings
- * @param {{ catHere?: boolean, pet?: boolean, chatOpen?: boolean, soundAvailable?: boolean }} [extra]
+ * @param {{ catHere?: boolean, pet?: boolean, chatOpen?: boolean, soundAvailable?: boolean, windows?: boolean }} [extra]
  *   runtime state: the cat is on screen; the character has a pet (default true); the chat
- *   panel is open; the sound feature is switched on (default false, see app/features.js)
+ *   panel is open; the sound feature is switched on (default false, see app/features.js);
+ *   Follow Windows can work here (Windows only, default false)
  * @returns {Array<{ id: string, icon: string, label: string, activeLabel?: string }>}
  */
 function buildMenuItems(settings, extra = {}) {

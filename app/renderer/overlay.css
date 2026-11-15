@@ -1164,6 +1164,152 @@ html[data-duel] .duel-pad {
   100% { transform: translateX(calc(var(--dir) * 70px)); opacity: 0; }
 }
 
+/* ---------------------------------------------------------------- follow windows: the ghost of a deleted file */
+
+/* At the bug's spot (ghost-view.js), where the sword comes down. Its colour tells the type. */
+.buddy-ghost {
+  position: absolute;
+  z-index: 14;
+  bottom: 12px;
+  left: calc(var(--ghost-size, 44px) * -0.5);
+  width: var(--ghost-size, 44px);
+  height: var(--ghost-size, 44px);
+  pointer-events: none;
+  transform: translateX(calc(var(--dir) * var(--off, 0px)));
+  --gh-fill: #b8efe4;
+  --gh-accent: #1fa88e;
+}
+
+.buddy-ghost[data-kind='pdf'] {
+  --gh-fill: #ffc2c2;
+  --gh-accent: #e5484d;
+}
+
+.buddy-ghost[data-kind='word'] {
+  --gh-fill: #bfd7ff;
+  --gh-accent: #2f6fe4;
+}
+
+.buddy-ghost[data-kind='image'] {
+  --gh-fill: #bfeec8;
+  --gh-accent: #2fa84f;
+}
+
+.buddy-ghost[data-kind='folder'] {
+  --gh-fill: #ffdf7e;
+  --gh-accent: #e0a800;
+}
+
+.gh-half {
+  position: absolute;
+  inset: 0;
+}
+
+.gh-half > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.buddy-ghost .gh-body {
+  fill: var(--gh-fill);
+}
+
+.buddy-ghost .gh-accent {
+  fill: var(--gh-accent);
+}
+
+/* The same drawing twice, one half each side of the cut (rising to the right). */
+.gh-a {
+  clip-path: polygon(0 0, 100% 0, 100% 38%, 0 66%);
+}
+
+.gh-b {
+  clip-path: polygon(0 66%, 100% 38%, 100% 100%, 0 100%);
+}
+
+.buddy-ghost[data-phase='rise'] .gh-half {
+  animation:
+    ghost-rise 0.55s cubic-bezier(0.3, 1.4, 0.5, 1) both,
+    ghost-bob 1.4s ease-in-out 0.55s infinite;
+}
+
+.buddy-ghost[data-phase='cut'] .gh-a {
+  animation: ghost-cut-a 0.8s ease-out forwards;
+}
+
+.buddy-ghost[data-phase='cut'] .gh-b {
+  animation: ghost-cut-b 0.8s ease-in forwards;
+}
+
+.buddy-ghost[data-phase='fade'] :is(.gh-half, .gh-count),
+.buddy-ghost[data-phase='cut'] .gh-count {
+  animation: ghost-fade 0.6s ease-in forwards;
+}
+
+/* Several deleted at once: how many. */
+.gh-count {
+  position: absolute;
+  top: -8px;
+  right: -14px;
+  padding: 0 5px;
+  border: 1.5px solid #2a2650;
+  border-radius: 8px;
+  background: var(--gh-accent);
+  color: #fff;
+  font: 700 11px/15px system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  white-space: nowrap;
+}
+
+/* The flash along the cut, from the middle out. */
+.gh-flash {
+  position: absolute;
+  left: -15%;
+  top: 52%;
+  width: 130%;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow:
+    0 0 6px 2px rgba(255, 255, 255, 0.9),
+    0 0 10px 3px var(--gh-accent);
+  opacity: 0;
+  transform: rotate(-16deg) scaleX(0);
+  animation: ghost-flash 0.36s ease-out forwards;
+}
+
+@keyframes ghost-rise {
+  0% { opacity: 0; transform: translateY(16px) scale(0.6); }
+  100% { opacity: 0.92; transform: none; }
+}
+
+@keyframes ghost-bob {
+  0%, 100% { opacity: 0.92; transform: none; }
+  50% { opacity: 0.8; transform: translateY(-3px); }
+}
+
+@keyframes ghost-cut-a {
+  0% { opacity: 0.92; transform: none; }
+  100% { opacity: 0; transform: translate(-7px, -12px) rotate(-16deg); }
+}
+
+@keyframes ghost-cut-b {
+  0% { opacity: 0.92; transform: none; }
+  100% { opacity: 0; transform: translate(6px, 10px) rotate(12deg); }
+}
+
+@keyframes ghost-fade {
+  to { opacity: 0; transform: translateY(-10px) scale(0.8); }
+}
+
+@keyframes ghost-flash {
+  0% { opacity: 1; transform: rotate(-16deg) scaleX(0); }
+  45% { opacity: 1; transform: rotate(-16deg) scaleX(1); }
+  100% { opacity: 0; transform: rotate(-16deg) scaleX(1); }
+}
+
 /* ---------------------------------------------------------------- confetti */
 
 .fx {
@@ -1357,6 +1503,15 @@ html[data-paused] *::after {
     animation: none !important;
   }
   .buddy-bug:is([data-phase='squash'], [data-phase='escape']) {
+    visibility: hidden;
+  }
+  /* The ghost of a deleted file stands still; cut or gone, it just disappears. */
+  .buddy-ghost .gh-half,
+  .gh-flash,
+  .gh-count {
+    animation: none !important;
+  }
+  .buddy-ghost:is([data-phase='cut'], [data-phase='fade']) {
     visibility: hidden;
   }
   .stage.leaving {

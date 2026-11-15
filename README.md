@@ -139,6 +139,10 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 - **Watch me type** (Windows, tray, off by default; needs ambient life): while you type in a terminal
   (Windows Terminal or the classic console), it comes over now and then (at most once a minute) to read
   along, then a light bulb goes on. It only asks Windows where the text cursor is: never what you type.
+- **Follow Windows** (Windows, last button of the hover menu, off by default): when you delete a file or a
+  folder in Windows (it goes to the Recycle Bin), it comes over and slashes a ghost of it with its sword,
+  coloured by type. It deletes nothing itself. Shift+Delete and command-line deletes skip the Recycle Bin,
+  so it does not see those; while Claude Code is working it lets deletes go.
 
 ## Commands
 
@@ -157,8 +161,9 @@ Only the event, the tool name, a file name (not the path) and a shortened comman
 leave the hook, and only to `127.0.0.1`. With ambient life on, the robot also looks at the system idle
 time, where the cursor is (its position only) and, on Windows, where windows are (frames only, never
 titles or contents). With *Watch me type* on, it also asks Windows where the text cursor of the terminal
-in front is: a position only, never the text, never your keys, nothing in password fields. Nothing of it
-is stored or sent anywhere. Settings: `~/.perchbot/settings.json`.
+in front is: a position only, never the text, never your keys, nothing in password fields. With *Follow
+Windows* on, it watches your Recycle Bin for new deletes and takes only the type of each item (its
+extension, or that it was a folder): never its name or where it was. Nothing of it is stored or sent anywhere. Settings: `~/.perchbot/settings.json`.
 The only download is Electron itself: once, by `perchbot setup` (or `start` / `demo` while it is still
 missing), with Electron's own installer. The robot never goes online.
 

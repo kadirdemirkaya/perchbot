@@ -66,6 +66,12 @@ const DEFAULTS = Object.freeze({
    * position of the text caret is asked for, never any text. Off until the user turns it on.
    */
   typingPeek: false,
+  /**
+   * Follow Windows (Windows, app/recycle.js): when a file or folder is deleted in Windows (it
+   * goes to the Recycle Bin), it comes and cuts a ghost of it with its sword. Only the file
+   * type is looked at, never a name. Switched in the hover menu only; off until the user turns it on.
+   */
+  followWindows: false,
   /** Little robot sounds made in code (taps, the duel, the ball, the cat, the rampage, a visitor). */
   sound: false,
   soundVolume: 'low',
@@ -127,6 +133,7 @@ function normalizeSettings(raw) {
   if (typeof raw.playMode === 'boolean') s.playMode = raw.playMode;
   if (typeof raw.cat === 'boolean') s.cat = raw.cat;
   if (typeof raw.typingPeek === 'boolean') s.typingPeek = raw.typingPeek;
+  if (typeof raw.followWindows === 'boolean') s.followWindows = raw.followWindows;
   if (typeof raw.sound === 'boolean') s.sound = raw.sound;
   if (SOUND_VOLUMES.includes(raw.soundVolume)) s.soundVolume = raw.soundVolume;
   if (typeof raw.workSounds === 'boolean') s.workSounds = raw.workSounds;

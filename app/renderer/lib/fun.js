@@ -13,6 +13,7 @@
  *   pickCheer      a different celebration for "done" now and then
  *   Duel           the sword fight started from the right-click menu
  *   BugFight       the bug hunt: the robot fights a failing check's bug
+ *   SlashShow      Follow Windows: one sword cut through the ghost of a deleted file
  *
  * None of this runs by itself: the page feeds it clicks, states and time, and
  * turns its callbacks into data-* attributes for the character's CSS.
@@ -966,6 +967,73 @@
     }
   }
 
+  // ------------------------------------------------------------------ follow windows
+
+  const SLASH_TIMINGS = Object.freeze({
+    /** Sword out, eyes on the ghost (it rises meanwhile). */
+    guardMs: 520,
+    windupMs: 380,
+    strikeMs: 300,
+    /** The win pose and the line. */
+    winMs: 1300,
+  });
+
+  /**
+   * Follow Windows (app/recycle.js): a file went to the Recycle Bin and its ghost stands
+   * at the buddy's feet. One cut with the duel's poses (plus data-hunt, so the sword
+   * comes down where the ghost is): guard -> windup -> strike -> win -> end.
+   *   onPhase(phase)  guard | windup | strike | win | end
+   *   onStrike()      the cut (the page splits the ghost when the blade lands)
+   * stop() ends at once (also from inside onPhase: nothing more runs after it).
+   */
+  class SlashShow {
+    constructor({ clock = realClock, timings = {}, onPhase = () => {}, onStrike = () => {} } = {}) {
+      this.clock = clock;
+      this.t = { ...SLASH_TIMINGS, ...timings };
+      this.onPhase = onPhase;
+      this.onStrike = onStrike;
+      this.phase = null;
+      this.timer = null;
+    }
+
+    get active() {
+      return this.phase !== null;
+    }
+
+    /** Start the cut (nothing if one is already on). */
+    start() {
+      if (this.active) return;
+      this.go('guard', this.t.guardMs, () =>
+        this.go('windup', this.t.windupMs, () => {
+          if (!this.go('strike', this.t.strikeMs, () => this.go('win', this.t.winMs, () => this.stop()))) return;
+          this.onStrike();
+        }),
+      );
+    }
+
+    stop() {
+      if (!this.active) return;
+      if (this.timer) this.clock.clearTimeout(this.timer);
+      this.timer = null;
+      this.phase = null;
+      this.onPhase('end');
+    }
+
+    /** False when onPhase stopped it (or moved it on): then nothing is scheduled. */
+    go(phase, ms, next) {
+      if (this.timer) this.clock.clearTimeout(this.timer);
+      this.timer = null;
+      this.phase = phase;
+      this.onPhase(phase);
+      if (this.phase !== phase) return false;
+      this.timer = this.clock.setTimeout(() => {
+        this.timer = null;
+        next();
+      }, ms);
+      return true;
+    }
+  }
+
   return {
     TapMeter,
     tapMood,
@@ -1000,5 +1068,7 @@
     DUEL_TIMINGS,
     BugFight,
     BUG_FIGHT_TIMINGS,
+    SlashShow,
+    SLASH_TIMINGS,
   };
 });
