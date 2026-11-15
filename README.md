@@ -77,6 +77,10 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
     <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/squeeze.gif" width="380" alt="A compaction squeezes its head; on /exit it waves goodbye"><br><sub><b>Compaction</b> squeezes its head, <b>/exit</b> waves goodbye</sub></td>
   </tr>
   <tr>
+    <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/find.gif" width="380" alt="A long task is done while you look elsewhere: it cheers, flies over to your cursor, says All done! Over to you, and flies back"><br><sub><b>Done while you looked away:</b> it flies over to tell you</sub></td>
+    <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/crew-games.gif" width="380" alt="The helpers play tag, build a tower, and one pokes at the resting cursor"><br><sub><b>Helpers at play:</b> tag, a tower, a poke at your cursor</sub></td>
+  </tr>
+  <tr>
     <td align="center" colspan="2"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/typing.gif" width="560" alt="While a prompt is typed in the terminal, the robot flies over, reads along through its magnifier, then a light bulb goes on"><br><sub><b>Watch me type</b> (Windows, opt-in): it reads along, then "Aha! Got it!"</sub></td>
   </tr>
 </table>
@@ -112,6 +116,9 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/stroll.gif" width="380" alt="It walks along the bottom of the screen, sits down, and the cat comes by"><br><sub><b>Ambient life:</b> a walk, a sit, the cat</sub></td>
     <td align="center"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/nap.gif" width="380" alt="A big yawn, then a nap with its light off"><br><sub><b>Nap time</b> after a long idle spell</sub></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/clock.gif" width="380" alt="A morning coffee, a dance when a task is done on a Friday afternoon, and a nap in a nightcap late at night"><br><sub><b>By the clock:</b> a morning coffee, a Friday dance, a nightcap at night</sub></td>
   </tr>
   <tr>
     <td align="center" colspan="2"><img src="https://raw.githubusercontent.com/kadirdemirkaya/perchbot/main/docs/media/perch.gif" width="560" alt="It lands on a window's title bar and rides along when the window moves"><br><sub><b>Perching</b> on a window's title bar, riding along when it moves (Windows)</sub></td>
