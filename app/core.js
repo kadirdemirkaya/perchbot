@@ -345,6 +345,7 @@ class BuddyCore extends EventEmitter {
         this.turn = { session: owner, startedAt: evt.ts || this.now(), tools: 0, last: null, endedAt: null };
         this.steps = [];
         this.moments.calm();
+        for (const moment of this.moments.planClose(owner)) this.emit('moment', moment);
         this.show('thinking', null, 0, owner);
         break;
 
@@ -366,6 +367,8 @@ class BuddyCore extends EventEmitter {
         this.addStep(stepForTool(evt.tool, evt.detail));
         this.bugs.toolStart(owner, evt.id, evt.tool, evt.detail);
         this.moments.toolStart(owner, evt.id, evt.tool, evt.detail);
+        // A plan up for approval (the blueprint), an MCP tool (the plug): app/moments.js.
+        for (const moment of this.moments.toolMoments(owner, evt.id, evt.tool, this.now())) this.emit('moment', moment);
         this.show(stateForTool(evt.tool), bubbleForTool(evt.tool, evt.detail), 0, owner);
         // A command that may take a while: popcorn if it runs on (armSnack).
         if (COMMAND_TOOLS.has(evt.tool)) this.armSnack();
@@ -420,6 +423,7 @@ class BuddyCore extends EventEmitter {
         // The turn is over: the book goes back into the pocket. Sub-agents carry on.
         if (this.skill && this.skill.session === owner) this.skill = null;
         this.moments.calm();
+        for (const moment of this.moments.planClose(owner)) this.emit('moment', moment);
         // A longer turn: "Done! 14 steps in 3 min" (app/moments.js doneMessage).
         this.show('done', doneMessage(this.turn && this.turn.session === owner ? this.turn : null, this.lastDoneAt), this.timings.doneMs, owner);
         break;
@@ -448,6 +452,8 @@ class BuddyCore extends EventEmitter {
     if (this.ended.size > ENDED_ID_LIMIT) this.ended.delete(this.ended.values().next().value);
     this.crew.endSession(evt.session);
     this.bugs.sessionGone(evt.session);
+    // Its plan was still out for approval: the blueprint rolls up.
+    for (const moment of this.moments.planClose(evt.session)) this.emit('moment', moment);
     const hadSkill = Boolean(this.skill && this.skill.session === evt.session);
     if (hadSkill) this.skill = null;
     if (this.leaving) return;

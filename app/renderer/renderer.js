@@ -1464,6 +1464,31 @@
       quip('duckThanks', 1800);
       return;
     }
+    // A pull request (an envelope), a plan up for approval (a blueprint), an MCP tool (a plug).
+    if (kind === 'pr') {
+      sendEnvelope();
+      if (motionAllowed()) glee.trigger();
+      quip('pr', 1800);
+      return;
+    }
+    if (kind === 'plan') {
+      openBlueprint();
+      return;
+    }
+    if (kind === 'planOk') {
+      stampBlueprint();
+      if (motionAllowed()) glee.trigger();
+      quip('planOk', 1800);
+      return;
+    }
+    if (kind === 'planOff') {
+      closeBlueprint();
+      return;
+    }
+    if (kind === 'plug') {
+      plugIn();
+      return;
+    }
     if (kind === 'commit') {
       plantFlag();
       if (motionAllowed()) glee.trigger();
@@ -1551,6 +1576,101 @@
       setTimeout(() => puff.remove(), 1400);
     }
     setTimeout(() => svg.remove(), ROCKET_MS + 200);
+  }
+
+  /** The laptop is on the side it faces; the other side is free (for the blueprint, the socket). */
+  const facesRight = () => holder.dataset.face !== 'left';
+
+  /** One fx svg built from <use>s of index.html symbols, each <use> with its own class. */
+  function fxSvg(className, viewBox, parts) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', className);
+    svg.setAttribute('viewBox', viewBox);
+    for (const [href, cls] of parts) {
+      const use = document.createElementNS(SVG_NS, 'use');
+      use.setAttribute('href', href);
+      if (cls) use.setAttribute('class', cls);
+      svg.appendChild(use);
+    }
+    return svg;
+  }
+
+  /** A pull request: an envelope pops up by the laptop, its flap closes, a seal, and off it flies. */
+  const ENVELOPE_MS = 2300;
+  function sendEnvelope() {
+    if (!motionAllowed() || !character) return;
+    const right = facesRight();
+    const at = figurePoint(right ? 0.8 : 0.2, 0.5);
+    const svg = fxSvg('fx-pr', '0 0 32 24', [['#i-env'], ['#i-env-flap', 'fx-pr-flap'], ['#i-env-seal', 'fx-pr-seal']]);
+    if (!right) svg.classList.add('to-left');
+    svg.style.left = `${Math.round(at.x)}px`;
+    svg.style.top = `${Math.round(at.y)}px`;
+    fx.appendChild(svg);
+    trace('pr: the envelope is off');
+    setTimeout(() => svg.remove(), ENVELOPE_MS + 200);
+  }
+
+  /**
+   * A plan up for approval: a blueprint unrolls on the free side and stays while it
+   * waits (at most PLAN_MAX_MS, in case the end never comes). Approved: a stamp on it,
+   * then it rolls up; not taken: it just rolls up.
+   */
+  const PLAN_MAX_MS = 15 * 60000;
+  const PLAN_STAMP_MS = 1500;
+  const PLAN_CLOSE_MS = 500;
+  let blueprint = null;
+  function openBlueprint() {
+    if (!character) return;
+    if (blueprint && blueprint.isConnected) return; // already out
+    const left = facesRight();
+    const at = figurePoint(left ? 0.17 : 0.83, 0.62);
+    const svg = fxSvg('fx-plan', '0 0 64 46', [['#i-blueprint'], ['#i-stamp', 'fx-plan-stamp']]);
+    if (!motionAllowed()) svg.classList.add('still');
+    svg.style.left = `${Math.round(at.x)}px`;
+    svg.style.top = `${Math.round(at.y)}px`;
+    fx.appendChild(svg);
+    blueprint = svg;
+    trace('plan: the blueprint is out');
+    later('plan-max', PLAN_MAX_MS, closeBlueprint);
+  }
+
+  /** Approved: the stamp comes down, then it rolls up. False when no blueprint was out. */
+  function stampBlueprint() {
+    // (Confetti clears the fx layer: a blueprint taken by it is gone.)
+    if (blueprint && !blueprint.isConnected) blueprint = null;
+    if (!blueprint) return false;
+    const svg = blueprint;
+    svg.classList.add('stamped');
+    trace('plan: approved, stamped');
+    cancel('plan-max');
+    later('plan-stamp', PLAN_STAMP_MS, () => blueprint === svg && closeBlueprint());
+    return true;
+  }
+
+  function closeBlueprint() {
+    if (!blueprint) return;
+    const svg = blueprint;
+    blueprint = null;
+    cancel('plan-max');
+    cancel('plan-stamp');
+    svg.classList.add('closing');
+    trace('plan: the blueprint rolls up');
+    setTimeout(() => svg.remove(), PLAN_CLOSE_MS + 100);
+  }
+
+  /** An MCP tool: a socket pops up at its feet on the free side, the plug goes in, the light blinks. */
+  const PLUG_MS = 2600;
+  function plugIn() {
+    if (!motionAllowed() || !character) return;
+    const left = facesRight();
+    const at = figurePoint(left ? 0.17 : 0.83, 0.93);
+    const svg = fxSvg('fx-plug', '0 0 44 30', [['#i-socket'], ['#i-socket-led', 'fx-plug-led'], ['#i-plug', 'fx-plug-head']]);
+    if (!left) svg.classList.add('to-left');
+    svg.style.left = `${Math.round(at.x)}px`;
+    svg.style.top = `${Math.round(at.y)}px`;
+    fx.appendChild(svg);
+    trace('plug: plugged in');
+    setTimeout(() => svg.remove(), PLUG_MS + 200);
   }
 
   // ---------------------------------------------------------------- waiting for the user
@@ -3560,6 +3680,12 @@
       onPresence({ kind: 'back', awayMs: 600000 });
     } else if (name === 'commit' || name === 'push' || name === 'phew' || name === 'squeeze') {
       onMoment(name);
+    } else if (name === 'pr' || name === 'plug') {
+      onMoment(name);
+    } else if (name === 'plan') {
+      // A plan up for approval: the blueprint unrolls, a few seconds later it is approved.
+      onMoment('plan');
+      later('demo-plan', 3500, () => onMoment('planOk'));
     } else if (name === 'duck') {
       // Stuck: sweat, out comes the duck and sits on its head; a while later it works: thanks.
       flag('mood', 'sweat');

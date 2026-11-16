@@ -37,6 +37,11 @@
  *                                       it pumps a little press for a while; then the session
  *                                       comes back compacted: its head is squeezed and a cube of
  *                                       paper pops out
+ *   npm run simulate -- plan            a plan up for approval (ExitPlanMode): a blueprint unrolls
+ *                                       and waits, approved: a stamp; a second one is not taken
+ *                                       (a new prompt comes): it rolls up
+ *   npm run simulate -- pr              git push (the rocket), then gh pr create (an envelope)
+ *   npm run simulate -- mcp             three MCP calls: the first plugs in, the others not again
  *   npm run simulate -- --fast          shorter pauses
  *   npm run simulate -- --keep          skip the final SessionEnd (overlay stays open)
  */
@@ -564,6 +569,61 @@ async function pressScenario() {
   if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
 }
 
+/**
+ * A plan up for approval (ExitPlanMode): the blueprint unrolls and waits; approved: the stamp.
+ * Then a second plan that is not taken (a new prompt comes instead): it just rolls up.
+ */
+async function planScenario() {
+  const s = `sim-plan-${randomId()}`;
+  // The plan's text never leaves the hook (the privacy allowlist).
+  const input = { plan: '(simulated plan: never sent)' };
+  const waiting = { message: 'Claude needs your permission to use ExitPlanMode', notification_type: 'permission_prompt' };
+  console.log(`Session ${s}\n`);
+  await step('greeting', base(s, 'SessionStart', { source: 'startup' }), 2500);
+  await step('thinking', base(s, 'UserPromptSubmit', { prompt: '(simulated prompt)' }), 1500);
+  await step('plan up   (the blueprint unrolls)', tool(s, 'PreToolUse', 'ExitPlanMode', input, 'toolu_plan_1'), 1200);
+  await step('waiting   for approval', base(s, 'Notification', waiting), 4000);
+  await step('approved  (the stamp)', tool(s, 'PostToolUse', 'ExitPlanMode', input, 'toolu_plan_1'), 3000);
+  await step('typing    notes.md', tool(s, 'PreToolUse', 'Write', { file_path: path.join(ROOT, 'notes.md'), content: 'x' }, 'toolu_plan_w'), 1500);
+  await step('back to thinking', tool(s, 'PostToolUse', 'Write', {}, 'toolu_plan_w'), 1000);
+  await step('plan up   again', tool(s, 'PreToolUse', 'ExitPlanMode', input, 'toolu_plan_2'), 1200);
+  await step('waiting   for approval', base(s, 'Notification', waiting), 3500);
+  await step('a new prompt instead (it rolls up)', base(s, 'UserPromptSubmit', { prompt: '(simulated prompt)' }), 2500);
+  await step('done', base(s, 'Stop', { stop_hook_active: false }), 3500);
+  if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
+}
+
+/** A pull request: git push, then `gh pr create` works: the rocket, then the envelope. */
+async function prScenario() {
+  const s = `sim-pr-${randomId()}`;
+  console.log(`Session ${s}\n`);
+  await step('greeting', base(s, 'SessionStart', { source: 'startup' }), 2500);
+  await step('thinking', base(s, 'UserPromptSubmit', { prompt: '(simulated prompt)' }), 1500);
+  const push = { command: 'git push -u origin feature' };
+  await step('running   git push', tool(s, 'PreToolUse', 'Bash', push, 'toolu_pr_1'), 1500);
+  await step('(pushed: the rocket)', tool(s, 'PostToolUse', 'Bash', push, 'toolu_pr_1'), 3000);
+  const pr = { command: 'gh pr create --fill' };
+  await step('running   gh pr create', tool(s, 'PreToolUse', 'Bash', pr, 'toolu_pr_2'), 1500);
+  await step('(PR open: the envelope)', tool(s, 'PostToolUse', 'Bash', pr, 'toolu_pr_2'), 3500);
+  await step('done', base(s, 'Stop', { stop_hook_active: false }), 3500);
+  if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
+}
+
+/** MCP tools: the first one plugs in; the next ones within PLUG_GAP_MS (30 s) do not again. */
+async function mcpScenario() {
+  const s = `sim-mcp-${randomId()}`;
+  console.log(`Session ${s}\n`);
+  await step('greeting', base(s, 'SessionStart', { source: 'startup' }), 2500);
+  await step('thinking', base(s, 'UserPromptSubmit', { prompt: '(simulated prompt)' }), 1500);
+  for (let i = 1; i <= 3; i += 1) {
+    const id = `toolu_mcp_${i}`;
+    await step(i === 1 ? 'mcp       github (plugs in)' : `mcp       github (${i}: no plug again so soon)`, tool(s, 'PreToolUse', 'mcp__github__list_issues', {}, id), 2800);
+    await step('back to thinking', tool(s, 'PostToolUse', 'mcp__github__list_issues', {}, id), 1200);
+  }
+  await step('done', base(s, 'Stop', { stop_hook_active: false }), 3500);
+  if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
+}
+
 async function chatScenario() {
   const s = `sim-chat-${randomId()}`;
   console.log(`Session ${s}\n`);
@@ -596,8 +656,11 @@ async function chatScenario() {
   else if (scenario === 'popcorn') await popcornScenario();
   else if (scenario === 'duck') await duckScenario();
   else if (scenario === 'press') await pressScenario();
+  else if (scenario === 'plan') await planScenario();
+  else if (scenario === 'pr') await prScenario();
+  else if (scenario === 'mcp') await mcpScenario();
   else {
-    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life", "lifecycle", "chat", "bug", "popcorn", "duck" or "press".`);
+    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life", "lifecycle", "chat", "bug", "popcorn", "duck", "press", "plan", "pr" or "mcp".`);
     process.exitCode = 1;
   }
 })();

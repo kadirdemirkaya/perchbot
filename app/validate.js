@@ -97,6 +97,10 @@ const DEMOS = new Set([
   'popcorn',
   // The press: it pumps a little press over a stack of paper (as during a compaction), then a cube of paper pops out.
   'compact',
+  // A pull request (an envelope flies off), a plan up for approval (a blueprint, then the stamp), an MCP tool (a plug).
+  'pr',
+  'plan',
+  'plug',
   'psst',
   'knock',
   // A slow, long, wavy flight; up to the top edge to hang from it; a hop with a loop-the-loop.

@@ -44,6 +44,9 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 | a skill is in use | reads its skill book, the skill's name on a tag |
 | a test or check fails | a bug turns up and they fight until a check passes ("Bug fixed!") |
 | a commit, a push | plants a flag, launches a rocket |
+| a pull request (`gh pr create`) | seals an envelope and sends it flying |
+| a plan waits for your approval | unrolls a blueprint beside it; approved: a stamp on it |
+| an MCP tool runs | plugs a cable into a socket, the light blinks green |
 | checks keep failing | sweats, then "Phew!" when it is green again |
 | the work gets stuck (five steps fail in a row) | takes a rubber duck out of its pocket and explains it all to it; the duck sits on its head until something works: "Thanks, duck!" |
 | a command runs on and on | after 20 s it sits back with a bucket of popcorn, eyes on the command, until it is done |
@@ -173,7 +176,7 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 
 Only the event, the tool name, a file name (not the path) and a shortened command (secrets masked)
 leave the hook, and only to `127.0.0.1`. Before a compaction it sends the event alone: never your
-compact instructions. With ambient life on, the robot also looks at the system idle
+compact instructions. For a plan up for approval it sends the tool name only: never the plan. With ambient life on, the robot also looks at the system idle
 time, where the cursor is (its position only) and, on Windows, where windows are (frames only, never
 titles or contents). With *Watch me type* on, it also asks Windows where the text cursor of the window
 in front is: a position only, never the text, never your keys. Terminals say when a field is a password
@@ -187,7 +190,7 @@ missing), with Electron's own installer. The robot never goes online.
 
 ## Development
 
-`npm test` · `npm run dev` · `npm run simulate [-- bug | life | chat | duck | popcorn | press]` · `npm pack`.
+`npm test` · `npm run dev` · `npm run simulate [-- bug | life | chat | duck | popcorn | press | plan | pr | mcp]` · `npm pack`.
 Make your own character: [characters/README.md](https://github.com/kadirdemirkaya/perchbot/blob/main/characters/README.md).
 
 MIT, see [LICENSE](https://github.com/kadirdemirkaya/perchbot/blob/main/LICENSE) and [THIRD_PARTY_NOTICES.md](https://github.com/kadirdemirkaya/perchbot/blob/main/THIRD_PARTY_NOTICES.md).
