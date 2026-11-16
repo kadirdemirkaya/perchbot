@@ -623,6 +623,13 @@
       plane: sheet([cue(1550, 'whoosh', 1.25), cue(4820, 'chirp', 1.35)]),
       // rb-coffee-* 5.6 s: three sips (25 / 49 / 71 %), then "Ahh" at ~4.55 s (COFFEE_AH_MS).
       coffee: sheet([cue(1400, 'whoosh', 0.7), cue(2740, 'whoosh', 0.7), cue(3980, 'whoosh', 0.7), cue(4550, 'chirp', 1.1)]),
+      // rb-fog-* 5.8 s: the breath on the glass (~0.5 s), the heart done (62 %), three wipes (79 / 82 / 88 %).
+      fog: sheet([cue(500, 'whoosh', 0.6), cue(3600, 'sparkle', 1.2), cue(4580, 'squeak', 1.15), cue(4760, 'squeak', 1.05), cue(5100, 'squeak', 1.15)]),
+      // rb-yoyo-* 4.8 s: down at 8 / 36 / 62 %, back in the hand at 32 / 60 / 94 %.
+      yoyo: sheet([cue(390, 'whoosh', 1.4), cue(1540, 'tick', 1.6), cue(1730, 'whoosh', 1.4), cue(2880, 'tick', 1.6), cue(2980, 'whoosh', 1.3), cue(4510, 'tick', 1.6)]),
+      // rb-juggle-* 5.8 s: a throw every 0.2 s from 0.75 s (near and far hand by turns), the high one at
+      // 3.95 s, the bonk at 4.5 s, the floor at 5.2 s.
+      juggle: sheet([...every(750, 200, 3800, 'tick', [1.7, 1.55, 1.85]), cue(3950, 'whoosh', 1.5), cue(4500, 'bonk'), cue(5200, 'bounce', 1.3)]),
       // rb-where-* 5.8 s: three steps up to the glass, three knocks (2.6 / 2.92 / 3.24 s), the question.
       where: sheet([cue(750, 'tick', 1.4), cue(1330, 'tick', 1.4), cue(1910, 'tick', 1.4), cue(2600, 'tick', 0.6), cue(2920, 'tick', 0.6), cue(3240, 'tick', 0.6), cue(3450, 'chirp', 0.9)]),
     }),

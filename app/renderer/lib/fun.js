@@ -251,6 +251,12 @@
     sneeze: 2700,
     moonwalk: 3400,
     sit: 4200,
+    /** Breathes on the glass beside its face, draws a heart in the fog with a finger, wipes it off. */
+    fog: 6000,
+    /** A yo-yo from the far hand, three times; the last one sleeps at the bottom a while. */
+    yoyo: 5000,
+    /** Juggles three balls; the last one goes too high and lands on its head ("Ouch!"). */
+    juggle: 6000,
     /** Takes the book out of its pocket, reads a few pages, puts it away (an idle story beat). */
     read: 9000,
     /** Blows soap bubbles through a little wand (an idle story beat). */

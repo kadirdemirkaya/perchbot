@@ -64,6 +64,10 @@ const DEMOS = new Set([
   'moonwalk',
   // Sits down on the ground, swings its legs.
   'sit',
+  // Breathes on the glass and draws a heart in the fog; a yo-yo; juggles three balls.
+  'fog',
+  'yoyo',
+  'juggle',
   'walk',
   'fly',
   'inspect',

@@ -1778,6 +1778,8 @@
       if (name === 'plane') later('plane-catch', PLANE_CATCH_MS, () => holder.dataset.play === 'plane' && quip('gotYou', 1200));
       // "Ahh, coffee!" after the last sip.
       if (name === 'coffee') later('coffee-ahh', COFFEE_AH_MS, () => holder.dataset.play === 'coffee' && quip('coffee', 1400));
+      // "Ouch!" when the last juggling ball lands on its head.
+      if (name === 'juggle') later('juggle-bonk', JUGGLE_BONK_MS, () => holder.dataset.play === 'juggle' && quip('ouch', 1100));
       // "Where are you?": rings where its knuckles hit the glass up close, then the question.
       if (name === 'where') {
         later('where-knock', WHERE_KNOCK_MS, () => holder.dataset.play === 'where' && knockRings(figurePoint(WHERE_HAND.x, WHERE_HAND.y)));
@@ -1828,6 +1830,8 @@
   const PLANE_CATCH_MS = 4850;
   /** The last sip of the morning coffee is over (robot.css rb-coffee-forearm: 82 % of 5.6 s). */
   const COFFEE_AH_MS = 4550;
+  /** The last juggling ball lands on its head (robot.css rb-juggle-3 / rb-juggle-head: 77.59 % of 5.8 s). */
+  const JUGGLE_BONK_MS = 4500;
   /**
    * "Where are you?" (robot.css rb-where-*, 5.8 s): up at the glass, its knuckles hit it at
    * 2.6, 2.92 and 3.24 s (knockRings starts its rings 0.25 s, 0.32 s apart, after this)...

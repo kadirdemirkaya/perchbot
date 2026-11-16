@@ -428,6 +428,9 @@ async function life() {
   await act(s, 'moonwalk', 'moonwalk on the spot', 4200);
   await act(s, 'hum', 'hum a tune', 4000);
   await act(s, 'sit', 'sit down and swing its legs', 5000);
+  await act(s, 'fog', 'breathe on the glass, draw a heart in the fog', 6500);
+  await act(s, 'yoyo', 'play with a yo-yo', 5500);
+  await act(s, 'juggle', 'juggle three balls (the last one on its head)', 6500);
   await act(s, 'read', 'take a book out and read a little', 9500);
   await act(s, 'bubbles', 'blow soap bubbles', 7500);
   await act(s, 'plane', 'throw a paper plane that loops back', 6500);

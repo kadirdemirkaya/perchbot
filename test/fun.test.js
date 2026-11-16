@@ -249,9 +249,10 @@ test('ambient life: one behaviour every 15-60 s, never the same twice in a row',
   clock.tick(120000);
   assert.deepEqual(log, [], 'nothing until allowed');
   a.update({ enabled: true, trips: true });
-  clock.tick(3600000);
+  // Three hours: with this fixed sequence of "random" numbers, the rarest one (of 19) needs that long.
+  clock.tick(3 * 3600000);
   const starts = log.filter(([, name]) => name !== null);
-  assert.ok(starts.length > 40, `${starts.length} behaviours in an hour`);
+  assert.ok(starts.length > 3 * 40, `${starts.length} behaviours in three hours`);
   const names = starts.map(([kind, name]) => (kind === 'trip' ? Object.keys(TRIPS).find((k) => TRIPS[k] === name) : name));
   for (let i = 1; i < names.length; i += 1) assert.notEqual(names[i], names[i - 1], `repeat at ${i}`);
   // (The idle story's plays only come with the story.)
