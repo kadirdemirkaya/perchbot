@@ -1489,6 +1489,11 @@
       plugIn();
       return;
     }
+    // From the terminal: merge, conflict, branch, stash, unstash, pull, force, rewind, install.
+    if (Object.hasOwn(TERMINAL_SHOWS, kind)) {
+      terminalShow(kind);
+      return;
+    }
     if (kind === 'commit') {
       plantFlag();
       if (motionAllowed()) glee.trigger();
@@ -1656,6 +1661,57 @@
     svg.classList.add('closing');
     trace('plan: the blueprint rolls up');
     setTimeout(() => svg.remove(), PLAN_CLOSE_MS + 100);
+  }
+
+  /**
+   * Shows for the terminal commands Claude Code runs (app/moments.js gitMoreMoments,
+   * installMoments). Each: an fx svg of index.html symbols (overlay.css .fx-<name>), at
+   * x / y of the character's box as it faces right (mirrored when it faces left: the
+   * svg too), for ms; a quip; a happy hop (glee); a pose of its own (robot.css data-moment).
+   * Part: [symbol, class of its <use>, optional x / y / width / height in the svg].
+   */
+  const TERMINAL_SHOWS = Object.freeze({
+    merge: { box: '0 0 26 24', x: 0.16, y: 0.42, ms: 2200, quip: 'merge', glee: true, parts: [['#i-piece-a', 'fx-merge-a'], ['#i-piece-b', 'fx-merge-b'], ['#i-spark', 'fx-merge-spark', { x: 9, y: 0, width: 8, height: 8 }]] },
+    conflict: { box: '0 0 26 24', x: 0.16, y: 0.42, ms: 2200, quip: 'conflict', moment: 'puzzled', momentMs: 1800, cls: 'fx-merge', parts: [['#i-piece-a', 'fx-merge-a'], ['#i-piece-b', 'fx-merge-b']] },
+    branch: { box: '0 0 24 32', x: 0.15, y: 0.93, ms: 2600, quip: 'branch', glee: true, parts: [['#i-pot'], ['#i-stem', 'fx-branch-stem'], ['#i-twig', 'fx-branch-twig']] },
+    stash: { box: '0 0 16 16', x: 0.42, y: 0.7, ms: 1800, quip: 'stash', parts: [['#i-note', 'fx-stash-note']] },
+    unstash: { box: '0 0 16 16', x: 0.42, y: 0.7, ms: 1800, quip: 'unstash', glee: true, cls: 'fx-stash', parts: [['#i-note', 'fx-stash-note']] },
+    pull: { box: '0 0 28 28', x: 0.15, y: 0.93, ms: 2400, quip: 'pull', glee: true, parts: [['#i-fish', 'fx-pull-fish'], ['#i-bucket'], ['#i-drops', 'fx-pull-drops']] },
+    force: { box: '0 0 24 24', x: 0.14, y: 0.3, ms: 2400, quip: 'force', moment: 'flinch', momentMs: 1600, parts: [['#i-siren-beam', 'fx-force-beam'], ['#i-siren']] },
+    rewind: { box: '0 0 24 24', x: 0.16, y: 0.48, ms: 2200, quip: 'rewind', parts: [['#i-clock'], ['#i-clock-long', 'fx-rewind-long'], ['#i-clock-short', 'fx-rewind-short']] },
+    install: { box: '0 0 30 28', x: 0.82, y: 0.93, ms: 2800, quip: 'install', glee: true, parts: [['#i-box-flaps', 'fx-install-flaps'], ['#i-box'], ['#i-spark', 'fx-install-spark', { x: 11, y: 2, width: 8, height: 8 }]] },
+  });
+
+  function terminalShow(name) {
+    const show = TERMINAL_SHOWS[name];
+    trace(`terminal: ${name}`);
+    if (motionAllowed() && character) {
+      const right = facesRight();
+      const at = figurePoint(right ? show.x : 0.98 - show.x, show.y);
+      const svg = document.createElementNS(SVG_NS, 'svg');
+      svg.setAttribute('class', `fx-terminal ${show.cls || `fx-${name}`} fx-${name}-show${right ? '' : ' fx-mirror'}`);
+      svg.setAttribute('viewBox', show.box);
+      const body = document.createElementNS(SVG_NS, 'g');
+      body.setAttribute('class', 'fx-body');
+      for (const [href, cls, place] of show.parts) {
+        const use = document.createElementNS(SVG_NS, 'use');
+        use.setAttribute('href', href);
+        if (cls) use.setAttribute('class', cls);
+        for (const [key, value] of Object.entries(place || {})) use.setAttribute(key, String(value));
+        body.appendChild(use);
+      }
+      svg.appendChild(body);
+      svg.style.left = `${Math.round(at.x)}px`;
+      svg.style.top = `${Math.round(at.y)}px`;
+      fx.appendChild(svg);
+      setTimeout(() => svg.remove(), show.ms + 200);
+      if (show.glee) glee.trigger();
+      if (show.moment) {
+        flag('moment', show.moment, true);
+        later('moment', show.momentMs, () => flag('moment', null));
+      }
+    }
+    quip(show.quip, 1800);
   }
 
   /** An MCP tool: a socket pops up at its feet on the free side, the plug goes in, the light blinks. */
@@ -3681,6 +3737,9 @@
     } else if (name === 'commit' || name === 'push' || name === 'phew' || name === 'squeeze') {
       onMoment(name);
     } else if (name === 'pr' || name === 'plug') {
+      onMoment(name);
+    } else if (Object.hasOwn(TERMINAL_SHOWS, name)) {
+      // merge, conflict, branch, stash, unstash, pull, force, rewind, install
       onMoment(name);
     } else if (name === 'plan') {
       // A plan up for approval: the blueprint unrolls, a few seconds later it is approved.

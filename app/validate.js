@@ -101,6 +101,18 @@ const DEMOS = new Set([
   'pr',
   'plan',
   'plug',
+  // Terminal commands: merge (puzzle pieces) or its conflict, a new branch (a sapling), stash and stash pop
+  // (into its pocket and out), pull (a fish into a bucket), force push (a siren, it flinches), reset --hard /
+  // revert (a clock spinning back), a package install (a parcel drops in).
+  'merge',
+  'conflict',
+  'branch',
+  'stash',
+  'unstash',
+  'pull',
+  'force',
+  'rewind',
+  'install',
   'psst',
   'knock',
   // A slow, long, wavy flight; up to the top edge to hang from it; a hop with a loop-the-loop.

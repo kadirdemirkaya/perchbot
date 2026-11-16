@@ -47,6 +47,7 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 | a pull request (`gh pr create`) | seals an envelope and sends it flying |
 | a plan waits for your approval | unrolls a blueprint beside it; approved: a stamp on it |
 | an MCP tool runs | plugs a cable into a socket, the light blinks green |
+| git merge / rebase, a new branch, stash and stash pop, pull, force push, reset --hard, a package install | puzzle pieces click (or bounce apart in a conflict), a sapling grows a branch, a note goes into its pocket and comes back, a fish leaps into a bucket, a siren (it flinches), a clock spins backwards, a parcel drops in |
 | checks keep failing | sweats, then "Phew!" when it is green again |
 | the work gets stuck (five steps fail in a row) | takes a rubber duck out of its pocket and explains it all to it; the duck sits on its head until something works: "Thanks, duck!" |
 | a command runs on and on | after 20 s it sits back with a bucket of popcorn, eyes on the command, until it is done |
@@ -190,7 +191,7 @@ missing), with Electron's own installer. The robot never goes online.
 
 ## Development
 
-`npm test` · `npm run dev` · `npm run simulate [-- bug | life | chat | duck | popcorn | press | plan | pr | mcp]` · `npm pack`.
+`npm test` · `npm run dev` · `npm run simulate [-- bug | life | chat | duck | popcorn | press | plan | pr | mcp | terminal]` · `npm pack`.
 Make your own character: [characters/README.md](https://github.com/kadirdemirkaya/perchbot/blob/main/characters/README.md).
 
 MIT, see [LICENSE](https://github.com/kadirdemirkaya/perchbot/blob/main/LICENSE) and [THIRD_PARTY_NOTICES.md](https://github.com/kadirdemirkaya/perchbot/blob/main/THIRD_PARTY_NOTICES.md).

@@ -1583,6 +1583,313 @@ html[data-duel] .duel-pad {
   30%, 100% { transform: none; }
 }
 
+/* Terminal commands (renderer.js TERMINAL_SHOWS): the svg only fades in and out (so it can be
+   mirrored with .fx-mirror), its .fx-body and parts move. Sizes: 1.15-1.5 px per unit. */
+.fx-terminal {
+  position: absolute;
+  overflow: visible;
+  opacity: 0;
+  animation: buddy-terminal-fade 2.4s ease-out forwards;
+}
+
+.fx-terminal.fx-mirror {
+  transform: scaleX(-1);
+}
+
+@keyframes buddy-terminal-fade {
+  0% { opacity: 0; }
+  8%, 86% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* merge / rebase: two puzzle pieces slide in and click, a sparkle (2.2 s). A conflict: they
+   bump and bounce apart (the robot scratches its head: robot.css data-moment="puzzled"). */
+.fx-merge {
+  width: 39px;
+  height: 36px;
+  margin: -18px 0 0 -19.5px;
+  animation-duration: 2.2s;
+}
+
+.fx-merge-a {
+  animation: buddy-merge-a 2.2s ease-out forwards;
+}
+
+.fx-merge-b {
+  animation: buddy-merge-b 2.2s ease-out forwards;
+}
+
+.fx-merge-spark {
+  opacity: 0;
+  transform-origin: 13px 4px;
+  animation: buddy-merge-spark 2.2s ease-out forwards;
+}
+
+.fx-conflict-show .fx-merge-a {
+  transform-origin: 7px 12px;
+  animation-name: buddy-clash-a;
+}
+
+.fx-conflict-show .fx-merge-b {
+  transform-origin: 19px 12px;
+  animation-name: buddy-clash-b;
+}
+
+@keyframes buddy-merge-a {
+  0% { transform: translateX(-10px); }
+  40% { transform: none; }
+  46% { transform: translateX(-0.8px); }
+  52%, 100% { transform: none; }
+}
+
+@keyframes buddy-merge-b {
+  0% { transform: translateX(10px); }
+  40% { transform: none; }
+  46% { transform: translateX(0.8px); }
+  52%, 100% { transform: none; }
+}
+
+@keyframes buddy-merge-spark {
+  0%, 42% { opacity: 0; transform: scale(0.3); }
+  50% { opacity: 1; transform: scale(1.3) rotate(25deg); }
+  72%, 100% { opacity: 0; transform: scale(0.6) rotate(45deg); }
+}
+
+@keyframes buddy-clash-a {
+  0% { transform: translateX(-10px); }
+  34% { transform: translateX(-1px); }
+  44% { transform: translateX(-8px) rotate(-18deg); }
+  70% { transform: translate(-13px, 9px) rotate(-40deg); }
+  100% { transform: translate(-15px, 16px) rotate(-60deg); }
+}
+
+@keyframes buddy-clash-b {
+  0% { transform: translateX(10px); }
+  34% { transform: translateX(1px); }
+  44% { transform: translateX(8px) rotate(18deg); }
+  70% { transform: translate(13px, 9px) rotate(40deg); }
+  100% { transform: translate(15px, 16px) rotate(60deg); }
+}
+
+/* checkout -b / switch -c: a sapling in a pot grows a new branch with a leaf (2.6 s). */
+.fx-branch {
+  width: 30px;
+  height: 40px;
+  margin: -40px 0 0 -15px;
+  animation-duration: 2.6s;
+}
+
+.fx-branch .fx-body,
+.fx-pull .fx-body,
+.fx-force .fx-body,
+.fx-rewind .fx-body {
+  animation: buddy-terminal-pop 2.4s ease-out forwards;
+}
+
+.fx-branch .fx-body {
+  transform-origin: 12px 31px;
+}
+
+.fx-branch-stem {
+  transform-origin: 12px 23px;
+  animation: buddy-branch-stem 2.6s ease-out forwards;
+}
+
+.fx-branch-twig {
+  transform-origin: 12px 16px;
+  animation: buddy-branch-twig 2.6s ease-out forwards;
+}
+
+@keyframes buddy-terminal-pop {
+  0% { transform: scale(0.4); }
+  8% { transform: scale(1.08); }
+  13%, 100% { transform: none; }
+}
+
+@keyframes buddy-branch-stem {
+  0%, 8% { transform: scaleY(0); }
+  34% { transform: scaleY(1.06); }
+  40%, 100% { transform: none; }
+}
+
+@keyframes buddy-branch-twig {
+  0%, 38% { transform: scale(0); }
+  50% { transform: scale(1.18); }
+  56% { transform: none; }
+  68% { transform: rotate(5deg); }
+  80%, 100% { transform: none; }
+}
+
+/* stash: a note flies into its pocket; stash pop / apply: it comes out again (1.8 s). */
+.fx-stash {
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  animation-duration: 1.8s;
+}
+
+.fx-stash-note {
+  transform-origin: 8px 8px;
+  animation: buddy-stash-in 1.8s ease-in-out forwards;
+}
+
+.fx-unstash-show .fx-stash-note {
+  animation-name: buddy-stash-out;
+}
+
+@keyframes buddy-stash-in {
+  0% { opacity: 0; transform: translate(-20px, -16px) rotate(-30deg) scale(1.2); }
+  12% { opacity: 1; }
+  55% { transform: translate(-6px, -6px) rotate(-10deg); }
+  80% { opacity: 1; transform: scale(0.35); }
+  88%, 100% { opacity: 0; transform: scale(0.2); }
+}
+
+@keyframes buddy-stash-out {
+  0% { opacity: 0; transform: scale(0.2); }
+  12% { opacity: 1; transform: scale(0.4); }
+  40% { transform: translate(-8px, -16px) rotate(-15deg) scale(1.1); }
+  70%, 100% { opacity: 1; transform: translate(-16px, -6px) rotate(-25deg); }
+}
+
+/* pull / fetch: a bucket pops up and a fish leaps into it, a splash (2.4 s). */
+.fx-pull {
+  width: 34px;
+  height: 34px;
+  margin: -34px 0 0 -17px;
+}
+
+.fx-pull .fx-body {
+  transform-origin: 14px 27px;
+}
+
+.fx-pull-fish {
+  opacity: 0;
+  transform-origin: 14px 8px;
+  animation: buddy-pull-fish 2.4s ease-in-out forwards;
+}
+
+.fx-pull-drops {
+  opacity: 0;
+  transform-origin: 14px 13px;
+  animation: buddy-pull-drops 2.4s ease-out forwards;
+}
+
+@keyframes buddy-pull-fish {
+  0%, 10% { opacity: 0; transform: translate(18px, 14px) rotate(50deg); }
+  16% { opacity: 1; }
+  32% { transform: translate(10px, -10px) rotate(0deg); }
+  46% { transform: translate(2px, -4px) rotate(-50deg); }
+  56% { opacity: 1; transform: translate(0, 8px) rotate(-80deg) scale(0.9); }
+  60%, 100% { opacity: 0; transform: translate(0, 10px) rotate(-80deg); }
+}
+
+@keyframes buddy-pull-drops {
+  0%, 56% { opacity: 0; transform: scale(0.5); }
+  62% { opacity: 1; transform: scale(0.8); }
+  78% { opacity: 1; transform: translateY(-3px) scale(1.2); }
+  90%, 100% { opacity: 0; transform: translateY(-4px) scale(1.2); }
+}
+
+/* push --force: a siren pops up beside its head, its beams turn (2.4 s); it flinches
+   (robot.css data-moment="flinch"). The push's own rocket goes up as before. */
+.fx-force {
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+}
+
+.fx-force .fx-body {
+  transform-origin: 12px 20px;
+}
+
+.fx-force-beam {
+  transform-origin: 12px 13px;
+  animation: buddy-force-beam 0.6s linear infinite;
+}
+
+@keyframes buddy-force-beam {
+  to { transform: rotate(360deg); }
+}
+
+/* reset --hard / revert: a clock whose hands spin backwards (2.2 s). */
+.fx-rewind {
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  animation-duration: 2.2s;
+}
+
+.fx-rewind .fx-body {
+  transform-origin: 12px 12px;
+}
+
+.fx-rewind-long {
+  transform-origin: 12px 12px;
+  animation: buddy-rewind-long 2.2s ease-in-out forwards;
+}
+
+.fx-rewind-short {
+  transform-origin: 12px 12px;
+  animation: buddy-rewind-short 2.2s ease-in-out forwards;
+}
+
+@keyframes buddy-rewind-long {
+  0%, 10% { transform: none; }
+  80%, 100% { transform: rotate(-1080deg); }
+}
+
+@keyframes buddy-rewind-short {
+  0%, 10% { transform: none; }
+  80%, 100% { transform: rotate(-180deg); }
+}
+
+/* npm / pip / ... install: a parcel drops in by the laptop, lands with a squash, its flaps
+   open and a sparkle comes out (2.8 s). */
+.fx-install {
+  width: 38px;
+  height: 35px;
+  margin: -35px 0 0 -19px;
+  animation-duration: 2.8s;
+}
+
+.fx-install .fx-body {
+  transform-origin: 15px 26px;
+  animation: buddy-install-drop 2.8s ease-in forwards;
+}
+
+.fx-install-flaps {
+  transform-origin: 15px 12px;
+  animation: buddy-install-flaps 2.8s ease-out forwards;
+}
+
+.fx-install-spark {
+  opacity: 0;
+  transform-origin: 15px 6px;
+  animation: buddy-install-spark 2.8s ease-out forwards;
+}
+
+@keyframes buddy-install-drop {
+  0% { transform: translateY(-120px); }
+  28% { transform: none; }
+  34% { transform: scale(1.1, 0.86); }
+  40% { transform: scale(0.97, 1.04); }
+  46%, 100% { transform: none; }
+}
+
+@keyframes buddy-install-flaps {
+  0%, 48% { transform: scaleY(0); }
+  58% { transform: scaleY(1.12); }
+  64%, 100% { transform: none; }
+}
+
+@keyframes buddy-install-spark {
+  0%, 60% { opacity: 0; transform: scale(0.3); }
+  68% { opacity: 1; transform: translateY(-4px) scale(1.2) rotate(30deg); }
+  84% { opacity: 1; transform: translateY(-10px) rotate(60deg); }
+  94%, 100% { opacity: 0; transform: translateY(-12px) rotate(70deg); }
+}
+
 @keyframes buddy-plug-led {
   0% { fill: #3a3566; }
   30% { fill: #4fd6b4; }

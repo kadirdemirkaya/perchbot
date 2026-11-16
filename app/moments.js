@@ -25,6 +25,20 @@
  *   plug     an MCP tool starts (mcp__<server>__<tool>): a plug goes into a
  *            socket beside it (at most once every PLUG_GAP_MS)
  *
+ * More from the terminal commands Claude Code runs (Bash / PowerShell), each
+ * when its command worked (gitMoreMoments, installMoments):
+ *   merge     git merge / git rebase: two puzzle pieces click together
+ *   conflict  ...that failed instead: they bounce apart, it scratches its head
+ *   branch    git checkout -b / git switch -c: a sapling grows a new branch
+ *   stash     git stash (push, save): something goes into its pocket
+ *   unstash   git stash pop / apply: and comes out again
+ *   pull      git pull / git fetch: a fish leaps into a bucket
+ *   force     git push --force (-f, --force-with-lease): a siren, it flinches
+ *             (the push's own rocket still goes up)
+ *   rewind    git reset --hard / git revert: a clock spins backwards
+ *   install   npm / pnpm / yarn / bun / pip / uv / poetry / cargo / go / gem /
+ *             bundle / composer install (add, ci, ...): a parcel drops in
+ *
  * Also: the greeting by the time of day (greetingKey) and the "done" summary
  * of a longer turn (doneSummary).
  */
@@ -70,6 +84,109 @@ function gitMoments(command) {
       if (word === 'commit' || word === 'push') out.push(word);
       break;
     }
+  }
+  return out;
+}
+
+/** A command line split into the commands it runs one after the other. */
+function commandParts(command) {
+  if (typeof command !== 'string' || !command) return [];
+  return command.split(/&&|\|\||;|\|/).map((part) => part.trim()).filter(Boolean);
+}
+
+/** The words of one command, without VAR=value in front (and a leading sudo). */
+function commandWords(part) {
+  const words = part.trim().split(/\s+/);
+  let at = 0;
+  while (at < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[at])) at += 1;
+  if (words[at] === 'sudo') at += 1;
+  return words.slice(at);
+}
+
+/** git's subcommand and the words after it, or null (not git, or no subcommand). */
+function gitCommand(part) {
+  const words = commandWords(part);
+  if (words[0] !== 'git') return null;
+  for (let i = 1; i < words.length; i += 1) {
+    if (GIT_VALUE_OPTIONS.has(words[i])) {
+      i += 1;
+      continue;
+    }
+    if (words[i].startsWith('-')) continue;
+    return { sub: words[i], rest: words.slice(i + 1) };
+  }
+  return null;
+}
+
+/**
+ * The other git commands that count (commit and push stay with gitMoments):
+ * 'merge', 'branch', 'stash', 'unstash', 'pull', 'force', 'rewind'.
+ * "git push --force" -> ['force'] (gitMoments gives its 'push');
+ * "git stash list" -> []; "git merge --abort" -> [].
+ */
+function gitMoreMoments(command) {
+  const out = [];
+  for (const part of commandParts(command)) {
+    const git = gitCommand(part);
+    if (!git) continue;
+    const { sub, rest } = git;
+    const has = (...flags) => rest.some((w) => flags.includes(w) || flags.some((f) => f.startsWith('--') && w.startsWith(`${f}=`)));
+    const word = rest.find((w) => !w.startsWith('-'));
+    if (sub === 'merge' || sub === 'rebase') {
+      if (!has('--abort', '--quit', '--skip')) out.push('merge');
+    } else if (sub === 'checkout') {
+      if (has('-b', '-B')) out.push('branch');
+    } else if (sub === 'switch') {
+      if (has('-c', '-C', '--create', '--force-create')) out.push('branch');
+    } else if (sub === 'stash') {
+      if (word === undefined || word === 'push' || word === 'save') out.push('stash');
+      else if (word === 'pop' || word === 'apply') out.push('unstash');
+    } else if (sub === 'pull' || sub === 'fetch') {
+      out.push('pull');
+    } else if (sub === 'push') {
+      if (has('-f', '--force', '--force-with-lease', '--force-if-includes')) out.push('force');
+    } else if (sub === 'reset') {
+      if (has('--hard')) out.push('rewind');
+    } else if (sub === 'revert') {
+      if (!has('--abort', '--quit', '--skip')) out.push('rewind');
+    }
+  }
+  return out;
+}
+
+/**
+ * Package managers and the subcommands that install (none listed: the bare
+ * command installs too, as `yarn` does).
+ */
+const INSTALLERS = Object.freeze({
+  npm: ['install', 'i', 'add', 'ci', 'isntall'],
+  pnpm: ['install', 'i', 'add'],
+  yarn: ['', 'install', 'add'],
+  bun: ['install', 'i', 'add'],
+  pip: ['install'],
+  pip3: ['install'],
+  uv: ['add', 'sync', 'pip install'],
+  poetry: ['add', 'install'],
+  cargo: ['add', 'install'],
+  go: ['get', 'install'],
+  gem: ['install'],
+  bundle: ['', 'install'],
+  composer: ['install', 'require'],
+});
+
+/** 'install' for a command that installs packages: "npm i -D x" -> ['install']; "npm run build" -> []. */
+function installMoments(command) {
+  const out = [];
+  for (const part of commandParts(command)) {
+    let words = commandWords(part);
+    // python -m pip install ... (also python3, py)
+    if (['python', 'python3', 'py'].includes(words[0]) && words[1] === '-m') words = words.slice(2);
+    const subs = Object.hasOwn(INSTALLERS, words[0]) ? INSTALLERS[words[0]] : null;
+    if (!subs) continue;
+    const args = words.slice(1).filter((w) => !w.startsWith('-'));
+    const first = args[0] || '';
+    const two = args.length > 1 ? `${args[0]} ${args[1]}` : null;
+    if (subs.includes(first) || (two && subs.includes(two))) out.push('install');
   }
   return out;
 }
@@ -125,7 +242,11 @@ class MomentWatch {
   /** A tool starts: remember the git moments its command would make. */
   toolStart(session, id, tool, detail) {
     if (!id || !COMMAND_TOOLS.has(tool)) return;
-    const kinds = [...gitMoments(detail), ...ghMoments(detail)];
+    // In the order the commands run (commit and push as before: gitMoments).
+    const kinds = [];
+    for (const part of commandParts(detail)) {
+      kinds.push(...gitMoments(part), ...gitMoreMoments(part), ...ghMoments(part), ...installMoments(part));
+    }
     if (!kinds.length) return;
     this.pending.set(`${session}|${id}`, kinds);
     while (this.pending.size > PENDING_LIMIT) this.pending.delete(this.pending.keys().next().value);
@@ -145,6 +266,8 @@ class MomentWatch {
     if (plan) this.plans.delete(session);
     if (!ok) {
       if (plan) out.push('planOff');
+      // A merge or a rebase that failed: a conflict, most likely.
+      if (kinds && kinds.includes('merge')) out.push('conflict');
       this.failures += 1;
       if (this.failures === SWEAT_AFTER) out.push('sweat');
       if (this.failures === DUCK_AFTER) out.push('duck');
@@ -235,4 +358,19 @@ function doneMessage(turn, endedAt) {
   return { key: 'doneSummary', vars: { count: String(tools), ms } };
 }
 
-module.exports = { MomentWatch, gitMoments, ghMoments, greetingKey, doneMessage, SWEAT_AFTER, DUCK_AFTER, SUMMARY, COMMAND_TOOLS, PLAN_TOOL, PLUG_GAP_MS };
+module.exports = {
+  MomentWatch,
+  gitMoments,
+  gitMoreMoments,
+  ghMoments,
+  installMoments,
+  INSTALLERS,
+  greetingKey,
+  doneMessage,
+  SWEAT_AFTER,
+  DUCK_AFTER,
+  SUMMARY,
+  COMMAND_TOOLS,
+  PLAN_TOOL,
+  PLUG_GAP_MS,
+};

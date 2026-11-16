@@ -42,6 +42,8 @@
  *                                       (a new prompt comes): it rolls up
  *   npm run simulate -- pr              git push (the rocket), then gh pr create (an envelope)
  *   npm run simulate -- mcp             three MCP calls: the first plugs in, the others not again
+ *   npm run simulate -- terminal        terminal commands: a merge conflict, merge, a new branch,
+ *                                       stash, stash pop, pull, force push, reset --hard, npm install
  *   npm run simulate -- --fast          shorter pauses
  *   npm run simulate -- --keep          skip the final SessionEnd (overlay stays open)
  */
@@ -624,6 +626,37 @@ async function mcpScenario() {
   if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
 }
 
+/**
+ * Terminal commands, one after the other (each worked, but the first merge): merge conflict,
+ * merge, new branch, stash, stash pop, pull, force push (with the old rocket), reset --hard,
+ * npm install. A command that is none of these (npm run build) shows nothing new.
+ */
+async function terminalScenario() {
+  const s = `sim-terminal-${randomId()}`;
+  let n = 0;
+  const run = async (label, command, ok = true, afterMs = 3200) => {
+    const id = `toolu_term_${(n += 1)}`;
+    const input = { command };
+    await step(`running   ${label}`, tool(s, 'PreToolUse', 'Bash', input, id), 1200);
+    await step(ok ? '(it worked)' : '(it failed)', tool(s, ok ? 'PostToolUse' : 'PostToolUseFailure', 'Bash', input, id), afterMs);
+  };
+  console.log(`Session ${s}\n`);
+  await step('greeting', base(s, 'SessionStart', { source: 'startup' }), 2500);
+  await step('thinking', base(s, 'UserPromptSubmit', { prompt: '(simulated prompt)' }), 1500);
+  await run('git merge feature (a conflict)', 'git merge feature', false);
+  await run('git merge feature', 'git merge feature');
+  await run('git checkout -b fix-login (a new branch)', 'git checkout -b fix-login');
+  await run('git stash', 'git stash');
+  await run('git stash pop', 'git stash pop');
+  await run('git pull', 'git pull');
+  await run('git push --force (rocket + siren)', 'git push --force');
+  await run('git reset --hard HEAD~1', 'git reset --hard HEAD~1');
+  await run('npm install', 'npm install');
+  await run('npm run build (nothing new)', 'npm run build', true, 2000);
+  await step('done', base(s, 'Stop', { stop_hook_active: false }), 3500);
+  if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
+}
+
 async function chatScenario() {
   const s = `sim-chat-${randomId()}`;
   console.log(`Session ${s}\n`);
@@ -659,8 +692,9 @@ async function chatScenario() {
   else if (scenario === 'plan') await planScenario();
   else if (scenario === 'pr') await prScenario();
   else if (scenario === 'mcp') await mcpScenario();
+  else if (scenario === 'terminal') await terminalScenario();
   else {
-    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life", "lifecycle", "chat", "bug", "popcorn", "duck", "press", "plan", "pr" or "mcp".`);
+    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life", "lifecycle", "chat", "bug", "popcorn", "duck", "press", "plan", "pr", "mcp" or "terminal".`);
     process.exitCode = 1;
   }
 })();

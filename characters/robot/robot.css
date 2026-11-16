@@ -423,6 +423,75 @@
   78% { transform: scale(1.02, 0.97); }
 }
 
+/* data-moment="flinch"   a force push (app/moments.js 'force'): it pulls its head back, squeezes
+                          its eyes shut and shades them with the far hand (the arm as in phew) (~1.6 s)
+   data-moment="puzzled"  a merge or rebase that failed ('conflict'): it tilts its head and
+                          scratches it with the far hand (~1.8 s) */
+
+.buddy-character[data-moment='flinch'] .rb-head {
+  animation: rb-flinch-head 1.6s ease-out;
+}
+
+.buddy-character[data-moment='flinch'] .rb-arm-back {
+  animation: rb-phew-arm 1.6s ease-in-out;
+}
+
+.buddy-character[data-moment='flinch'] .rb-forearm-back {
+  animation: rb-flinch-forearm 1.6s ease-in-out;
+}
+
+.buddy-character[data-moment='flinch'] .rb-eyes {
+  animation: rb-flinch-eyes 1.6s steps(1);
+}
+
+@keyframes rb-flinch-head {
+  0%, 100% { transform: none; }
+  12% { transform: translateY(2px) rotate(-7deg); }
+  80% { transform: translateY(1px) rotate(-5deg); }
+}
+
+@keyframes rb-flinch-forearm {
+  0%, 100% { transform: none; }
+  25%, 75% { transform: rotate(70deg); }
+}
+
+@keyframes rb-flinch-eyes {
+  0%, 8%, 90%, 100% { transform: none; }
+  9%, 89% { transform: scaleY(0.3); }
+}
+
+.buddy-character[data-moment='puzzled'] .rb-head {
+  animation: rb-puzzled-head 1.8s ease-in-out;
+}
+
+.buddy-character[data-moment='puzzled'] .rb-arm-back {
+  animation: rb-puzzled-arm 1.8s ease-in-out;
+}
+
+.buddy-character[data-moment='puzzled'] .rb-forearm-back {
+  animation: rb-puzzled-forearm 1.8s ease-in-out;
+}
+
+@keyframes rb-puzzled-head {
+  0%, 100% { transform: none; }
+  20%, 80% { transform: rotate(8deg); }
+}
+
+@keyframes rb-puzzled-arm {
+  0%, 100% { transform: none; }
+  20%, 80% { transform: rotate(128deg); }
+}
+
+@keyframes rb-puzzled-forearm {
+  0%, 100% { transform: none; }
+  22% { transform: rotate(78deg); }
+  34% { transform: rotate(58deg); }
+  46% { transform: rotate(80deg); }
+  58% { transform: rotate(58deg); }
+  70% { transform: rotate(78deg); }
+  80% { transform: rotate(70deg); }
+}
+
 /* ------------------------------------------------------------ the rubber duck (stuck)
 
    data-moment="duck"  DUCK_AFTER tools failed in a row (app/moments.js): it takes a rubber
