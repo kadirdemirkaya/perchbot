@@ -51,7 +51,7 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 | the work gets intense | puts on a headband and codes on a screen of light |
 | you tap it | loves it, up to a point: then it fumes, catches fire and goes on a rampage across your screen |
 | you start a duel | a sword fight against your cursor, three hearts each |
-| it is idle | backflips, moonwalks, blows bubbles, throws paper planes, gets visitors, plays with its cat, flies off now and then and carries on wherever it lands, has a coffee in the morning, naps (in a nightcap late at night) |
+| it is idle | backflips, moonwalks, blows bubbles, throws paper planes, gets visitors, plays with its cat, flies off now and then and carries on wherever it lands, has a coffee in the morning, walks up to the glass before a nap and knocks: "Where are you?" (hover it: "There you are!"), naps (in a nightcap late at night) |
 | the cursor rests somewhere | now and then it flies over for a look through its magnifier |
 | you type in a terminal, VS Code or another app (Windows, opt-in) | now and then it flies over, reads along above the line, and a light bulb goes on: got it! |
 | you open the chat | answers questions about the work; on Windows (opt-in) it opens Chrome, a tab or YouTube for you |

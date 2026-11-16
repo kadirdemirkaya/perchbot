@@ -2609,6 +2609,138 @@
   80%, 100% { opacity: 0; }
 }
 
+/* ------------------------------------------------------------ "Where are you?" (idle story, before the nap)
+
+   It puts the laptop away and walks up to the glass, towards the user: three
+   steps, a little bigger each time (about its feet, so it stays on its spot).
+   Up close it knocks on the glass with the near hand three times (rings at
+   2.6 / 2.92 / 3.24 s: WHERE_KNOCK_MS in renderer.js), asks with a question
+   badge and a tilt of the head ("Where are you?" at WHERE_ASK_MS), then steps
+   back. All in 5.8 s of the play's 6 s (lib/fun.js PLAYS.where). */
+.buddy-character[data-play='where'] .rb-figure {
+  animation: rb-where-walk 5.8s ease-in-out both;
+}
+
+.buddy-character[data-play='where'] .rb-shadow {
+  animation: rb-where-shadow 5.8s ease-in-out both;
+}
+
+.buddy-character[data-play='where']:not([data-fly]) .rb-leg-l {
+  animation: rb-where-leg-l 5.8s ease-in-out both;
+}
+
+.buddy-character[data-play='where']:not([data-fly]) .rb-leg-r {
+  animation: rb-where-leg-r 5.8s ease-in-out both;
+}
+
+.buddy-character[data-play='where'] .rb-laptop {
+  animation: rb-where-laptop 5.8s ease-in-out both;
+}
+
+.buddy-character[data-play='where'] .rb-arm-front {
+  animation: rb-where-arm 5.8s ease-in-out both;
+}
+
+.buddy-character[data-play='where'] .rb-forearm-front {
+  animation: rb-where-forearm 5.8s ease-in-out both;
+}
+
+.buddy-character[data-play='where'] .rb-head {
+  animation: rb-where-head 5.8s ease-in-out both;
+}
+
+.buddy-character[data-play='where'] .rb-question {
+  animation: rb-where-ask 5.8s ease-out both;
+}
+
+.buddy-character[data-play='where'] .rb-mouth {
+  animation: rb-where-mouth 5.8s step-end both;
+}
+
+.buddy-character[data-play='where'] .rb-mouth-o {
+  animation: rb-where-mouth-o 5.8s step-end both;
+}
+
+/* At most 1.15: bigger and its head would go up under the speech bubble. */
+@keyframes rb-where-walk {
+  0%, 8% { transform: translateY(0) scale(1); }
+  13% { transform: translateY(-4px) scale(1.03); }
+  18% { transform: translateY(0) scale(1.05); }
+  23% { transform: translateY(-4px) scale(1.08); }
+  28% { transform: translateY(0) scale(1.1); }
+  33% { transform: translateY(-4px) scale(1.13); }
+  38%, 80% { transform: translateY(0) scale(1.15); }
+  84% { transform: translateY(-3px) scale(1.11); }
+  88% { transform: translateY(0) scale(1.07); }
+  92% { transform: translateY(-3px) scale(1.04); }
+  96%, 100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes rb-where-shadow {
+  0%, 8% { transform: scale(1, 1); }
+  38%, 80% { transform: scale(1.2, 1.25); }
+  96%, 100% { transform: scale(1, 1); }
+}
+
+@keyframes rb-where-leg-l {
+  0%, 9%, 17%, 29%, 37%, 88%, 96%, 100% { transform: none; }
+  13%, 33%, 92% { transform: translateY(-5px) rotate(-6deg); }
+}
+
+@keyframes rb-where-leg-r {
+  0%, 19%, 27%, 80%, 88%, 100% { transform: none; }
+  23%, 84% { transform: translateY(-5px) rotate(6deg); }
+}
+
+@keyframes rb-where-laptop {
+  0% { opacity: 1; }
+  6%, 94% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes rb-where-arm {
+  0%, 38% { transform: rotate(0deg); }
+  43%, 80% { transform: rotate(-115deg); }
+  86%, 100% { transform: rotate(0deg); }
+}
+
+@keyframes rb-where-forearm {
+  0%, 38% { transform: rotate(0deg); }
+  42% { transform: rotate(-40deg); }
+  43.1% { transform: rotate(-58deg); }
+  44.83% { transform: rotate(-10deg); }
+  47.59% { transform: rotate(-58deg); }
+  50.34% { transform: rotate(-10deg); }
+  53.1% { transform: rotate(-58deg); }
+  55.86% { transform: rotate(-10deg); }
+  59%, 80% { transform: rotate(-30deg); }
+  86%, 100% { transform: rotate(0deg); }
+}
+
+@keyframes rb-where-head {
+  0%, 58% { transform: rotate(0deg); }
+  64%, 78% { transform: rotate(-7deg); }
+  86%, 100% { transform: rotate(0deg); }
+}
+
+@keyframes rb-where-ask {
+  0%, 58% { opacity: 0; transform: scale(0.4); }
+  63%, 82% { opacity: 1; transform: none; }
+  88%, 100% { opacity: 0; transform: scale(0.4); }
+}
+
+@keyframes rb-where-mouth {
+  0%, 60% { opacity: 1; }
+  60.01%, 78% { opacity: 0; }
+  78.01%, 100% { opacity: 1; }
+}
+
+@keyframes rb-where-mouth-o {
+  0%, 60% { opacity: 0; }
+  60.01%, 78% { opacity: 1; }
+  78.01%, 100% { opacity: 0; }
+}
+
 /* ------------------------------------------------------------ a nightcap (napping late at night)
 
    The page sets data-night from 23:00 to 05:00 (lib/fun.js daytime); while it rests then, the

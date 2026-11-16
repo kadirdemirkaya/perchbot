@@ -131,12 +131,14 @@ const DEMOS = new Set([
   // A file deleted in Windows: its ghost is cut with the sword (Follow Windows), each time another type.
   'slash',
   // The idle story: reads a book, blows bubbles, throws a paper plane, pets the cat; a visitor
-  // drops by (sit, chat, sword practice); the whole story at once.
+  // drops by (sit, chat, sword practice); "Where are you?" (up to the glass, a knock); the whole
+  // story at once.
   'read',
   'bubbles',
   'plane',
   'pat',
   'guest',
+  'where',
   'story',
   // By the clock (lib/fun.js daytime), shown at any hour: a morning coffee, the nightcap of a nap
   // late at night, "It's late... bed soon?", a Friday afternoon's done (a dance, "Happy Friday!").

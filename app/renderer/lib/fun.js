@@ -6,8 +6,9 @@
  *   Temper            anger that builds up over unwelcome taps: cross, fuming, blazing
  *   Fury              its head on fire twice in five minutes: a rampage
  *   FocusMeter        intense work: a screen of light instead of the laptop
- *   IdleStory         a long idle spell: a few things (a book, the cat, bubbles...), then a nap
- *   Wander            idle: about once a minute a trip of its own (up in the air too)
+ *   IdleStory         a long idle spell: a few things (a book, the cat, bubbles...), "Where are you?", then a nap
+ *   whereDue          "Where are you?": not while the user is away, at most every WHERE.gapMs
+ *   Wander           idle: about once a minute a trip of its own (up in the air too)
  *   daytime           the time of day: morning coffee, a nightcap, "It's late...", Friday
  *   AmbientScheduler  ambient life: short plays and trips, every 15-60 s
  *   pickCheer      a different celebration for "done" now and then
@@ -258,13 +259,18 @@
     plane: 6000,
     /** A cup of coffee: the mug comes up, three sips, "Ahh, coffee!" (an idle story beat, mornings only). */
     coffee: 6000,
+    /**
+     * "Where are you?": it walks up to the glass (towards the user), knocks three times,
+     * asks, has a look round and steps back (the idle story's last beat before the nap).
+     */
+    where: 6000,
   });
 
   /** Plays that need the ground under its feet (not while it hovers or hangs). */
   const GROUND_PLAYS = Object.freeze(['sit']);
 
   /** Plays only the idle story (or a demo) starts: never picked at random. */
-  const STORY_PLAYS = Object.freeze(['read', 'bubbles', 'plane', 'coffee']);
+  const STORY_PLAYS = Object.freeze(['read', 'bubbles', 'plane', 'coffee', 'where']);
 
   /**
    * Trips around the screen (main.js plans them, see app/roam.js). It does not
@@ -406,17 +412,24 @@
    *            and chat and to practise with swords
    *   coffee   a cup of coffee (mornings only, at most every 45 minutes: the
    *            page skips it otherwise, see daytime)
+   * After those, always in this order, the `finale` beats, then `last`:
+   *   where    "Where are you?": it walks up to the glass and knocks (the 'where'
+   *            play; not while the user is away, at most every WHERE.gapMs: the
+   *            page skips it otherwise, see whereDue)
+   *   sleep    sleepy: a nap soon
    * Beats come `gapMs` apart (the first `firstMs` after the spell began);
    * the page plays each one and says how it went:
    *   'busy'   started: call done() when it is over
    *   'skip'   not possible (the cat is off, helpers are around...): another one
    *   'later'  not now (the pointer is on it, it is on a trip...): try again soon
-   * Skipped beats do not count. stop() ends it (work came in); it plays once
-   * per idle spell.
+   * Skipped beats do not count. stop() ends it (work came in); finish() ends it
+   * without the rest (the user answered "Where are you?": no nap then); it plays
+   * once per idle spell.
    */
   const STORY = Object.freeze({
     beats: Object.freeze(['read', 'cat', 'pat', 'bubbles', 'plane', 'guest', 'coffee']),
     count: 3,
+    finale: Object.freeze(['where']),
     last: 'sleep',
     firstMs: 20000,
     gapMinMs: 15000,
@@ -441,7 +454,7 @@
       this.random = random;
       this.onBeat = onBeat;
       this.o = { ...STORY, ...options };
-      /** This spell's beats, in order (the shuffled ones, then `last`). */
+      /** This spell's beats, in order (the shuffled ones, the `finale`, then `last`). */
       this.list = [];
       this.index = -1;
       this.played = 0;
@@ -464,7 +477,7 @@
     start({ fast = false } = {}) {
       if (this.running || this.finished) return;
       this.speed = fast ? 0.1 : 1;
-      this.list = [...shuffled(this.o.beats, this.random), this.o.last];
+      this.list = [...shuffled(this.o.beats, this.random), ...(this.o.finale || []), this.o.last];
       this.index = 0;
       this.played = 0;
       this.tries = 0;
@@ -479,6 +492,17 @@
       this.playing = null;
     }
 
+    /**
+     * Over for this spell without the rest (no nap at the end): start() does nothing
+     * until stop(), as when it played to the end.
+     */
+    finish() {
+      if (!this.running) return;
+      this.cancel();
+      this.index = this.list.length;
+      this.playing = null;
+    }
+
     /** The beat that was 'busy' is over: the next one after a gap. */
     done() {
       if (!this.running || !this.playing) return;
@@ -490,8 +514,9 @@
     next(afterPlay = false) {
       this.index += 1;
       this.tries = 0;
-      // Enough done: straight to the last one (sleepy).
-      if (this.played >= this.o.count && this.index < this.list.length - 1) this.index = this.list.length - 1;
+      // Enough done: straight to the finale ("Where are you?"), then the last one (sleepy).
+      const closing = this.list.length - 1 - (this.o.finale || []).length;
+      if (this.played >= this.o.count && this.index < closing) this.index = closing;
       if (this.index >= this.list.length) {
         this.cancel();
         this.playing = null;
@@ -525,6 +550,23 @@
       if (this.timer) this.clock.clearTimeout(this.timer);
       this.timer = null;
     }
+  }
+
+  /**
+   * "Where are you?" (the idle story's finale): it walks up to the glass, knocks and
+   * asks. Only when someone can see it (the user is not away, app/presence.js) and
+   * now and then, not at the end of every idle spell.
+   */
+  const WHERE = Object.freeze({ gapMs: 10 * 60000 });
+
+  /**
+   * @param {{ now: number, lastAt?: number, away?: boolean, gapMs?: number }} o
+   *   lastAt: when it last asked (0: never)
+   * @returns {boolean} it may ask now
+   */
+  function whereDue({ now, lastAt = 0, away = false, gapMs = WHERE.gapMs }) {
+    if (away) return false;
+    return !lastAt || now - lastAt >= gapMs;
   }
 
   // ------------------------------------------------------------------ out and about
@@ -1048,6 +1090,8 @@
     FOCUS,
     IdleStory,
     STORY,
+    whereDue,
+    WHERE,
     Wander,
     WANDER,
     daytime,

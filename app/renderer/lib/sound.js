@@ -623,6 +623,8 @@
       plane: sheet([cue(1550, 'whoosh', 1.25), cue(4820, 'chirp', 1.35)]),
       // rb-coffee-* 5.6 s: three sips (25 / 49 / 71 %), then "Ahh" at ~4.55 s (COFFEE_AH_MS).
       coffee: sheet([cue(1400, 'whoosh', 0.7), cue(2740, 'whoosh', 0.7), cue(3980, 'whoosh', 0.7), cue(4550, 'chirp', 1.1)]),
+      // rb-where-* 5.8 s: three steps up to the glass, three knocks (2.6 / 2.92 / 3.24 s), the question.
+      where: sheet([cue(750, 'tick', 1.4), cue(1330, 'tick', 1.4), cue(1910, 'tick', 1.4), cue(2600, 'tick', 0.6), cue(2920, 'tick', 0.6), cue(3240, 'tick', 0.6), cue(3450, 'chirp', 0.9)]),
     }),
     /**
      * The rampage's phases (app/rampage.js: four launches 320 ms apart, the

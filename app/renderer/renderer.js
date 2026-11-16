@@ -56,7 +56,7 @@
 
 (() => {
   const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay, pageLeft, trailFits, besideRow } = window.BuddyInteraction;
-  const { TapMeter, Temper, TEMPER_MAX, Fury, FocusMeter, FOCUS, IdleStory, Wander, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight, SlashShow, daytime, DAYTIME } = window.BuddyFun;
+  const { TapMeter, Temper, TEMPER_MAX, Fury, FocusMeter, FOCUS, IdleStory, whereDue, Wander, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight, SlashShow, daytime, DAYTIME } = window.BuddyFun;
 
   const root = document.documentElement;
   const stage = document.getElementById('stage');
@@ -1414,8 +1414,12 @@
 
   // ---------------------------------------------------------------- the user away and back (app/presence.js)
 
+  /** The user is away from the computer (no one to see "Where are you?", see the idle story). */
+  let userAway = false;
+
   /** Back at the computer after a while: it wakes up and says hello again. */
   function onPresence(change) {
+    if (change && (change.kind === 'away' || change.kind === 'back')) userAway = change.kind === 'away';
     if (!change || change.kind !== 'back') return;
     if (!ambientOn() || !CALM.has(view.state)) return;
     rest.activity();
@@ -1582,9 +1586,8 @@
     quip(kind === 'knock' ? 'knock' : 'nudge', NUDGE.showMs);
   }
 
-  /** Little rings where its knuckles hit the glass. */
-  function knockRings() {
-    const at = figurePoint(0.66, 0.5);
+  /** Little rings where its knuckles hit the glass (at: elsewhere, e.g. up close for "Where are you?"). */
+  function knockRings(at = figurePoint(0.66, 0.5)) {
     for (let i = 0; i < 3; i += 1) {
       const ring = document.createElement('i');
       ring.className = 'fx-knock';
@@ -1763,8 +1766,11 @@
       }
       // Cut short (work came in): ease out of it instead of jumping back.
       const parts = name ? null : snapshotAnimated();
+      const was = holder.dataset.play;
       flag('play', name);
       blendFrom(parts);
+      // "Where are you?" cut short by the pointer on it: there the user is.
+      if (!name && was === 'where' && zone !== null) whereFound();
       if (name) playCues(`play-${name}`, CUES.play[name], () => holder.dataset.play === name);
       // "Achoo!" right when it sneezes (not if the play was cut short before).
       if (name === 'sneeze') later('sneeze', SNEEZE_AT_MS, () => holder.dataset.play === 'sneeze' && quip('sneeze', 1000));
@@ -1772,6 +1778,11 @@
       if (name === 'plane') later('plane-catch', PLANE_CATCH_MS, () => holder.dataset.play === 'plane' && quip('gotYou', 1200));
       // "Ahh, coffee!" after the last sip.
       if (name === 'coffee') later('coffee-ahh', COFFEE_AH_MS, () => holder.dataset.play === 'coffee' && quip('coffee', 1400));
+      // "Where are you?": rings where its knuckles hit the glass up close, then the question.
+      if (name === 'where') {
+        later('where-knock', WHERE_KNOCK_MS, () => holder.dataset.play === 'where' && knockRings(figurePoint(WHERE_HAND.x, WHERE_HAND.y)));
+        later('where-ask', WHERE_ASK_MS, () => holder.dataset.play === 'where' && quip('whereAreYou', WHERE_ASK_SHOW_MS));
+      }
     },
     onTrip: (kind) => {
       trace(`ambient: trip ${kind}`);
@@ -1817,6 +1828,24 @@
   const PLANE_CATCH_MS = 4850;
   /** The last sip of the morning coffee is over (robot.css rb-coffee-forearm: 82 % of 5.6 s). */
   const COFFEE_AH_MS = 4550;
+  /**
+   * "Where are you?" (robot.css rb-where-*, 5.8 s): up at the glass, its knuckles hit it at
+   * 2.6, 2.92 and 3.24 s (knockRings starts its rings 0.25 s, 0.32 s apart, after this)...
+   */
+  const WHERE_KNOCK_MS = 2350;
+  /** ...then it asks until it steps back. */
+  const WHERE_ASK_MS = 3450;
+  const WHERE_ASK_SHOW_MS = 2300;
+  /** Its knuckles up close, as they hit the glass (figurePoint; measured on the test overlay's screenshots). */
+  const WHERE_HAND = Object.freeze({ x: 0.77, y: 0.35 });
+
+  /** "Where are you?" and the pointer came onto it: glad to see the user, and no nap at the end of this story. */
+  function whereFound() {
+    trace('where: there you are');
+    story.finish();
+    if (motionAllowed()) glee.trigger();
+    quip('hereYouAre', 1600);
+  }
 
   /**
    * Ambient life runs in short bursts, only while nothing else goes on: idle
@@ -2527,6 +2556,11 @@
    *   guest    a visitor drops by, a little robot like its helpers: they sit and
    *            chat, then practise with toy swords, bow, and it flies off (the
    *            cat the story brought goes first, to make room)
+   * and after them, always:
+   *   where    "Where are you?": it walks up to the glass, knocks and asks (the
+   *            'where' play; not while the user is away, at most every 10 minutes,
+   *            lib/fun.js whereDue). The pointer on it meanwhile: "There you are!"
+   *            and a happy hop, and no nap at the end of this story.
    *   sleep    a big yawn, and it naps soon after
    * Work, a drag, a trip, helpers arriving: the visitor leaves at once.
    */
@@ -2539,6 +2573,8 @@
   const STORY_PLAY_BEATS = new Set(['read', 'bubbles', 'plane']);
   /** When it last had its morning coffee (an idle story beat, see storyBeat). */
   let coffeeAt = 0;
+  /** When it last asked "Where are you?" (the story's finale, see storyBeat). */
+  let whereAt = 0;
 
   // ---------------------------------------------------------------- the time of day (lib/fun.js daytime)
 
@@ -2636,6 +2672,16 @@
       const now = new Date();
       if (!daytime(now).morning || now.getTime() - coffeeAt < DAYTIME.coffeeGapMs) return 'skip';
       coffeeAt = now.getTime();
+      storyPlay = name;
+      ambient.run(name);
+      return 'busy';
+    }
+    if (name === 'where') {
+      // Only when someone can see it (the user is not away), and now and then (lib/fun.js whereDue).
+      if (!whereDue({ now: Date.now(), lastAt: whereAt, away: userAway })) return 'skip';
+      // Up to the glass on its own feet.
+      if (landFirst()) return 'later';
+      whereAt = Date.now();
       storyPlay = name;
       ambient.run(name);
       return 'busy';

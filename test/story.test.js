@@ -3,14 +3,15 @@
 /**
  * The idle story (lib/fun.js IdleStory): a long idle spell before a nap:
  * three things picked at random (a book, the cat, petting the cat, bubbles,
- * a paper plane, a visitor to chat and spar with), then sleepy.
+ * a paper plane, a visitor to chat and spar with), "Where are you?" (up to the
+ * glass, a knock), then sleepy.
  */
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { IdleStory, STORY, PLAYS, STORY_PLAYS, AmbientScheduler } = require('../app/renderer/lib/fun');
+const { IdleStory, STORY, PLAYS, STORY_PLAYS, AmbientScheduler, whereDue, WHERE } = require('../app/renderer/lib/fun');
 const placement = require('../app/placement');
 const { DEMOS } = require('../app/validate');
 const { FakeClock } = require('./helpers/fake-clock');
@@ -33,9 +34,10 @@ function story(answers = {}) {
   return { clock, s, log };
 }
 
-test('idle story: three beats picked at random, one after another, then sleepy', () => {
+test('idle story: three beats picked at random, one after another, then "Where are you?", then sleepy', () => {
   assert.deepEqual([...STORY.beats].sort(), ['bubbles', 'cat', 'coffee', 'guest', 'pat', 'plane', 'read']);
   assert.equal(STORY.count, 3);
+  assert.deepEqual([...STORY.finale], ['where']);
   assert.equal(STORY.last, 'sleep');
   const { clock, s, log } = story({ sleep: 'skip' });
   s.start();
@@ -59,18 +61,27 @@ test('idle story: three beats picked at random, one after another, then sleepy',
   clock.tick(gap);
   const names = log.map(([n]) => n);
   assert.equal(names.length, 4);
-  assert.equal(names[3], 'sleep', 'three beats, then sleepy');
+  assert.equal(names[3], 'where', 'three beats, then "Where are you?"');
   assert.equal(new Set(names.slice(0, 3)).size, 3, 'no beat twice');
+  // The knock is still on: nothing else until it is over.
+  clock.tick(120000);
+  assert.equal(log.length, 4);
+  s.done();
+  clock.tick(gap - 1);
+  assert.equal(log.length, 4, 'a gap after it too');
+  clock.tick(1);
+  assert.equal(log.at(-1)[0], 'sleep', '...then sleepy');
+  assert.equal(log.length, 5);
   assert.equal(s.running, false);
   assert.equal(s.finished, true);
   // Once per idle spell: start() again does nothing until work ended it (stop).
   s.start();
   clock.tick(600000);
-  assert.equal(log.length, 4);
+  assert.equal(log.length, 5);
   s.stop();
   s.start();
   clock.tick(STORY.firstMs);
-  assert.equal(log.length, 5, 'a new idle spell, a new story');
+  assert.equal(log.length, 6, 'a new idle spell, a new story');
 });
 
 test('idle story: a different pick and order from one idle spell to the next', () => {
@@ -103,7 +114,7 @@ test('idle story: a different pick and order from one idle spell to the next', (
 
 test('idle story: "skip" moves on at once and does not count, "later" tries again a few times, stop() ends it', () => {
   // Only the book and the plane are possible: those two, then sleepy (fewer than three is fine).
-  const answers = { cat: 'skip', pat: 'skip', guest: 'skip', bubbles: 'skip', coffee: 'skip', sleep: 'skip' };
+  const answers = { cat: 'skip', pat: 'skip', guest: 'skip', bubbles: 'skip', coffee: 'skip', where: 'skip', sleep: 'skip' };
   const { clock, s, log } = story(answers);
   s.start();
   clock.tick(STORY.firstMs);
@@ -144,7 +155,7 @@ test('idle story: "skip" moves on at once and does not count, "later" tries agai
 });
 
 test('the book, the bubbles and the plane are plays of the story only: never picked at random', () => {
-  assert.deepEqual([...STORY_PLAYS], ['read', 'bubbles', 'plane', 'coffee']);
+  assert.deepEqual([...STORY_PLAYS], ['read', 'bubbles', 'plane', 'coffee', 'where']);
   assert.equal(PLAYS.read, 9000);
   assert.equal(PLAYS.bubbles, 7000);
   assert.equal(PLAYS.plane, 6000);
@@ -194,6 +205,121 @@ test('petting the cat: a story beat (Cat switch on); the cat comes close, the bu
   const main = read('app', 'main.js');
   assert.ok(main.includes("'petCat'"), 'main passes the quip on');
   for (const lang of ['en', 'tr']) assert.ok(JSON.parse(read('app', 'locales', `${lang}.json`)).quip.petCat, lang);
+});
+
+test('"Where are you?": after the beats, before the nap; skipped (away, too soon) it naps at once; finish() means no nap', () => {
+  // Played: it waits for the knock, and the nap comes after it.
+  const a = story({ sleep: 'skip' });
+  a.s.start();
+  for (let i = 0; i < 3; i += 1) {
+    a.clock.tick(STORY.firstMs + STORY.gapMaxMs);
+    a.s.done();
+  }
+  a.clock.tick(STORY.gapMaxMs);
+  assert.equal(a.log.at(-1)[0], 'where');
+  assert.equal(a.s.playing, 'where');
+  // The user came (the pointer on it): over for this spell, no nap at its end.
+  a.s.finish();
+  assert.equal(a.s.running, false);
+  assert.equal(a.s.finished, true);
+  a.clock.tick(600000);
+  assert.ok(!a.log.some(([n]) => n === 'sleep'), 'no nap after "There you are!"');
+  a.s.start();
+  a.clock.tick(600000);
+  assert.equal(a.log.at(-1)[0], 'where', 'once per idle spell, as when it played to the end');
+  a.s.stop();
+  a.s.start();
+  a.clock.tick(STORY.firstMs);
+  assert.notEqual(a.log.at(-1)[0], 'where', 'a new idle spell, a new story');
+  // finish() when nothing runs does nothing.
+  const idle = story();
+  idle.s.finish();
+  assert.equal(idle.s.finished, false);
+  idle.s.start();
+  idle.clock.tick(STORY.firstMs);
+  assert.equal(idle.log.length, 1);
+  // Skipped (the user away, asked not long ago): straight on to the nap, no wait.
+  const b = story({ where: 'skip', sleep: 'skip' });
+  b.s.start();
+  for (let i = 0; i < 3; i += 1) {
+    b.clock.tick(STORY.firstMs + STORY.gapMaxMs);
+    b.s.done();
+  }
+  b.clock.tick(STORY.gapMaxMs);
+  const tail = b.log.slice(-2);
+  assert.deepEqual(tail.map(([n]) => n), ['where', 'sleep']);
+  assert.equal(tail[0][1], tail[1][1], 'the nap at once after a skipped "Where are you?"');
+  // Nothing else possible (no cat, no visitor...): it still comes, then the nap.
+  const none = Object.fromEntries(STORY.beats.map((n) => [n, 'skip']));
+  const c = story({ ...none, sleep: 'skip' });
+  c.s.start();
+  c.clock.tick(STORY.firstMs);
+  assert.equal(c.log.at(-1)[0], 'where');
+  c.s.done();
+  c.clock.tick(STORY.gapMaxMs);
+  assert.equal(c.log.at(-1)[0], 'sleep');
+  // An IdleStory without a finale is the story as it was: the beats, then sleepy.
+  const old = new IdleStory({ clock: new FakeClock(), random: () => 0.5, finale: [], onBeat: () => 'skip' });
+  old.start();
+  assert.deepEqual(old.list.slice(-2), [old.list.at(-2), 'sleep']);
+  assert.ok(!old.list.includes('where'));
+});
+
+test('whereDue: not while the user is away, and at most every ten minutes', () => {
+  assert.equal(WHERE.gapMs, 10 * 60000);
+  assert.equal(whereDue({ now: 5000 }), true, 'never asked: now');
+  assert.equal(whereDue({ now: 5000, away: true }), false, 'away: no one to see it');
+  assert.equal(whereDue({ now: 5000 + WHERE.gapMs - 1, lastAt: 5000 }), false, 'asked not long ago');
+  assert.equal(whereDue({ now: 5000 + WHERE.gapMs, lastAt: 5000 }), true);
+  assert.equal(whereDue({ now: 5000 + WHERE.gapMs, lastAt: 5000, away: true }), false);
+  assert.equal(whereDue({ now: 2000, lastAt: 1000, gapMs: 1000 }), true, 'its own gap');
+});
+
+test('"Where are you?" on the page: up to the glass, a knock, the question; the pointer on it: "There you are!"', () => {
+  assert.equal(PLAYS.where, 6000);
+  assert.ok(STORY_PLAYS.includes('where'), 'never picked at random');
+  assert.ok(DEMOS.has('where'));
+  const page = read('app', 'renderer', 'renderer.js');
+  for (const piece of [
+    "if (!whereDue({ now: Date.now(), lastAt: whereAt, away: userAway })) return 'skip';",
+    "if (change && (change.kind === 'away' || change.kind === 'back')) userAway = change.kind === 'away';",
+    "if (!name && was === 'where' && zone !== null) whereFound();",
+    'story.finish();',
+    "quip('hereYouAre', 1600);",
+    "later('where-ask', WHERE_ASK_MS, () => holder.dataset.play === 'where' && quip('whereAreYou', WHERE_ASK_SHOW_MS));",
+    'function knockRings(at = figurePoint(0.66, 0.5)) {',
+  ]) {
+    assert.ok(page.includes(piece), piece);
+  }
+  // The waiting knock (Claude Code waits for the user) is as it was: its rings where they were.
+  assert.ok(page.includes("if (kind === 'knock') knockRings();"));
+  const css = read('characters', 'robot', 'robot.css');
+  for (const rule of [
+    ".buddy-character[data-play='where'] .rb-figure {",
+    ".buddy-character[data-play='where'] .rb-arm-front {",
+    ".buddy-character[data-play='where'] .rb-forearm-front {",
+    ".buddy-character[data-play='where'] .rb-question {",
+  ]) {
+    assert.ok(css.includes(rule), rule);
+  }
+  // Up close: bigger, but its head stays clear of the speech bubble; its knuckles (the rings) up and out
+  // from where the waiting knock's are (0.66, 0.5), on the near side of the figure.
+  const scale = Number(/38%, 80% \{ transform: translateY\(0\) scale\(([\d.]+)\); \}/.exec(css)[1]);
+  assert.ok(scale > 1 && scale <= 1.15, `bigger, but its head stays clear of the speech bubble (${scale})`);
+  const hand = /const WHERE_HAND = Object\.freeze\(\{ x: ([\d.]+), y: ([\d.]+) \}\);/.exec(page).slice(1).map(Number);
+  assert.ok(hand[0] > 0.66 && hand[0] < 0.9, `knuckles x ${hand[0]}`);
+  assert.ok(hand[1] > 0.25 && hand[1] < 0.5, `knuckles y ${hand[1]}`);
+  // The rings come when the knuckles hit the glass (the first hit at 44.83 % of 5.8 s).
+  const knockMs = Number(/const WHERE_KNOCK_MS = (\d+);/.exec(page)[1]);
+  assert.ok(css.includes('44.83% { transform: rotate(-10deg); }'));
+  assert.ok(Math.abs(knockMs + 250 - 0.4483 * 5800) < 15, `first ring at ${knockMs + 250} ms`);
+  const main = read('app', 'main.js');
+  assert.ok(main.includes("'whereAreYou', 'hereYouAre'"), 'main passes the quips on');
+  for (const lang of ['en', 'tr']) {
+    const quips = JSON.parse(read('app', 'locales', `${lang}.json`)).quip;
+    for (const key of ['whereAreYou', 'hereYouAre']) assert.ok(quips[key], `${lang}: ${key}`);
+  }
+  assert.equal(JSON.parse(read('app', 'locales', 'tr.json')).quip.whereAreYou, 'Neredesin?');
 });
 
 test('the visitor: room beside the buddy, close enough for the swords to meet', () => {
@@ -302,7 +428,7 @@ test('out and about: about once a minute a trip of its own while idle, up in the
   assert.equal(trips.length, 5);
 });
 
-test('out and about on the page: idle, no cat or helpers, not "Stay here"; the cat and the visitor only on the ground', () => {
+test('out and about on the page: idle, no cat or helpers, not "Stay here"; the cat, the visitor and "Where are you?" only on the ground', () => {
   const page = read('app', 'renderer', 'renderer.js');
   assert.ok(page.includes('wander.update({ on: wanderOn(), free: wanderFree() });'));
   assert.ok(page.includes('return ambientOn() && AMBIENT_STATES.has(view.state) && !rest.resting && !paused && crewCount === 0 && !catStays && !settings.stayPut;'));
@@ -312,9 +438,9 @@ test('out and about on the page: idle, no cat or helpers, not "Stay here"; the c
   assert.ok(page.includes("later('wander-go', WANDER_CAT_AWAY_MS, () => {"));
   assert.ok(page.includes('if (!pet.here && wanderOn() && wanderFree()) window.buddy.fun(kind);'));
   assert.ok(page.includes('if (!moving) wander.moved();'), 'any trip starts the wait over');
-  // Hovering after a flight: down to the ground first for the cat, the petting and the visitor.
+  // Hovering after a flight: down to the ground first for the cat, the petting, the visitor and "Where are you?".
   assert.ok(page.includes("if (canPat() && landFirst()) return 'later';"));
-  assert.equal((page.match(/if \(landFirst\(\)\) return 'later';/g) || []).length, 2, 'the cat and the visitor');
+  assert.equal((page.match(/if \(landFirst\(\)\) return 'later';/g) || []).length, 3, 'the cat, the visitor and "Where are you?"');
   assert.ok(page.includes("window.buddy.fun('land');"));
   assert.ok(page.includes('if (!flight.airborne) return false;'));
   // main.js: 'land' is a trip like the others ("Stay here" keeps it where it is).
