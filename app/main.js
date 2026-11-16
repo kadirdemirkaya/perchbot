@@ -1498,13 +1498,17 @@ function start() {
     // Sitting on a window's title bar: that is its ground.
     const perched = Boolean(perching && !boost && point && point.x === perching.anchor.x && point.y === perching.anchor.y);
     const airborne = !perched && placement.isAirborne(altitude, scale(), settings.hoverMode);
-    return { airborne, boost: airborne && boost, tilt: airborne ? Math.round(tilt * 100) / 100 : 0 };
+    const next = { airborne, boost: airborne && boost, tilt: airborne ? Math.round(tilt * 100) / 100 : 0 };
+    // Sitting ON the edge, legs over the title bar (the page draws that with data-ledge).
+    if (perched && perching.drop > 0) next.ledge = true;
+    return next;
   }
 
   /** Send the flight state when it changed noticeably (tilt changes are throttled). */
   function updateFlight(next) {
     const same =
-      next.airborne === flight.airborne && next.boost === flight.boost && Math.abs(next.tilt - flight.tilt) < 0.08;
+      next.airborne === flight.airborne && next.boost === flight.boost && Math.abs(next.tilt - flight.tilt) < 0.08 &&
+      Boolean(next.ledge) === Boolean(flight.ledge);
     if (same && !(next.tilt === 0 && flight.tilt !== 0)) return;
     if (next.airborne !== flight.airborne) log.devOnly(`flight: ${next.airborne ? 'hover' : 'ground'}`);
     flight = next;
@@ -2028,11 +2032,16 @@ function start() {
    * minimised or covered, it falls off and flies away.
    */
   const scanner = createScanner({ log });
-  /** { id, offset, rect, anchor } while it sits on a window; the spot it flies to meanwhile. */
+  /**
+   * { id, offset, rect, anchor, drop? } while it sits on a window; the spot it flies to
+   * meanwhile. drop: sitting ON the edge, the anchor is that far below it (perch.ledgeDrop).
+   */
   let perching = null;
   let pendingPerch = null;
   let perchTimer = null;
   let perchBusy = false;
+  /** Sitting down onto the edge: { timer, step } for those few hundred ms. */
+  let ledgeSink = null;
 
   /** The windows now, in DIP (the scanner gives physical pixels). */
   async function scanWindows() {
@@ -2077,7 +2086,7 @@ function start() {
     clearTimeout(perchTimer);
     perchTimer = setTimeout(async () => {
       if (!perching) return;
-      if (trip || drag || paused) {
+      if (trip || drag || paused || ledgeSink) {
         followPerch();
         return;
       }
@@ -2112,6 +2121,46 @@ function start() {
     perchTimer = null;
     perching = null;
     pendingPerch = null;
+    stopLedgeSink();
+  }
+
+  /**
+   * Up on the edge: it sits down ON it, the window going down by perching.drop
+   * (the page swings its legs over the title bar: data-ledge). Only the robot's
+   * own window moves; a trip, a drag or the end of the perch stop it where it is.
+   */
+  function sinkOntoLedge(drop) {
+    stopLedgeSink();
+    const timer = setTimeout(() => {
+      if (!perching || trip || drag || paused || !win || win.isDestroyed() || !pageLayout) return void (ledgeSink = null);
+      const from = { ...perching.anchor };
+      const to = { x: from.x, y: from.y + drop };
+      const start = Date.now();
+      // The page sits down as the window goes down (flames stay off: it never left the edge).
+      updateFlight({ airborne: false, boost: false, tilt: 0, ledge: true });
+      const step = setInterval(() => {
+        if (!perching || trip || drag || !win || win.isDestroyed()) return stopLedgeSink();
+        const p = Math.min(1, (Date.now() - start) / perchLib.PERCH.sinkMs);
+        const eased = 1 - (1 - p) * (1 - p);
+        anchor = { x: to.x, y: Math.round(from.y + (to.y - from.y) * eased) };
+        win.setBounds(frameFor(anchor, pageLayout.side, pageLayout.sideWidth).bounds);
+        if (p < 1) return;
+        stopLedgeSink();
+        perching = { ...perching, drop, anchor: { ...to } };
+        roamAnchor = { ...to };
+        log.devOnly(`perch: sits on the edge (${drop} DIP down)`);
+        placeWindow();
+      }, 16);
+      ledgeSink = { timer: null, step };
+    }, perchLib.PERCH.sinkDelayMs);
+    ledgeSink = { timer, step: null };
+  }
+
+  function stopLedgeSink() {
+    if (!ledgeSink) return;
+    clearTimeout(ledgeSink.timer);
+    clearInterval(ledgeSink.step);
+    ledgeSink = null;
   }
 
   /** The window went away under it: "Whoa!", and off it flies. */
@@ -2192,11 +2241,15 @@ function start() {
     const moved = (plan.kind === 'flee' || plan.kind === 'fling') && !cancelled;
     if (moved) roamAnchor = null;
     // Arrived on a window's title bar: it sits there (and keeps an eye on the window).
+    let ledge = 0;
     if (plan.kind === 'perch' && pendingPerch && !cancelled && roamAnchor) {
       perching = { ...pendingPerch, anchor: { ...roamAnchor } };
       pendingPerch = null;
       log.devOnly(`perch: on a window at ${roamAnchor.x},${roamAnchor.y}`);
       followPerch();
+      // Then it sits down ON the edge, legs over the title bar (not near its caption buttons).
+      const area = placement.nearestDisplay(roamAnchor, displays()).workArea;
+      ledge = perchLib.ledgeDrop(perching, scale(), area.y + area.height);
     } else if (plan.kind === 'perch') {
       pendingPerch = null;
     }
@@ -2208,6 +2261,7 @@ function start() {
         arrived: !cancelled,
         look: seen.x < anchor.x ? 'left' : 'right',
         ...(lens ? { lens: true } : {}),
+        ...(ledge ? { ledge: true } : {}),
       });
     }
     if (moved && plan.kind === 'fling') {
@@ -2222,6 +2276,7 @@ function start() {
     } else if (!cancelled) {
       placeWindow();
     }
+    if (ledge) sinkOntoLedge(ledge);
     if (demo === 'trips' && demoIndex >= 0) setTimeout(() => nextDemoTrip(demoIndex + 1), 4500);
   }
 

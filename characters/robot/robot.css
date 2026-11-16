@@ -4367,6 +4367,42 @@
   50% { transform: rotate(-176deg); }
 }
 
+/* ------------------------------------------------------------ ledge (on a window's title bar, data-ledge)
+
+   A perch trip took it onto the top edge of a window and it sat down ON the edge:
+   the app moved its window down so the bottom of the body is on the edge line
+   (app/perch.js PERCH.ledge) and the legs hang over the title bar, swinging one
+   after the other (a little forward, too: shorter from the hip). No shadow: there
+   is no ground under the feet. The legs let the mouse through to the title bar.
+   The swing is the weakest rule here (:where): plays, work poses and the rest
+   animate the legs their own way, and the swing comes back when they are over. */
+
+.buddy-character[data-ledge] .rb-shadow {
+  visibility: hidden;
+}
+
+.buddy-character[data-ledge] :is(.rb-legs, .rb-legs *) {
+  pointer-events: none;
+}
+
+.buddy-character:where([data-ledge]) .rb-leg-l {
+  animation: rb-ledge-swing 1.7s ease-in-out infinite;
+}
+
+.buddy-character:where([data-ledge]) .rb-leg-r {
+  animation: rb-ledge-swing 1.7s ease-in-out -0.85s infinite;
+}
+
+/* The popcorn's seat is the edge itself: the body does not go down as it does on the ground. */
+.buddy-character[data-ledge][data-task='popcorn']:not([data-fly]) .rb-torso {
+  transform: rotate(-2deg);
+}
+
+@keyframes rb-ledge-swing {
+  0%, 100% { transform: rotate(-6deg) scaleY(0.97); }
+  50% { transform: rotate(6deg) scaleY(0.86); }
+}
+
 /* ------------------------------------------------------------ a loop-the-loop on a flight
 
    The app sets data-loop and --loop-delay / --loop-ms (when, and how long, the

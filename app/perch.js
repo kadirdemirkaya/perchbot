@@ -10,8 +10,12 @@
  *               on its screen, and not covered by a window in front of it
  *   followPerch while it sits there: 'stay', 'move' (the window moved: it rides
  *               along) or 'fall' (closed, minimised, covered, off its screen)
+ *   ledgeDrop   once it is up there: how far the robot's window goes down so it
+ *               sits ON the edge, legs dangling over the title bar (0: it stays
+ *               standing on the edge, as before: near the caption buttons)
  *
  * A spot is an ANCHOR (bottom-centre of the slot, screen DIP), as in roam.js.
+ * Sitting on the ledge, the anchor is `drop` DIP below the window's top edge.
  */
 
 const { SLOT } = require('./placement');
@@ -27,6 +31,19 @@ const PERCH = Object.freeze({
   followMs: 400,
   /** A window that jumps further than this between two looks (DIP): it falls off. */
   maxJump: 600,
+  /**
+   * Sitting on the ledge: the window goes down this far (DIP at medium size), so the
+   * bottom of the body (y 157 of the artwork) is on the edge and the legs hang over it.
+   * The anchor is 4 px below the artwork's box, its bottom 204 - 157 = 47; 2 px in.
+   */
+  ledge: 49,
+  /** Keep the dangling legs this far from the window's right end (DIP): its caption buttons. */
+  buttons: 150,
+  /** How far the legs reach to either side of the anchor (DIP, either way it faces). */
+  legReach: 50,
+  /** Once up there it sits down after this long (ms), taking this long (ms). */
+  sinkDelayMs: 150,
+  sinkMs: 380,
 });
 
 const isRect = (r) =>
@@ -98,14 +115,39 @@ function followPerch(perch, { windows, areas, scale = 1 }) {
   const half = (SLOT.width / 2) * scale;
   // Keep the same place along the edge (squeezed in if the window got narrower).
   const offset = Math.min(Math.max(perch.offset, half), Math.max(half, w.w - half));
-  const anchor = { x: Math.round(w.x + offset), y: Math.round(w.y) };
-  const area = areaOf({ x: anchor.x, y: anchor.y + 1 }, areas || []);
-  if (!area || anchor.y - SLOT.height * scale < area.y) return { kind: 'fall', why: 'no room' };
+  const edge = { x: Math.round(w.x + offset), y: Math.round(w.y) };
+  // Sitting on the ledge: the anchor is below the edge by the same amount as before.
+  const drop = Number.isFinite(perch.drop) && perch.drop > 0 ? perch.drop : 0;
+  const anchor = { x: edge.x, y: edge.y + drop };
+  const area = areaOf({ x: edge.x, y: edge.y + 1 }, areas || []);
+  if (!area || edge.y - SLOT.height * scale < area.y) return { kind: 'fall', why: 'no room' };
+  // On the ledge, its feet would go below the bottom of the screen's work area.
+  if (drop && anchor.y > area.y + area.height) return { kind: 'fall', why: 'no room below' };
   if (!edgeFree(windows, index, anchor.x, half, w.y, PERCH.probe * scale)) return { kind: 'fall', why: 'covered' };
   const moved = w.x !== perch.rect.x || w.y !== perch.rect.y || w.w !== perch.rect.w;
   if (!moved) return { kind: 'stay' };
   if (Math.hypot(w.x - perch.rect.x, w.y - perch.rect.y) > PERCH.maxJump * scale) return { kind: 'fall', why: 'jumped' };
   return { kind: 'move', anchor, rect: { x: w.x, y: w.y, w: w.w, h: w.h }, offset };
+}
+
+/**
+ * Up on a window's edge: sit on it with the legs over the title bar? How far
+ * the robot's window goes down for that (DIP), or 0 when the legs would come
+ * near the caption buttons at the window's right end (it stands there, as before).
+ * @param {{ offset: number, rect: { w: number }, anchor?: { y: number } }} perch
+ * @param {number} [scale]
+ * @param {number} [bottom]  the bottom of the work area (DIP): the anchor must stay above it
+ * @returns {number}
+ */
+function ledgeDrop(perch, scale = 1, bottom = Infinity) {
+  if (!perch || !perch.rect || !Number.isFinite(perch.offset) || !Number.isFinite(perch.rect.w)) return 0;
+  if (!Number.isFinite(scale) || scale <= 0) return 0;
+  const toRightEnd = perch.rect.w - perch.offset;
+  if (toRightEnd < (PERCH.buttons + PERCH.legReach) * scale) return 0;
+  if (perch.offset < PERCH.legReach * scale) return 0;
+  const drop = Math.round(PERCH.ledge * scale);
+  if (perch.anchor && Number.isFinite(perch.anchor.y) && perch.anchor.y + drop > bottom) return 0;
+  return drop;
 }
 
 /**
@@ -132,4 +174,4 @@ function parseScan(line, limit = 64) {
   return out;
 }
 
-module.exports = { PERCH, pickPerch, followPerch, parseScan };
+module.exports = { PERCH, pickPerch, followPerch, ledgeDrop, parseScan };

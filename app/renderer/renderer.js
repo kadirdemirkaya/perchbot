@@ -861,6 +861,7 @@
       flag('greet', null);
       // Picked off the top edge: it lets go.
       flag('hang', null);
+      flag('ledge', null);
       window.buddy.drag('start');
     }
     if (drag.moved && !drag.frame) {
@@ -1638,9 +1639,13 @@
   function applyFlight(next) {
     if (!next) return;
     const wasAirborne = flight.airborne;
-    flight = { airborne: next.airborne === true, boost: next.boost === true, tilt: Number(next.tilt) || 0 };
+    const wasLedge = flight.ledge;
+    flight = { airborne: next.airborne === true, boost: next.boost === true, tilt: Number(next.tilt) || 0, ledge: next.ledge === true && next.airborne !== true };
     if (flight.airborne !== wasAirborne) trace(`flight: ${flight.airborne ? 'hover' : 'ground'}`);
+    if (flight.ledge !== Boolean(wasLedge)) trace(`flight: ${flight.ledge ? 'on the ledge' : 'off the ledge'}`);
     flag('fly', flight.airborne ? (flight.boost ? 'boost' : 'hover') : null);
+    // On a window's title bar, sitting on its edge: legs over it (robot.css data-ledge).
+    flag('ledge', flight.ledge && !moving && !drag ? 'sit' : null);
     crew.setHover(flight.airborne);
     holder.style.setProperty('--fly-tilt', Math.max(-1, Math.min(1, flight.tilt)).toFixed(2));
     if (flight.airborne) {
@@ -1875,8 +1880,9 @@
       enabled: calm && !fisting && AMBIENT_STATES.has(view.state),
       // "Stay here": plays on the spot only.
       trips: crewCount === 0 && !pet.here && !settings.stayPut,
-      // Sitting needs the ground; hanging from the top edge, the next thing is a trip away.
-      grounded: !flight.airborne,
+      // Sitting needs the ground (on a window's edge it already sits); hanging from the top edge,
+      // the next thing is a trip away.
+      grounded: !flight.airborne && !flight.ledge,
       hanging: Boolean(holder.dataset.hang),
     });
     // Out and about now and then, never in the middle of a play or a story beat.
@@ -2512,6 +2518,7 @@
       flag('lens', null);
       cancel('lens');
       flag('hang', null);
+      flag('ledge', null);
       startLoop(m.loop);
       // walk / fly: trips; toss (thrown, "Always stand"), settle (easing into place after a drop).
       flag('move', MOVE_MODES.has(m.mode) ? m.mode : 'fly');
@@ -2528,7 +2535,8 @@
       // Up at the top edge: it hangs there until its next trip (or work, or a drag).
       flag('hang', m.kind === 'hang' && m.arrived && motionAllowed() ? true : null);
       // On a window's title bar: it sits down there for a moment. Fell off one: "Whoa!".
-      if (m.kind === 'perch' && m.arrived && ambientOn() && CALM.has(view.state)) later('perch-sit', 350, () => ambient.run('sit'));
+      // (m.ledge: it sits down ON the edge instead, legs over the title bar: main sends data-ledge.)
+      if (m.kind === 'perch' && m.arrived && !m.ledge && ambientOn() && CALM.has(view.state)) later('perch-sit', 350, () => ambient.run('sit'));
       if (m.kind === 'fall') quip('whoa', 1200);
       crew.setTravel(null);
       pet.setTravel(null);
