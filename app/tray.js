@@ -79,6 +79,13 @@ function buildTrayTemplate({ settings, characters, sessionCount, seenAccount = (
     },
     ...lifeToggles(settings, t, on),
     ...(soundAvailable ? soundItems(settings, t, radio, on) : []),
+    // After an update: the hooks the new version listens to (app/hook-refresh.js).
+    {
+      label: t('refreshHooks'),
+      type: 'checkbox',
+      checked: settings.refreshHooks !== false,
+      click: (item) => on.setRefreshHooks(Boolean(item && item.checked)),
+    },
     ...(settings.position ? [{ label: t('backToCorner'), click: () => on.backToCorner() }] : []),
     { type: 'separator' },
     { label: t('openSettings'), click: () => on.openSettings() },

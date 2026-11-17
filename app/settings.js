@@ -89,6 +89,11 @@ const DEFAULTS = Object.freeze({
   soundVolume: 'low',
   /** With the sound on: short signals for the work too (done, a failure, a question, focus mode). */
   workSounds: true,
+  /**
+   * Keep hooks up to date (app/hook-refresh.js): after an update, the overlay adds the hooks the new
+   * version listens to, only in accounts that already have this copy's hooks (a backup first). On by default.
+   */
+  refreshHooks: true,
 });
 
 const COORD_LIMIT = 1e6;
@@ -151,6 +156,7 @@ function normalizeSettings(raw) {
   if (typeof raw.sound === 'boolean') s.sound = raw.sound;
   if (SOUND_VOLUMES.includes(raw.soundVolume)) s.soundVolume = raw.soundVolume;
   if (typeof raw.workSounds === 'boolean') s.workSounds = raw.workSounds;
+  if (typeof raw.refreshHooks === 'boolean') s.refreshHooks = raw.refreshHooks;
   s.position = normalizePosition(raw.position);
   if (HOVER_MODES.includes(raw.hoverMode)) s.hoverMode = raw.hoverMode;
   if (typeof raw.account === 'string' && (raw.account === 'all' || ACCOUNT_RE.test(raw.account))) s.account = raw.account;

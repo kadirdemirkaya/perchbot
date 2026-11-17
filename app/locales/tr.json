@@ -67,6 +67,7 @@
     "sound": "Ses",
     "soundVolume": "Ses düzeyi",
     "workSounds": "İş sesleri (bitti, hata, soru)",
+    "refreshHooks": "Hook'ları güncel tut",
     "volume_low": "Düşük",
     "volume_medium": "Orta",
     "volume_high": "Yüksek",

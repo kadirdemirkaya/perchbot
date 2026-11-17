@@ -67,6 +67,7 @@
     "sound": "Sound",
     "soundVolume": "Volume",
     "workSounds": "Work sounds (done, failures, questions)",
+    "refreshHooks": "Keep hooks up to date",
     "volume_low": "Low",
     "volume_medium": "Medium",
     "volume_high": "High",

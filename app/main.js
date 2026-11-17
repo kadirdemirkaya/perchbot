@@ -69,12 +69,16 @@ const perchLib = require('./perch');
 const { createScanner } = require('./winscan');
 const { createHands } = require('./hands');
 const FEATURES = require('./features');
+const hookRefresh = require('./hook-refresh');
+const cli = require('../lib/cli');
 const names = require('../lib/names');
 const { createLogger } = require('./log');
 
 const ROOT = path.resolve(__dirname, '..');
 const RENDERER_DIR = path.join(__dirname, 'renderer');
 const ASSETS_DIR = path.join(__dirname, 'assets');
+/** This copy's hook script: the one setup points the hooks at (app/hook-refresh.js compares). */
+const SEND_JS = path.join(ROOT, 'hooks', 'send.js');
 const HOME = buddyHome();
 const SCHEME = 'buddy';
 const ORIGIN = `${SCHEME}://local`;
@@ -654,6 +658,45 @@ function start() {
     syncTyping();
     // Follow Windows: the Recycle Bin is watched only with its switch on (off by default).
     syncWindows();
+    // After an update: the hooks the new version listens to, once, a little later (app/hook-refresh.js).
+    hookRefreshTimer = setTimeout(refreshHooks, hookRefresh.HOOK_REFRESH.delayMs);
+  }
+
+  // ------------------------------------------------------------------ hooks that keep up (app/hook-refresh.js)
+
+  let hookRefreshTimer = null;
+  let hookRefreshing = false;
+
+  /**
+   * "Keep hooks up to date": adds the hooks this version listens to (e.g. PostModelSwitch for
+   * the model looks) in the accounts that already have this copy's hooks, a backup first. Once
+   * per start (and when the switch is turned on); never in a test home. Claude Code's version
+   * is asked in the background, so nothing waits for it.
+   */
+  async function refreshHooks() {
+    hookRefreshTimer = null;
+    if (hookRefreshing || quitting) return;
+    const why = hookRefresh.blocked({ settings });
+    if (why) {
+      log.devOnly(`hooks: not checked (${why})`);
+      return;
+    }
+    hookRefreshing = true;
+    try {
+      const claudeVersion = await hookRefresh.claudeVersionLater();
+      if (quitting || settings.refreshHooks === false) return;
+      const results = hookRefresh.refreshAccounts({ accounts: cli.findAccounts(), sendJs: SEND_JS, claudeVersion, account: ACCOUNT });
+      for (const r of results) {
+        if (r.action === 'refresh') log.info(`hooks: brought up to date in ${r.file} (added ${r.missing.join(', ') || 'none'}; backup ${r.backup})`);
+        else if (r.action === 'failed') log.error(`hooks: could not update ${r.file}: ${r.why}`);
+        else log.devOnly(`hooks: ${r.file}: ${r.why}`);
+      }
+      if (!results.length) log.devOnly('hooks: no Claude Code account found');
+    } catch (err) {
+      log.error(`hooks: check failed: ${err && err.message}`);
+    } finally {
+      hookRefreshing = false;
+    }
   }
 
   // ------------------------------------------------------------------ following the cursor (app/follow.js)
@@ -3437,6 +3480,11 @@ function start() {
     setSound: (sound) => updateSettings({ sound }),
     setSoundVolume: (soundVolume) => updateSettings({ soundVolume }),
     setWorkSounds: (workSounds) => updateSettings({ workSounds }),
+    // Turned (back) on: a look at the accounts right away.
+    setRefreshHooks: (value) =>
+      updateSettings({ refreshHooks: value }, () => {
+        if (value) refreshHooks();
+      }),
     // Cat off: if it is here, it leaves.
     setCat: (cat) =>
       updateSettings({ cat }, () => {
@@ -3497,6 +3545,7 @@ function start() {
     clearInterval(presenceTimer);
     clearInterval(followTimer);
     clearTimeout(peekBack);
+    clearTimeout(hookRefreshTimer);
     stopPerch();
     scanner.stop();
     hands.stop();

@@ -32,6 +32,12 @@ The first `perchbot setup` also downloads Electron, the window the robot lives i
 Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows up with your next prompt.
 `perchbot demo` plays every state without an agent. From a clone: `npm install`, then `npm run setup`.
 
+**Updating:** `npm install -g perchbot` again is enough. A few seconds after it next starts, the robot adds
+any hook the new version listens to (e.g. `PostModelSwitch` for the model looks), backing up each file first.
+It only does this in accounts that already have this copy's hooks, and it leaves alone any account hooked
+to another copy. You can turn it off in the tray (*Keep hooks up to date*); `perchbot setup` still does the
+same by hand.
+
 ## What it does
 
 | When | The robot |
@@ -200,7 +206,9 @@ only. It asks other apps through the caret Windows keeps for its Magnifier, not 
 reader support, so they do not change their behaviour for it. With *Giant peek* on, while the giant
 is on screen (about 15 s) it looks at where the cursor is (its position only, kept in the app). With *Follow
 Windows* on, it watches your Recycle Bin for new deletes and takes only the type of each item (its
-extension, or that it was a folder): never its name or where it was. Nothing of it is stored or sent anywhere. Settings: `~/.perchbot/settings.json`.
+extension, or that it was a folder): never its name or where it was. Nothing of it is stored or sent anywhere. With
+*Keep hooks up to date* on, once per start it runs `claude --version` and reads the Claude Code settings
+files to add its own missing hooks; it changes nothing else in them. Settings: `~/.perchbot/settings.json`.
 The only download is Electron itself: once, by `perchbot setup` (or `start` / `demo` while it is still
 missing), with Electron's own installer. The robot never goes online.
 
