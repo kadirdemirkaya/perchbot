@@ -44,6 +44,12 @@
  *   npm run simulate -- mcp             three MCP calls: the first plugs in, the others not again
  *   npm run simulate -- terminal        terminal commands: a merge conflict, merge, a new branch,
  *                                       stash, stash pop, pull, force push, reset --hard, npm install
+ *   npm run simulate -- giant           the giant peek (whatever its switch says): it walks up
+ *                                       to the glass from where it stands, bigger with every step
+ *                                       (up to ten times its size), knocks, listens, knocks again;
+ *                                       with nobody answering it shrugs and walks back to its spot
+ *                                       (move the pointer onto it meanwhile: "There you are!" and
+ *                                       it runs back)
  *   npm run simulate -- --fast          shorter pauses
  *   npm run simulate -- --keep          skip the final SessionEnd (overlay stays open)
  */
@@ -558,6 +564,17 @@ async function duckScenario() {
   if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
 }
 
+/** The giant peek (app/giant.js), as a demo: normally the idle story's finale with the "Giant peek" switch on. */
+async function giantScenario() {
+  const s = `sim-giant-${randomId()}`;
+  console.log(`Session ${s}\n`);
+  await step('greeting', base(s, 'SessionStart', { source: 'startup' }), 3000);
+  await step('done, then idle', base(s, 'Stop', {}), 4000);
+  await act(s, 'giant', 'the giant peek (pointer on it: found)', 17000);
+  await step('done', base(s, 'Stop', { stop_hook_active: false }), 3500);
+  if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
+}
+
 /** A compaction (PreCompact, then SessionStart with source "compact"): the press, the squeeze, a cube. */
 async function pressScenario() {
   const s = `sim-press-${randomId()}`;
@@ -693,8 +710,9 @@ async function chatScenario() {
   else if (scenario === 'pr') await prScenario();
   else if (scenario === 'mcp') await mcpScenario();
   else if (scenario === 'terminal') await terminalScenario();
+  else if (scenario === 'giant') await giantScenario();
   else {
-    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life", "lifecycle", "chat", "bug", "popcorn", "duck", "press", "plan", "pr", "mcp" or "terminal".`);
+    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life", "lifecycle", "chat", "bug", "popcorn", "duck", "press", "plan", "pr", "mcp", "terminal" or "giant".`);
     process.exitCode = 1;
   }
 })();

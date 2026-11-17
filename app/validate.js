@@ -160,6 +160,8 @@ const DEMOS = new Set([
   'guest',
   'where',
   'story',
+  // The giant peek (app/giant.js), whatever its switch says: up to the glass, many times its size.
+  'giant',
   // By the clock (lib/fun.js daytime), shown at any hour: a morning coffee, the nightcap of a nap
   // late at night, "It's late... bed soon?", a Friday afternoon's done (a dance, "Happy Friday!").
   'coffee',

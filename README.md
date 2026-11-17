@@ -55,7 +55,7 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 | the work gets intense | puts on a headband and codes on a screen of light |
 | you tap it | loves it, up to a point: then it fumes, catches fire and goes on a rampage across your screen |
 | you start a duel | a sword fight against your cursor, three hearts each |
-| it is idle | backflips, moonwalks, plays with a yo-yo, juggles (until a ball lands on its head), breathes on the glass and draws a heart in the fog, blows bubbles, throws paper planes, gets visitors, plays with its cat, flies off now and then and carries on wherever it lands, sits on top of a window with its legs dangling over the edge and rides along when it moves (Windows), has a coffee in the morning, walks up to the glass before a nap and knocks: "Where are you?" (hover it: "There you are!"), naps (in a nightcap late at night) |
+| it is idle | backflips, moonwalks, plays with a yo-yo, juggles (until a ball lands on its head), breathes on the glass and draws a heart in the fog, blows bubbles, throws paper planes, gets visitors, plays with its cat, flies off now and then and carries on wherever it lands, sits on top of a window with its legs dangling over the edge and rides along when it moves (Windows), has a coffee in the morning, walks up to the glass before a nap and knocks: "Where are you?" (hover it: "There you are!"; with *Giant peek* on it grows up to ten times its size on the way), naps (in a nightcap late at night) |
 | the cursor rests somewhere | now and then it flies over for a look through its magnifier |
 | you type in a terminal, VS Code or another app (Windows, opt-in) | now and then it flies over, reads along above the line, and a light bulb goes on: got it! |
 | you open the chat | answers questions about the work; on Windows (opt-in) it opens Chrome, a tab or YouTube for you |
@@ -161,6 +161,11 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
   folder in Windows (it goes to the Recycle Bin), it comes over and slashes a ghost of it with its sword,
   coloured by type. It deletes nothing itself. Shift+Delete and command-line deletes skip the Recycle Bin,
   so it does not see those; while Claude Code is working it lets deletes go.
+- **Giant peek** (last button of the hover menu, also in the tray, off by default; needs ambient life):
+  before a nap, instead of the small "Where are you?", it walks up to the glass from where it stands,
+  bigger with every step (up to ten times its size, peeking up from the bottom of the screen), knocks
+  and listens. Nobody there: it shrugs, walks back to its spot and naps. Move the pointer onto it:
+  "There you are!", and it runs back. At most every 10 minutes, never while you are away.
 
 ## Commands
 
@@ -183,7 +188,8 @@ titles or contents). With *Watch me type* on, it also asks Windows where the tex
 in front is: a position only, never the text, never your keys. Terminals say when a field is a password
 field and then give nothing; other apps (VS Code, browsers) do not say it, so there too it is a position
 only. It asks other apps through the caret Windows keeps for its Magnifier, not through their screen
-reader support, so they do not change their behaviour for it. With *Follow
+reader support, so they do not change their behaviour for it. With *Giant peek* on, while the giant
+is on screen (about 15 s) it looks at where the cursor is (its position only, kept in the app). With *Follow
 Windows* on, it watches your Recycle Bin for new deletes and takes only the type of each item (its
 extension, or that it was a folder): never its name or where it was. Nothing of it is stored or sent anywhere. Settings: `~/.perchbot/settings.json`.
 The only download is Electron itself: once, by `perchbot setup` (or `start` / `demo` while it is still

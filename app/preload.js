@@ -8,7 +8,7 @@
  * the screen, or the right-click menu), a rampage (where its eyes are), "a frame was drawn" during a trip
  * (the window then moves in step with the display), "hidden" while switching
  * sides, and a chat request: open / close the panel, or a question (or a
- * hands command) as one of the chat's intents. The panel has buttons only:
+ * hands command) as one of the chat's intents, and the giant peek (start / stop). The panel has buttons only:
  * no text crosses this bridge.
  * The main process validates every value again.
  */
@@ -60,6 +60,8 @@ contextBridge.exposeInMainWorld('buddy', {
   onFind: on('buddy:find'),
   onWindows: on('buddy:windows'),
   onGuest: on('buddy:guest'),
+  /** The giant peek (app/giant.js): its phases ({ phase }; null: over, with found / refused). */
+  onGiant: on('buddy:giant'),
   ready: () => ipcRenderer.send('buddy:ready'),
   capture: (wanted) => ipcRenderer.send('buddy:capture', wanted === true),
   drag: (phase) => {
@@ -70,6 +72,19 @@ contextBridge.exposeInMainWorld('buddy', {
   },
   fun: (action) => {
     if (FUN_ACTIONS.has(action)) ipcRenderer.send('buddy:fun', action);
+  },
+  /**
+   * The giant peek: 'start' (the idle story) or 'demo' (whatever the switch says), with where
+   * its feet are (page px) and which way it faces, so the giant starts right there; or 'stop'.
+   */
+  giant: (op, feet, face) => {
+    if (op === 'stop') {
+      ipcRenderer.send('buddy:giant', { op });
+      return;
+    }
+    const num = (v) => typeof v === 'number' && Number.isFinite(v);
+    if ((op !== 'start' && op !== 'demo') || !feet || !num(feet.x) || !num(feet.y)) return;
+    ipcRenderer.send('buddy:giant', { op, feet: { x: feet.x, y: feet.y }, face: face === 'left' ? 'left' : 'right' });
   },
   tripFrame: () => ipcRenderer.send('buddy:trip-frame'),
   flipReady: () => ipcRenderer.send('buddy:flip-ready'),

@@ -51,6 +51,7 @@ const placement = require('./placement');
 const roam = require('./roam');
 const outingsLib = require('./outings');
 const rampageLib = require('./rampage');
+const giantLib = require('./giant');
 const fistLib = require('./fist');
 const { DwellWatch, FOLLOW, FOLLOW_STATES } = require('./follow');
 const typingLib = require('./typing');
@@ -81,7 +82,8 @@ const ORIGIN = `${SCHEME}://local`;
  * The effect windows (rocket fist, rampage) load from a host of their own. Chromium keeps one
  * zoom level per host: their zoom 1 would otherwise also reset the buddy window's zoom (size
  * small / large), shrinking it on the spot and sending the beams off where its eyes were.
- * This host serves renderer/* only.
+ * This host serves renderer/* only. (The giant peek needs the character: it loads from ORIGIN
+ * with the buddy's own zoom, as the helpers' windows do.)
  */
 const EFFECTS_ORIGIN = `${SCHEME}://effects`;
 /** "Quit now" keeps the overlay from relaunching for the current sessions this long. */
@@ -230,6 +232,11 @@ function start() {
   let trip = null;
   /** On the way to another screen, faded out: { point, then, timer } (see warpTo). */
   let warping = null;
+  /** The giant peek on screen: { ew, timers, poll, phase, found, first, moved, hit } (see startGiant). */
+  let giant = null;
+  let lastGiant = -Infinity;
+  /** The giant's window stays this long after the small one is back (no gap between the two). */
+  const GIANT_HANDOVER_MS = 150;
   /** Where a trip left the character (this run only); null = at home. */
   let roamAnchor = null;
   /** Where it hangs from the top edge (a 'hang' trip); it hangs while roamAnchor is still there. */
@@ -300,6 +307,8 @@ function start() {
       endTrip(true);
       placeWindow();
     }
+    // The giant peek gives way to work at once (the small one comes back).
+    if (giant && !CALM_STATES.has(snap.state)) endGiant('work came in');
     // Hanging from the top edge when work comes in: it lets go and drops into view (the bubble shows the work).
     if (isHanging() && !CALM_STATES.has(snap.state)) dropFromEdge();
     // Reading along as the user types: the prompt went off (from idle or done to thinking), or
@@ -525,6 +534,17 @@ function start() {
     const s = scale();
     const req = rampageLib.parseRampage(msg, { width: b.width / s, height: b.height / s });
     if (req) startRampage(req);
+  });
+
+  // The giant peek (app/giant.js): the idle story asks for it (a demo too), or the page ends it.
+  ipcMain.on('buddy:giant', (event, msg) => {
+    if (!fromPage(event)) return;
+    if (msg && msg.op === 'stop') {
+      endGiant('page');
+      return;
+    }
+    const req = giantLib.parseGiantRequest(msg);
+    if (req) startGiant(req);
   });
 
   ipcMain.on('buddy:crew-left', (event, id) => {
@@ -961,7 +981,7 @@ function start() {
   function findFree() {
     return Boolean(
       settings.ambientLife && !settings.stayPut && settings.hoverMode !== 'stand' && win && !win.isDestroyed() && anchor && pageLayout &&
-        !paused && !quitting && !drag && !trip && !warping && !flipping && !rampage && !fist && !handsBusy && !peekBack && !typingVisit && !chatOpen,
+        !paused && !quitting && !drag && !trip && !warping && !flipping && !rampage && !giant && !fist && !handsBusy && !peekBack && !typingVisit && !chatOpen,
     );
   }
 
@@ -1106,7 +1126,7 @@ function start() {
   /** Free to cut (what main knows; the page checks its own side): Claude Code idle, nothing else going on. */
   function slashFree() {
     return Boolean(
-      win && !win.isDestroyed() && anchor && pageLayout && !paused && !quitting && !drag && !trip && !warping && !flipping && !rampage && !fist && !handsBusy && !peekBack && !typingVisit && !chatOpen &&
+      win && !win.isDestroyed() && anchor && pageLayout && !paused && !quitting && !drag && !trip && !warping && !flipping && !rampage && !giant && !fist && !handsBusy && !peekBack && !typingVisit && !chatOpen &&
         Date.now() >= slashUntil && SLASH_STATES.has(core.snapshot().state),
     );
   }
@@ -1400,6 +1420,7 @@ function start() {
       rendererReady = false;
       endAllOutings();
       endRampage('renderer gone');
+      endGiant('renderer gone');
       endFist('renderer gone');
       endTypingVisit('renderer gone');
       slashOffer = null;
@@ -1420,6 +1441,7 @@ function start() {
     win.on('closed', () => {
       endAllOutings();
       endRampage('window closed');
+      endGiant('window closed');
       endFist('window closed');
       endTypingVisit('window closed');
       win = null;
@@ -1675,7 +1697,8 @@ function start() {
    * that faces it, a fade, and on from the facing edge of the other screen.
    */
   function startTrip(kind, { stayHere = false, style = null, at = null, lens = false, peek = false, then = null } = {}) {
-    if (!win || win.isDestroyed() || drag || trip || warping || paused || !anchor || !pageLayout) return;
+    // (Not while the small one is away for the giant peek: it comes back where it left.)
+    if (!win || win.isDestroyed() || drag || trip || warping || paused || giant || !anchor || !pageLayout) return;
     const all = displays();
     const here = placement.nearestDisplay(anchor, all);
     // 'inspect' at a given spot (where the cursor rested) instead of where it is now.
@@ -1849,7 +1872,7 @@ function start() {
    * then the buddy flies over as before.
    */
   function fireFist(at, target, next, force) {
-    if (!win || win.isDestroyed() || !anchor || drag || warping || paused || trip || rampage || fist || !pageLayout) return false;
+    if (!win || win.isDestroyed() || !anchor || drag || warping || paused || trip || rampage || giant || fist || !pageLayout) return false;
     const here = placement.nearestDisplay(anchor, displays());
     const display = screen.getAllDisplays().find((d) => d.id === here.id);
     if (!display) return false;
@@ -2531,7 +2554,7 @@ function start() {
 
   function startRampage(req) {
     const refuse = () => canSend() && win.webContents.send('buddy:rampage', { phase: null });
-    if (!win || win.isDestroyed() || quitting || paused || rampage || !anchor || Date.now() - lastRampage < rampageLib.RAMPAGE.cooldownMs) {
+    if (!win || win.isDestroyed() || quitting || paused || rampage || giant || !anchor || Date.now() - lastRampage < rampageLib.RAMPAGE.cooldownMs) {
       return refuse();
     }
     const here = placement.nearestDisplay(anchor, displays());
@@ -2597,10 +2620,10 @@ function start() {
 
   /**
    * A click-through window over one display for effects (the rampage, the
-   * rocket fist): it never takes the mouse or the keyboard, and its page only
-   * listens (rampage-preload.js).
+   * rocket fist, the giant peek): it never takes the mouse or the keyboard, and
+   * its page only listens (rampage-preload.js, giant-preload.js).
    */
-  function effectWindow(display, title) {
+  function effectWindow(display, title, preload = 'rampage-preload.js') {
     const ew = new BrowserWindow({
       ...display.bounds,
       show: false,
@@ -2619,7 +2642,7 @@ function start() {
       backgroundColor: '#00000000',
       title,
       webPreferences: {
-        preload: path.join(__dirname, 'rampage-preload.js'),
+        preload: path.join(__dirname, preload),
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
@@ -2655,6 +2678,138 @@ function start() {
     r.ew = null;
     log.devOnly(`rampage: over (${why})`);
     if (canSend()) win.webContents.send('buddy:rampage', { phase: null });
+  }
+
+  // ------------------------------------------------------------------ the giant peek (app/giant.js)
+
+  /**
+   * Giant peek ("Giant peek" switch): the idle story's "Where are you?", big. The page asks
+   * ('buddy:giant' start, with where its feet are); a click-through window over its screen
+   * (renderer/giant.html) shows it walking up to the glass from right there, bigger with every
+   * step (up to ten times its size), knocking, listening, knocking again, waiting, shrugging and
+   * walking back to its spot, its own size again (the phases go to both pages: the small one
+   * hides while the giant is out). Meanwhile only where the cursor is gets looked at, and only
+   * here: on it while it is up at the glass is an answer ('found': a happy hop, "There you
+   * are!", then it runs back). Over: { phase: null, found } to the page. Refused
+   * (switched off, too soon, the screen too small, something else going on):
+   * { phase: null, refused: true }, and the page plays the small "Where are you?" instead.
+   * One at a time; work coming in ends it at once. (Its state, giant / lastGiant, is declared
+   * up top with the others: the first event may come in before this point.)
+   */
+  function startGiant({ op = 'start', feet, face = 'right' } = {}) {
+    const demo = op === 'demo';
+    const refuse = (why) => {
+      log.devOnly(`giant: not now (${why})`);
+      if (canSend()) win.webContents.send('buddy:giant', { phase: null, refused: true });
+    };
+    if (!win || win.isDestroyed() || quitting || paused || !anchor || !pageLayout) return refuse('no window');
+    if (giant || rampage || fist || trip || drag || warping || flipping || typingVisit || handsBusy || chatOpen) return refuse('busy');
+    if (!demo && (!settings.giantPeek || !settings.ambientLife)) return refuse('switched off');
+    if (!demo && Date.now() - lastGiant < giantLib.GIANT.cooldownMs) return refuse('too soon');
+    if (!CALM_STATES.has(core.snapshot().state)) return refuse('at work');
+    const payload = characterPayload();
+    if (!payload) return refuse('no character');
+    const here = placement.nearestDisplay(anchor, displays());
+    const display = screen.getAllDisplays().find((d) => d.id === here.id);
+    if (!display) return refuse('no display');
+    // The giant's page has the buddy's zoom: its px are DIP / scale, from the display's top left.
+    const s = scale();
+    const origin = { x: display.bounds.x, y: display.bounds.y };
+    const area = {
+      x: (display.workArea.x - origin.x) / s,
+      y: (display.workArea.y - origin.y) / s,
+      width: display.workArea.width / s,
+      height: display.workArea.height / s,
+    };
+    const t = (key) => translate(settings.language, 'quip', key);
+    // Its feet (the buddy's page px) -> the giant's page px.
+    const at = rampageLib.toEffect(feet, win.getBounds(), s, origin);
+    const plan = giantLib.planGiant({
+      area,
+      from: { x: at.x / s, y: at.y / s },
+      face,
+      say: { listen: t('whereAreYou'), shrug: t('giantHmm'), found: t('hereYouAre') },
+    });
+    if (!plan) return refuse('screen too small');
+    lastGiant = Date.now();
+    const g = { ew: null, timers: [], poll: null, phase: null, found: false, first: null, moved: false, hit: giantLib.toScreen(plan.hit, origin, s) };
+    giant = g;
+    log.info(`giant: peeking in, ${plan.factor} times its size${demo ? ' (demo)' : ''}`);
+    g.ew = effectWindow(display, 'Perchbot giant', 'giant-preload.js');
+    g.ew.on('closed', () => {
+      g.ew = null;
+      if (giant === g) endGiant('window closed');
+    });
+    // Never longer than the plan (and a little more), whatever happens.
+    const total = plan.phases[plan.phases.length - 1].at;
+    g.timers.push(setTimeout(() => endGiant('time'), giantLib.GIANT.loadMs + total + giantLib.GIANT.graceMs));
+    g.ew.webContents.once('did-finish-load', () => {
+      if (giant !== g || !g.ew) return;
+      g.ew.webContents.setZoomFactor(s);
+      g.ew.webContents.send('giant:init', { plan, character: { svgUrl: payload.svgUrl, cssUrl: payload.cssUrl } });
+      // Drawn where the small one stands, at its size: then it shows and the small one hides.
+      g.timers.push(setTimeout(() => showGiant(g, plan.phases), giantLib.GIANT.loadMs));
+    });
+    g.ew.loadURL(`${ORIGIN}/renderer/giant.html`);
+    return undefined;
+  }
+
+  function showGiant(g, phases) {
+    if (giant !== g || !g.ew || g.ew.isDestroyed()) return;
+    g.ew.showInactive();
+    for (const step of phases) g.timers.push(setTimeout(() => giantPhase(g, step.phase), step.at));
+    g.poll = setInterval(() => watchGiant(g), giantLib.GIANT.pollMs);
+  }
+
+  function giantPhase(g, phase) {
+    if (giant !== g) return;
+    if (phase === null) {
+      endGiant(g.found ? 'found' : 'no answer');
+      return;
+    }
+    g.phase = phase;
+    if (g.ew && !g.ew.isDestroyed() && !g.ew.webContents.isDestroyed()) g.ew.webContents.send('giant:phase', { phase });
+    if (canSend()) win.webContents.send('buddy:giant', { phase });
+  }
+
+  /** Is the pointer on it while it is up at the glass? (Its position only, kept here.) */
+  function watchGiant(g) {
+    if (giant !== g || g.found) return;
+    const cursor = screen.getCursorScreenPoint();
+    if (!g.first) g.first = cursor;
+    else if (cursor.x !== g.first.x || cursor.y !== g.first.y) g.moved = true;
+    if (!giantLib.pointerFound({ phase: g.phase, cursor, hit: g.hit, moved: g.moved })) return;
+    g.found = true;
+    clearInterval(g.poll);
+    g.poll = null;
+    log.devOnly('giant: the pointer is on it: there you are');
+    // The rest of the plan gives way: a happy hop, then back at once.
+    for (const t of g.timers) clearTimeout(t);
+    const steps = giantLib.foundTimeline();
+    g.timers = steps.map((step) => setTimeout(() => giantPhase(g, step.phase), step.at));
+    g.timers.push(setTimeout(() => endGiant('time'), steps[steps.length - 1].at + giantLib.GIANT.graceMs));
+  }
+
+  /**
+   * Over, or cut short (work came in, the page, screen locked, quitting): the small one is back
+   * first, then the window goes (a moment later, so there is no gap between the two).
+   */
+  function endGiant(why) {
+    const g = giant;
+    if (!g) return;
+    giant = null;
+    for (const t of g.timers) clearTimeout(t);
+    if (g.poll) clearInterval(g.poll);
+    log.devOnly(`giant: over (${why})`);
+    if (canSend()) win.webContents.send('buddy:giant', { phase: null, found: g.found });
+    const ew = g.ew;
+    g.ew = null;
+    if (!ew || ew.isDestroyed()) return;
+    // Cut short: the giant goes at once (at the end of its walk back it stands where the small one is).
+    if (why !== 'no answer' && why !== 'found' && !ew.webContents.isDestroyed()) ew.webContents.send('giant:stop');
+    const close = () => !ew.isDestroyed() && ew.destroy();
+    if (quitting || why === 'window closed') close();
+    else setTimeout(close, GIANT_HANDOVER_MS);
   }
 
   /** The right-click menu: play (duel, whip), walk, fly, home, the cat, the three switches. */
@@ -2845,6 +3000,7 @@ function start() {
     if (value) setCapture(false);
     if (value) endAllOutings();
     if (value) endRampage('paused');
+    if (value) endGiant('paused');
     if (value) endFist('paused');
     if (value) endTypingVisit('paused');
     if (canSend()) win.webContents.send('buddy:paused', value);
@@ -2929,6 +3085,8 @@ function start() {
       stayPut: Boolean(settings.stayPut),
       // The Cat switch: the idle story only calls the cat when it is on.
       cat: Boolean(settings.cat),
+      // Giant peek: the idle story's "Where are you?" comes big (app/giant.js).
+      giantPeek: Boolean(settings.giantPeek),
       strings: pageStrings(),
     };
   }
@@ -3026,6 +3184,9 @@ function start() {
         break;
       case 'windows':
         if (recycleLib.supported()) actions.setFollowWindows(!settings.followWindows);
+        break;
+      case 'giant':
+        actions.setGiantPeek(!settings.giantPeek);
         break;
       case 'settings':
         popUpSettings();
@@ -3263,6 +3424,11 @@ function start() {
     // "Watch me type" (Windows): updateSettings starts or stops asking where the caret is.
     setTypingPeek: (typingPeek) => updateSettings({ typingPeek }),
     setFollowWindows: (followWindows) => updateSettings({ followWindows }),
+    // Giant peek: the page reads it at the end of the idle story (switched off: a giant on screen goes).
+    setGiantPeek: (giantPeek) =>
+      updateSettings({ giantPeek }, () => {
+        if (!giantPeek) endGiant('switched off');
+      }),
     backToCorner: () => {
       roamAnchor = null;
       updateSettings(withPlace(null), placeWindow);
@@ -3318,6 +3484,7 @@ function start() {
     stopRecycleWatch();
     endAllOutings();
     endRampage('quit');
+    endGiant('quit');
     endFist('quit');
     stopWatchdog();
     core.dispose();

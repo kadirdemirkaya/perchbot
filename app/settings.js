@@ -72,6 +72,12 @@ const DEFAULTS = Object.freeze({
    * type is looked at, never a name. Switched in the hover menu only; off until the user turns it on.
    */
   followWindows: false,
+  /**
+   * Giant peek (app/giant.js): before a nap, instead of the small "Where are you?", it walks up
+   * to the glass, bigger with every step (up to ten times its size), knocks and listens; the
+   * pointer on it is an answer. Only the cursor position is looked at, while it lasts. Off until the user turns it on.
+   */
+  giantPeek: false,
   /** Little robot sounds made in code (taps, the duel, the ball, the cat, the rampage, a visitor). */
   sound: false,
   soundVolume: 'low',
@@ -134,6 +140,7 @@ function normalizeSettings(raw) {
   if (typeof raw.cat === 'boolean') s.cat = raw.cat;
   if (typeof raw.typingPeek === 'boolean') s.typingPeek = raw.typingPeek;
   if (typeof raw.followWindows === 'boolean') s.followWindows = raw.followWindows;
+  if (typeof raw.giantPeek === 'boolean') s.giantPeek = raw.giantPeek;
   if (typeof raw.sound === 'boolean') s.sound = raw.sound;
   if (SOUND_VOLUMES.includes(raw.soundVolume)) s.soundVolume = raw.soundVolume;
   if (typeof raw.workSounds === 'boolean') s.workSounds = raw.workSounds;

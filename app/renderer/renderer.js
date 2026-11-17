@@ -952,6 +952,8 @@
       return button;
     });
     menuEl.replaceChildren(...buttons);
+    // Eleven balls (every one there): a sixth row, the menu a little higher (overlay.css .menu.six-rows).
+    menuEl.classList.toggle('six-rows', buttons.length > 10);
     syncMenuDuel();
   }
 
@@ -2001,7 +2003,7 @@
   function wanderFree() {
     const calm =
       !slashing && !typingLook && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !chatOpen && !raging && !guest && !cuddling && !guestPending && !lasering;
-    return calm && !fisting && !ambient.playing && !story.playing && !patPending;
+    return calm && !fisting && !giant && !ambient.playing && !story.playing && !patPending;
   }
   const duel = new Duel({ onPhase: onDuelPhase });
 
@@ -2040,11 +2042,13 @@
   function updateFun() {
     // Follow Windows: something else took the character (a duel, a drag, a trip...): the cut stops.
     if (slashing && slashTakenOver()) slash.stop();
+    // The giant peek gives way to work, ambient life switched off, a lock (main ends it too).
+    if (giant && (!CALM.has(view.state) || paused || (!giantDemo && !ambientOn()))) stopGiant('interrupted');
     syncRest();
     // Helpers may roam the screen: ambient life on (with motion), awake, not paused.
     crew.setRoam(ambientOn() && !rest.resting);
     const calm =
-      ambientOn() && !typingLook && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen && !raging && !guest && !cuddling && !guestPending && !lasering && !slashing;
+      ambientOn() && !typingLook && !duel.active && !hunt.active && !moving && !drag && !crew.isPressing() && zone === null && !rest.resting && !chatOpen && !raging && !guest && !cuddling && !guestPending && !lasering && !slashing && !giant;
     // The idle story runs while it is idle with ambient life on; anything else ends it.
     if (ambientOn() && AMBIENT_STATES.has(view.state) && !typingLook) story.start();
     else if (story.running || story.finished) story.stop();
@@ -2764,6 +2768,93 @@
   /** When it last asked "Where are you?" (the story's finale, see storyBeat). */
   let whereAt = 0;
 
+  // ---------------------------------------------------------------- the giant peek (app/giant.js, main.js)
+
+  /**
+   * Giant peek ("Giant peek" switch, off by default): the idle story's "Where are you?" comes
+   * big. The page asks the main process (with where its feet are); in a click-through window of
+   * its own it walks up to the glass from right here, bigger with every step, knocks, listens,
+   * knocks again, waits, and walks back here, its own size again (main.js sends the phases here
+   * too: meanwhile the small one is hidden). Over with the pointer on it (found: "There you
+   * are!" was said up there): a happy hop here, and no nap at the end of this story. Over with
+   * no answer: it naps right here (the story's last beat, at once). Refused (the screen too
+   * small, something else going on): the small "Where are you?" instead. Work, ambient life
+   * switched off, a lock: it ends at once and the small one is back.
+   */
+  /** null, 'asking', or the phase main.js sent last ('walk', 'knock', 'listen', ...). */
+  let giant = null;
+  /** The giant peek is a demo (not the story's beat): nothing of the story at its end. */
+  let giantDemo = false;
+  /** A backstop: the main process never answered. */
+  const GIANT_GUARD_MS = 4000;
+  /** Found: the happy hop this long after it is back. */
+  const GIANT_GLEE_MS = 200;
+  /** No answer: the yawn this long after it is back. */
+  const GIANT_SLEEPY_MS = 700;
+
+  function startGiant(demo = false) {
+    if (giant) return false;
+    giant = 'asking';
+    giantDemo = demo;
+    trace(`giant: asking to peek in big${demo ? ' (demo)' : ''}`);
+    // The giant starts right where its feet are, facing the same way.
+    const r = holder.getBoundingClientRect();
+    const feet = { x: r.left + r.width * 0.49, y: r.top + r.height * 0.91 };
+    window.buddy.giant(demo ? 'demo' : 'start', feet, holder.dataset.face === 'left' ? 'left' : 'right');
+    later('giant-guard', GIANT_GUARD_MS, () => giant === 'asking' && endGiant({ refused: true }));
+    updateFun();
+    return true;
+  }
+
+  /** A phase from main.js ({ phase }; null: over, with found or refused). */
+  function onGiant(msg) {
+    if (!giant) return;
+    const phase = msg && typeof msg.phase === 'string' ? msg.phase : null;
+    if (phase === null) {
+      endGiant(msg || {});
+      return;
+    }
+    trace(`giant: ${phase}`);
+    cancel('giant-guard');
+    giant = phase;
+    // The giant is out (drawn right where it stands): the small one hides until it is back.
+    stage.classList.add('giant-away');
+  }
+
+  /** Something else needs it (work, ambient life off, a lock): the giant goes, the small one is back. */
+  function stopGiant(why) {
+    if (!giant) return;
+    trace(`giant: stopped (${why})`);
+    window.buddy.giant('stop');
+    endGiant({});
+  }
+
+  function endGiant({ found = false, refused = false } = {}) {
+    if (!giant) return;
+    giant = null;
+    cancel('giant-guard');
+    stage.classList.remove('giant-away');
+    const demo = giantDemo;
+    giantDemo = false;
+    updateFun();
+    if (found) {
+      trace('giant: there you are');
+      if (motionAllowed()) later('giant-glee', GIANT_GLEE_MS, () => glee.trigger());
+    }
+    // A demo, or the story was over meanwhile (work came in): nothing more.
+    if (demo || story.playing !== 'where') return;
+    if (refused) {
+      trace('giant: not now, the small "Where are you?" instead');
+      storyPlay = 'where';
+      ambient.run('where');
+    } else if (found) {
+      story.finish();
+    } else {
+      trace('giant: nobody answered, nap time');
+      story.done({ soonMs: GIANT_SLEEPY_MS });
+    }
+  }
+
   // ---------------------------------------------------------------- the time of day (lib/fun.js daytime)
 
   /**
@@ -2841,6 +2932,7 @@
       !chatOpen &&
       !raging &&
       !guest &&
+      !giant &&
       zone === null &&
       !crew.isPressing()
     );
@@ -2870,6 +2962,9 @@
       // Up to the glass on its own feet.
       if (landFirst()) return 'later';
       whereAt = Date.now();
+      // "Giant peek" on (no helpers about): it walks up to the glass, bigger with every step (see
+      // "the giant peek"). The main process may refuse: then the small one below after all.
+      if (settings.giantPeek && crewCount === 0 && startGiant()) return 'busy';
       storyPlay = name;
       ambient.run(name);
       return 'busy';
@@ -3625,6 +3720,9 @@
         flag('rest', rest.resting ? true : null);
         updateNight();
       });
+    } else if (name === 'giant') {
+      // The giant peek right now, whatever its switch says (normally the idle story's finale).
+      if (!startGiant(true)) trace('giant: not now');
     } else if (name === 'late') {
       quip('lateNight', 2400);
     } else if (name === 'friday') {
@@ -3893,6 +3991,7 @@
   window.buddy.onChat((msg) => applyChat(msg));
   window.buddy.onBug((bug) => applyBug(bug));
   window.buddy.onRampage((msg) => onRampage(msg));
+  window.buddy.onGiant((msg) => onGiant(msg));
   window.buddy.onFollow((msg) => onFollow(msg));
   window.buddy.onTyping((msg) => onTyping(msg));
   window.buddy.onFind((msg) => onFind(msg));

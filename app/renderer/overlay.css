@@ -93,6 +93,15 @@ html.column-left body {
   to { opacity: 1; transform: none; }
 }
 
+/*
+ * The giant peek (main.js, app/giant.js): while a giant of it walks up to the glass in a
+ * window of its own (starting and ending right where it stands, at its size), it is not
+ * here, for the eye or the pointer. Hidden and back at once: the two hand over in place.
+ */
+.stage.giant-away .buddy-character {
+  visibility: hidden;
+}
+
 .slot {
   position: absolute;
   top: 0;
@@ -376,7 +385,7 @@ html.column-left body {
 /*
  * Two columns of round buttons in the side column (64 px), row by row, the
  * first column on the outer side. Up to five rows (70 + 5 x 30 + 4 x 6 = 244 px)
- * stay inside the 270 px window. Above the duel pad (z-index 2), the minis
+ * stay inside the 270 px window (a sixth row moves the menu up: .menu.six-rows). Above the duel pad (z-index 2), the minis
  * and the cat, so a button is always what the pointer hits.
  */
 .menu {
@@ -389,6 +398,12 @@ html.column-left body {
   justify-content: center;
   column-gap: 4px;
   row-gap: 6px;
+}
+
+/* Eleven balls (every one of them there): a sixth row, so the menu starts higher
+   (56 + 6 x 30 + 5 x 6 = 266 px, still inside the window). Fewer: as before. */
+.menu.six-rows {
+  top: 56px;
 }
 
 .stage.side-left .menu {

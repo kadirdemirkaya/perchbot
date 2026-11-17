@@ -71,7 +71,8 @@
     "volume_medium": "Orta",
     "volume_high": "Yüksek",
     "hands": "Eller: Chrome",
-    "typingPeek": "Yazarken izlesin"
+    "typingPeek": "Yazarken izlesin",
+    "giantPeek": "Uyumadan önce dev bakış"
   },
   "hover": {
     "hideBubble": "Baloncuğu gizle",
@@ -90,7 +91,9 @@
     "soundOn": "Sesleri aç",
     "soundOff": "Sesleri kapat",
     "windowsOn": "Windows'u takip et",
-    "windowsOff": "Windows'u takip etme"
+    "windowsOff": "Windows'u takip etme",
+    "giantOn": "Uyumadan önce dev gibi baksın",
+    "giantOff": "Dev bakışı kapat"
   },
   "page": {
     "helpers": "{count} yardımcı",
@@ -239,6 +242,7 @@
     "slashed": "Kestim!",
     "whereAreYou": "Neredesin?",
     "hereYouAre": "Buradasın!",
+    "giantHmm": "Hımm… kimse yok mu?",
     "commit": "Commit'lendi!",
     "push": "Push'landı, uçtu gitti!",
     "pr": "PR yola çıktı!",

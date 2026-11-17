@@ -432,7 +432,7 @@ test('out and about on the page: idle, no cat or helpers, not "Stay here"; the c
   const page = read('app', 'renderer', 'renderer.js');
   assert.ok(page.includes('wander.update({ on: wanderOn(), free: wanderFree() });'));
   assert.ok(page.includes('return ambientOn() && AMBIENT_STATES.has(view.state) && !rest.resting && !paused && crewCount === 0 && !catStays && !settings.stayPut;'));
-  assert.ok(page.includes('return calm && !fisting && !ambient.playing && !story.playing && !patPending;'), 'never in the middle of a play or a story beat');
+  assert.ok(page.includes('return calm && !fisting && !giant && !ambient.playing && !story.playing && !patPending;'), 'never in the middle of a play or a story beat');
   // The cat cannot come along: the story's napping cat goes first (as for a visitor), any other cat keeps it down.
   assert.ok(page.includes('const catStays = pet.here && !(storyCat && !cuddling && !patPending);'));
   assert.ok(page.includes("later('wander-go', WANDER_CAT_AWAY_MS, () => {"));

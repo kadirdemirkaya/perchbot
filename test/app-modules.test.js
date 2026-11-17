@@ -151,11 +151,12 @@ test('characters written before a state existed fall back to an older state', ()
 
 test('hover menu items come from settings and are localised', () => {
   const ids = (s, x) => buildMenuItems({ ...DEFAULTS, ...s }, x).map((i) => i.id);
-  assert.deepEqual(ids({}), ['quiet', 'eyes', 'play', 'cat', 'chat', 'settings', 'quit']);
-  assert.deepEqual(ids({ position: { x: 1, y: 2 } }), ['quiet', 'eyes', 'play', 'cat', 'chat', 'corner', 'settings', 'quit']);
+  assert.deepEqual(ids({}), ['quiet', 'eyes', 'play', 'cat', 'chat', 'settings', 'quit', 'giant']);
+  assert.deepEqual(ids({ position: { x: 1, y: 2 } }), ['quiet', 'eyes', 'play', 'cat', 'chat', 'corner', 'settings', 'quit', 'giant']);
   const most = ids({ position: { x: 1, y: 2 } }, { soundAvailable: true });
-  assert.deepEqual(most, ['quiet', 'eyes', 'play', 'cat', 'chat', 'sound', 'corner', 'settings', 'quit']);
-  // Two columns of 30 px buttons, rows 36 px apart from y = 70: five rows (to y = 244) fit the 270 px window.
+  assert.deepEqual(most, ['quiet', 'eyes', 'play', 'cat', 'chat', 'sound', 'corner', 'settings', 'quit', 'giant']);
+  // Two columns of 30 px buttons, rows 36 px apart from y = 70: five rows (to y = 244) fit the 270 px window
+  // (a sixth only with every ball there, Follow Windows too: see the giant peek's test).
   assert.ok(Math.ceil(most.length / 2) <= 5, 'at most five rows');
   const quiet = buildMenuItems({ ...DEFAULTS, quiet: true, language: 'tr' }).find((i) => i.id === 'quiet');
   assert.deepEqual(quiet, { id: 'quiet', icon: 'bubble-off', label: 'Baloncuğu göster' });

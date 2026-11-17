@@ -15,7 +15,9 @@ param(
   # Follow Windows (a file deleted in Windows gets its ghost cut by the sword): off unless -Windows.
   [switch]$Windows,
   # With -Windows: watch this folder instead of the real Recycle Bin (drop test $I records in it).
-  [string]$RecycleDir
+  [string]$RecycleDir,
+  # Giant peek (before a nap it walks up to the glass, up to ten times its size; needs -Fun too): off unless -Giant.
+  [switch]$Giant
 )
 # Starts an ISOLATED overlay for interactive tests: its own port and its own
 # settings folder, so the hooks of a live Claude Code session (which talk to
@@ -38,7 +40,7 @@ $busy = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Silentl
 if ($busy) { throw "port $Port is already in use (pid $($busy.OwningProcess)); stop that process first, e.g. an older test overlay" }
 
 New-Item -ItemType Directory -Force $TestHome | Out-Null
-$settings = @{ quiet = $false; ambientLife = [bool]$Fun; playMode = [bool]$Fun; cat = [bool]$Fun; hands = [bool]$Hands; stayPut = [bool]$StayPut; typingPeek = [bool]$Typing; followWindows = [bool]$Windows }
+$settings = @{ quiet = $false; ambientLife = [bool]$Fun; playMode = [bool]$Fun; cat = [bool]$Fun; hands = [bool]$Hands; stayPut = [bool]$StayPut; typingPeek = [bool]$Typing; followWindows = [bool]$Windows; giantPeek = [bool]$Giant }
 if ($X -or $Y) { $settings.position = @{ x = $X; y = $Y } }
 $settings | ConvertTo-Json -Compress | Out-File -Encoding ascii (Join-Path $TestHome 'settings.json')
 

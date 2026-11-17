@@ -69,6 +69,13 @@ const ITEMS = [
     label: (s) => (s.followWindows ? 'windowsOff' : 'windowsOn'),
     visible: (s, x) => x.windows === true,
   },
+  // Giant peek (app/giant.js): before a nap it walks up to the glass, bigger with every step (up
+  // to ten times its size). Off by default. After Follow Windows, so every other button keeps its place.
+  {
+    id: 'giant',
+    icon: (s) => (s.giantPeek ? 'giant' : 'giant-off'),
+    label: (s) => (s.giantPeek ? 'giantOff' : 'giantOn'),
+  },
 ];
 
 const MENU_IDS = new Set(ITEMS.map((item) => item.id));

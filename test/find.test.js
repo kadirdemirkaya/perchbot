@@ -54,7 +54,7 @@ test('wired through main.js: after the "done" bubble, offered to the page, besid
   assert.ok(main.includes('const why = demo ? null : findLib.findReason({ turn, cursor, slot, scale: scale(), sameDisplay, away: presence.away || presence.lockedAt !== null });'));
   // Never with ambient life off, "Stay here", "Always stand", or anything else going on.
   assert.ok(main.includes("settings.ambientLife && !settings.stayPut && settings.hoverMode !== 'stand'"));
-  assert.ok(main.includes('!paused && !quitting && !drag && !trip && !warping && !flipping && !rampage && !fist && !handsBusy && !peekBack && !typingVisit && !chatOpen'));
+  assert.ok(main.includes('!paused && !quitting && !drag && !trip && !warping && !flipping && !rampage && !giant && !fist && !handsBusy && !peekBack && !typingVisit && !chatOpen'));
   assert.ok(main.includes("else if (action === 'find') settings.ambientLife && goFind();"));
   // A trip of its own kind (no "What's this?" on arrival), not stopped by new work, and back like a look.
   assert.ok(main.includes("plan.kind = 'find';"));

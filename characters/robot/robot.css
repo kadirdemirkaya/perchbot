@@ -2810,6 +2810,233 @@
   78.01%, 100% { opacity: 0; }
 }
 
+/* ------------------------------------------------------------ the giant peek (idle story, "Giant peek" switch)
+
+   Before a nap, instead of the small "Where are you?", it walks up to the glass,
+   up to ten times its size, in a click-through window of its own
+   (renderer/giant.html, app/giant.js). That page sets data-giant on its
+   wrapper, phase by phase; the buddy's own page never does:
+     walk    walking up to the glass (the page makes it bigger and bigger)
+     knock   the near hand knocks three times (hits at 33 / 53 / 73 % of 1.5 s:
+             app/giant.js GIANT.knockHits, where the page draws rings)
+     listen  a hand at its ear, head tilted, the question badge
+     again   one more knock, from the listening pose (27 / 47 / 67 %: againHits)
+     wait    arms down, a look round
+     shrug   arms out, a worried mouth ("Hmm... nobody?")
+     back    it walks back to its spot (the page makes it smaller again)
+     found   the pointer is on it (the page adds data-glee: a happy hop)
+     dash    after that it runs back to its spot
+   It sets off with the laptop under its arm, as the small one has it (they hand
+   over in place), and puts it away up at the glass. */
+.buddy-character:is([data-giant='knock'], [data-giant='listen'], [data-giant='again'], [data-giant='wait'], [data-giant='shrug'], [data-giant='found']) .rb-laptop {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* walk / back: its own walk (as on a trip), a little slower: it is big now */
+.buddy-character:is([data-giant='walk'], [data-giant='back']) .rb-leg-l {
+  animation: rb-stride 0.8s ease-in-out infinite;
+}
+
+.buddy-character:is([data-giant='walk'], [data-giant='back']) .rb-leg-r {
+  animation: rb-stride 0.8s ease-in-out -0.4s infinite;
+}
+
+.buddy-character:is([data-giant='walk'], [data-giant='back']) .rb-figure {
+  animation: rb-step-bob 0.4s ease-in-out infinite;
+}
+
+.buddy-character:is([data-giant='walk'], [data-giant='back']) .rb-torso {
+  transform: rotate(2deg);
+}
+
+.buddy-character:is([data-giant='walk'], [data-giant='back']) .rb-arm-back {
+  animation: rb-arm-swing 0.8s ease-in-out -0.4s infinite;
+}
+
+.buddy-character:is([data-giant='walk'], [data-giant='back']) .rb-arm-front {
+  animation: rb-arm-swing 0.8s ease-in-out infinite;
+}
+
+/* dash: found, it runs back, arms pumping */
+.buddy-character[data-giant='dash'] .rb-leg-l {
+  animation: rb-stride 0.42s ease-in-out infinite;
+}
+
+.buddy-character[data-giant='dash'] .rb-leg-r {
+  animation: rb-stride 0.42s ease-in-out -0.21s infinite;
+}
+
+.buddy-character[data-giant='dash'] .rb-figure {
+  animation: rb-giant-bob 0.21s ease-in-out infinite;
+}
+
+.buddy-character[data-giant='dash'] .rb-torso {
+  transform: rotate(5deg);
+}
+
+.buddy-character[data-giant='dash'] .rb-arm-back {
+  animation: rb-giant-pump 0.42s ease-in-out -0.21s infinite;
+}
+
+.buddy-character[data-giant='dash'] .rb-arm-front {
+  animation: rb-giant-pump 0.42s ease-in-out infinite;
+}
+
+.buddy-character[data-giant='dash'] :is(.rb-forearm-back, .rb-forearm-front) {
+  transform: rotate(-55deg);
+}
+
+@keyframes rb-giant-bob {
+  0%, 100% { transform: none; }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes rb-giant-pump {
+  0%, 100% { transform: rotate(-30deg); }
+  50% { transform: rotate(26deg); }
+}
+
+.buddy-character:is([data-giant='knock'], [data-giant='again']) .rb-torso {
+  transform: rotate(3deg);
+}
+
+.buddy-character[data-giant='knock'] .rb-arm-front {
+  animation: rb-giant-knock-arm 1.5s ease-in-out both;
+}
+
+.buddy-character[data-giant='knock'] .rb-forearm-front {
+  animation: rb-giant-knock-forearm 1.5s ease-in-out both;
+}
+
+@keyframes rb-giant-knock-arm {
+  0% { transform: rotate(0deg); }
+  20%, 100% { transform: rotate(-115deg); }
+}
+
+@keyframes rb-giant-knock-forearm {
+  0% { transform: rotate(0deg); }
+  20% { transform: rotate(-55deg); }
+  33% { transform: rotate(-8deg); }
+  43% { transform: rotate(-55deg); }
+  53% { transform: rotate(-8deg); }
+  63% { transform: rotate(-55deg); }
+  73% { transform: rotate(-8deg); }
+  85%, 100% { transform: rotate(-35deg); }
+}
+
+/* The hand cupped at its ear (the near dial), the head tilted towards it. */
+.buddy-character[data-giant='listen'] .rb-arm-front {
+  transform: rotate(-160deg);
+}
+
+.buddy-character[data-giant='listen'] .rb-forearm-front {
+  transform: rotate(-12deg);
+}
+
+.buddy-character[data-giant='listen'] .rb-head {
+  transform: rotate(8deg);
+}
+
+.buddy-character[data-giant='listen'] .rb-face {
+  transform: translate(4px, 1px);
+}
+
+.buddy-character[data-giant='listen'] .rb-question {
+  opacity: 1;
+  transform: none;
+}
+
+.buddy-character[data-giant='listen'] .rb-mouth {
+  opacity: 0;
+}
+
+.buddy-character[data-giant='listen'] .rb-mouth-o {
+  opacity: 1;
+}
+
+.buddy-character[data-giant='again'] .rb-arm-front {
+  animation: rb-giant-again-arm 1.5s ease-in-out both;
+}
+
+.buddy-character[data-giant='again'] .rb-forearm-front {
+  animation: rb-giant-again-forearm 1.5s ease-in-out both;
+}
+
+@keyframes rb-giant-again-arm {
+  0% { transform: rotate(-160deg); }
+  15%, 100% { transform: rotate(-115deg); }
+}
+
+@keyframes rb-giant-again-forearm {
+  0% { transform: rotate(-12deg); }
+  15% { transform: rotate(-55deg); }
+  27% { transform: rotate(-8deg); }
+  37% { transform: rotate(-55deg); }
+  47% { transform: rotate(-8deg); }
+  57% { transform: rotate(-55deg); }
+  67% { transform: rotate(-8deg); }
+  80%, 100% { transform: rotate(-35deg); }
+}
+
+/* A look round: is anybody there? */
+.buddy-character[data-giant='wait'] .rb-head {
+  animation: rb-giant-look-head 2.4s ease-in-out both;
+}
+
+.buddy-character[data-giant='wait'] .rb-face {
+  animation: rb-giant-look-face 2.4s ease-in-out both;
+}
+
+@keyframes rb-giant-look-head {
+  0%, 10% { transform: rotate(0deg); }
+  30%, 45% { transform: rotate(-6deg); }
+  65%, 80% { transform: rotate(6deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes rb-giant-look-face {
+  0%, 10% { transform: none; }
+  30%, 45% { transform: translate(-5px, 0); }
+  65%, 80% { transform: translate(5px, 0); }
+  100% { transform: none; }
+}
+
+/* Arms out, palms up, a worried mouth. */
+.buddy-character[data-giant='shrug'] .rb-arm-back {
+  transform: rotate(38deg);
+}
+
+.buddy-character[data-giant='shrug'] .rb-forearm-back {
+  transform: rotate(48deg);
+}
+
+.buddy-character[data-giant='shrug'] .rb-arm-front {
+  transform: rotate(-38deg);
+}
+
+.buddy-character[data-giant='shrug'] .rb-forearm-front {
+  transform: rotate(-48deg);
+}
+
+.buddy-character[data-giant='shrug'] .rb-head {
+  transform: rotate(-6deg);
+}
+
+.buddy-character[data-giant='shrug'] :is(.rb-mouth, .rb-mouth-o, .rb-mouth-grin) {
+  opacity: 0;
+}
+
+.buddy-character[data-giant='shrug'] .rb-mouth-worry {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .buddy-character[data-giant] * {
+    animation: none !important;
+  }
+}
+
 /* ------------------------------------------------------------ three more ambient plays: fog, yoyo, juggle
 
    Plain ambient plays (picked at random while idle, like the backflip), each one

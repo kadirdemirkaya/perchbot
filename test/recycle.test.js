@@ -181,16 +181,17 @@ test('the setting: off by default, booleans only', () => {
   assert.equal(normalizeSettings({ followWindows: 'yes' }).followWindows, false);
 });
 
-test('the 8th ball: Windows only, last (every other ball keeps its place), on / off with the user\'s words', () => {
+test('the 8th ball: Windows only, after the others (every other ball keeps its place), on / off with the user\'s words', () => {
   const ids = (s, x) => buildMenuItems({ ...DEFAULTS, ...s }, x).map((i) => i.id);
-  // Without it (not Windows): exactly as before.
-  assert.deepEqual(ids({}), ['quiet', 'eyes', 'play', 'cat', 'chat', 'settings', 'quit']);
-  assert.deepEqual(ids({}, { windows: false }), ['quiet', 'eyes', 'play', 'cat', 'chat', 'settings', 'quit']);
-  // On Windows: the same, plus this one at the very end.
-  assert.deepEqual(ids({}, { windows: true }), ['quiet', 'eyes', 'play', 'cat', 'chat', 'settings', 'quit', 'windows']);
+  // Without it (not Windows): exactly as before (the giant peek's ball comes last).
+  assert.deepEqual(ids({}), ['quiet', 'eyes', 'play', 'cat', 'chat', 'settings', 'quit', 'giant']);
+  assert.deepEqual(ids({}, { windows: false }), ['quiet', 'eyes', 'play', 'cat', 'chat', 'settings', 'quit', 'giant']);
+  // On Windows: the same, plus this one after quit.
+  assert.deepEqual(ids({}, { windows: true }), ['quiet', 'eyes', 'play', 'cat', 'chat', 'settings', 'quit', 'windows', 'giant']);
   const most = ids({ position: { x: 1, y: 2 } }, { soundAvailable: true, windows: true });
-  assert.deepEqual(most, ['quiet', 'eyes', 'play', 'cat', 'chat', 'sound', 'corner', 'settings', 'quit', 'windows']);
-  assert.ok(Math.ceil(most.length / 2) <= 5, 'still at most five rows');
+  assert.deepEqual(most, ['quiet', 'eyes', 'play', 'cat', 'chat', 'sound', 'corner', 'settings', 'quit', 'windows', 'giant']);
+  // Every ball there: a sixth row (the menu moves up, overlay.css .menu.six-rows; see test/giant.test.js).
+  assert.ok(Math.ceil(most.length / 2) <= 6, 'at most six rows');
   assert.ok(MENU_IDS.has('windows'));
   const item = (s) => buildMenuItems({ ...DEFAULTS, ...s }, { windows: true }).find((i) => i.id === 'windows');
   assert.deepEqual(item({}), { id: 'windows', icon: 'bin-off', label: 'Follow Windows' });
@@ -249,7 +250,7 @@ test('wired through main.js: off = nothing watched; busy = let go; the page deci
   // Busy (anything going on, or Claude Code not idle): let go, no queue.
   assert.ok(main.includes("const SLASH_STATES = new Set(['idle', 'standby']);"));
   assert.ok(main.includes('Date.now() >= slashUntil && SLASH_STATES.has(core.snapshot().state)'));
-  assert.ok(main.includes('!paused && !quitting && !drag && !trip && !warping && !flipping && !rampage && !fist && !handsBusy && !peekBack && !typingVisit && !chatOpen &&\n        Date.now() >= slashUntil'));
+  assert.ok(main.includes('!paused && !quitting && !drag && !trip && !warping && !flipping && !rampage && !giant && !fist && !handsBusy && !peekBack && !typingVisit && !chatOpen &&\n        Date.now() >= slashUntil'));
   assert.ok(main.includes("log.devOnly(`follow windows: ${what}, busy: let go`);\n      return;"));
   // The page is asked; it answers with a trip or the cut on the spot ("Stay here" too: not blocked).
   assert.ok(/const FUN_ACTIONS = new Set\(\[[^\]]*'slash', 'slash-here'/.test(main));
@@ -284,7 +285,7 @@ test('on the page: only when free (resting: it wakes); the ghost rises, one cut,
   assert.ok(page.includes('const here = Boolean(settings.stayPut || !ambientOn() || pet.here);'));
   assert.ok(page.includes("if (phase === 'win') quip('slashed', SLASH_QUIP_MS);"));
   // Nothing of its own during the cut (plays, wander, the bug fight); anything that takes over stops it.
-  assert.ok(page.includes('!guestPending && !lasering && !slashing;'));
+  assert.ok(page.includes('!guestPending && !lasering && !slashing && !giant;'));
   assert.ok(page.includes('!slashing && !typingLook && !duel.active'));
   assert.ok(page.includes('    !duel.active &&\n    !slashing &&'));
   assert.ok(page.includes('if (slashing && slashTakenOver()) slash.stop();'));

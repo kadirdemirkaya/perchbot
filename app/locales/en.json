@@ -71,7 +71,8 @@
     "volume_medium": "Medium",
     "volume_high": "High",
     "hands": "Hands: Chrome",
-    "typingPeek": "Watch me type"
+    "typingPeek": "Watch me type",
+    "giantPeek": "Giant peek before a nap"
   },
   "hover": {
     "hideBubble": "Hide speech bubble",
@@ -90,7 +91,9 @@
     "soundOn": "Turn sounds on",
     "soundOff": "Turn sounds off",
     "windowsOn": "Follow Windows",
-    "windowsOff": "Stop following Windows"
+    "windowsOff": "Stop following Windows",
+    "giantOn": "Giant peek before a nap",
+    "giantOff": "No more giant peeks"
   },
   "page": {
     "helpers": "{count} helpers",
@@ -239,6 +242,7 @@
     "slashed": "Slashed!",
     "whereAreYou": "Where are you?",
     "hereYouAre": "There you are!",
+    "giantHmm": "Hmm… nobody?",
     "commit": "Committed!",
     "push": "Pushed! Off it goes!",
     "pr": "PR is on its way!",

@@ -318,8 +318,8 @@ test('rampage wiring: a click-through effect window that only listens, ended by 
     assert.ok(body.includes(piece), piece);
   }
   // The effect windows (the rampage, the rocket fist): click-through, never focused, a listen-only page.
-  const helper = main.slice(main.indexOf('function effectWindow(display, title)'), main.indexOf('function stopAim(r)'));
-  for (const piece of ["preload: path.join(__dirname, 'rampage-preload.js')", 'focusable: false', 'ew.setIgnoreMouseEvents(true);', 'sandbox: true', 'contextIsolation: true', 'nodeIntegration: false']) {
+  const helper = main.slice(main.indexOf("function effectWindow(display, title, preload = 'rampage-preload.js')"), main.indexOf('function stopAim(r)'));
+  for (const piece of ['preload: path.join(__dirname, preload)', 'focusable: false', 'ew.setIgnoreMouseEvents(true);', 'sandbox: true', 'contextIsolation: true', 'nodeIntegration: false']) {
     assert.ok(helper.includes(piece), piece);
   }
   assert.ok(main.includes("if (value) endRampage('paused');"), 'a locked screen ends it');

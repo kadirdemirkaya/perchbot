@@ -509,15 +509,18 @@
       this.playing = null;
     }
 
-    /** The beat that was 'busy' is over: the next one after a gap. */
-    done() {
+    /**
+     * The beat that was 'busy' is over: the next one after a gap (soonMs: after this
+     * long instead, e.g. the giant peek nobody answered: sleepy right after).
+     */
+    done({ soonMs = null } = {}) {
       if (!this.running || !this.playing) return;
       this.playing = null;
-      this.next(true);
+      this.next(true, soonMs);
     }
 
     /** On to the next beat (after a gap when one was played; at once after a skip). */
-    next(afterPlay = false) {
+    next(afterPlay = false, soonMs = null) {
       this.index += 1;
       this.tries = 0;
       // Enough done: straight to the finale ("Where are you?"), then the last one (sleepy).
@@ -528,7 +531,8 @@
         this.playing = null;
         return;
       }
-      if (afterPlay) this.wait(this.o.gapMinMs + this.random() * (this.o.gapMaxMs - this.o.gapMinMs));
+      if (afterPlay && typeof soonMs === 'number' && soonMs >= 0) this.wait(soonMs);
+      else if (afterPlay) this.wait(this.o.gapMinMs + this.random() * (this.o.gapMaxMs - this.o.gapMinMs));
       else this.wait(0);
     }
 
