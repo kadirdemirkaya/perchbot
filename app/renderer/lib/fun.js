@@ -5,6 +5,7 @@
  *   TapMeter          quick taps in a row: happy or cross, by mood and by work (tapMood)
  *   Temper            anger that builds up over unwelcome taps: cross, fuming, blazing
  *   Fury              its head on fire twice in five minutes: a rampage
+ *   pinnedByRampage   the rampage's phases it fires from where it stands (no dragging)
  *   FocusMeter        intense work: a screen of light instead of the laptop
  *   IdleStory         a long idle spell: a few things (a book, the cat, bubbles...), "Where are you?", then a nap
  *   whereDue          "Where are you?": not while the user is away, at most every WHERE.gapMs
@@ -232,6 +233,20 @@
       this.times = [];
       this.fuel = 0;
     }
+  }
+
+  /**
+   * The rampage's phases that fire from where it stands: the beams start at its
+   * eyes and the missiles at its hatch as they were when it began, so it cannot
+   * be picked up and dragged away meanwhile (app/rampage.js PINNED_PHASES says
+   * the same for the main process; a test keeps the two equal). Once all is
+   * fired ('smug', 'heal') it can be moved again.
+   */
+  const RAMPAGE_PINNED = Object.freeze(['charge', 'laser', 'missile', 'chase']);
+
+  /** True while the rampage keeps it where it stands (see RAMPAGE_PINNED). */
+  function pinnedByRampage(phase) {
+    return RAMPAGE_PINNED.includes(phase);
   }
 
   // ------------------------------------------------------------------ ambient life
@@ -1096,6 +1111,8 @@
     TEMPER_MAX,
     Fury,
     FURY,
+    RAMPAGE_PINNED,
+    pinnedByRampage,
     FocusMeter,
     FOCUS,
     IdleStory,

@@ -153,7 +153,8 @@ same by hand.
 ## Using it
 
 - **Hover** it for its menu, **drag** it anywhere, **right-click** it to walk, fly, duel or call the cat.
-  Everything else is in the tray icon.
+  Everything else is in the tray icon. (While it fires its laser eyes and missiles, it stays put: it can
+  be dragged again once everything has been fired.)
 - **Quiet mode** hides file names and commands: handy while you share your screen.
 - **Ambient life** (tray) lets it and its helpers roam your screens when idle; **Stay here** keeps it on its spot.
 - **Several accounts** (`CLAUDE_CONFIG_DIR`)? Tray > Account > *One buddy per account* gives each one its own robot.

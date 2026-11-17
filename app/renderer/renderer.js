@@ -56,7 +56,7 @@
 
 (() => {
   const { CaptureController, HoverMenu, RestTimer, lookVector, createTapRhythm, Replay, pageLeft, trailFits, besideRow } = window.BuddyInteraction;
-  const { TapMeter, Temper, TEMPER_MAX, Fury, FocusMeter, FOCUS, IdleStory, whereDue, Wander, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight, SlashShow, daytime, DAYTIME } = window.BuddyFun;
+  const { TapMeter, Temper, TEMPER_MAX, Fury, pinnedByRampage, FocusMeter, FOCUS, IdleStory, whereDue, Wander, AmbientScheduler, pickCheer, pickThinkPose, THINK_MS, Duel, BugFight, SlashShow, daytime, DAYTIME } = window.BuddyFun;
 
   const root = document.documentElement;
   const stage = document.getElementById('stage');
@@ -862,8 +862,9 @@
 
   holder.addEventListener('pointermove', (e) => {
     if (!drag) return;
-    // No dragging in the middle of a duel: every press is a swing.
-    if (!drag.moved && !duel.active && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > DRAG_THRESHOLD) {
+    // No dragging in the middle of a duel (every press is a swing), nor while the rampage
+    // fires from where it stands (the beams and missiles would leave from an empty spot).
+    if (!drag.moved && !duel.active && !pinnedByRampage(raging) && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > DRAG_THRESHOLD) {
       drag.moved = true;
       stage.classList.add('dragging');
       hover.closeNow();

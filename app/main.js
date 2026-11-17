@@ -1636,6 +1636,11 @@ function start() {
   function onDrag(phase) {
     if (!win || win.isDestroyed()) return;
     if (phase === 'start') {
+      // The rampage fires from where it stands (its eyes, its hatch): not now (the page holds back too).
+      if (rampage && rampageLib.pinsBuddy(rampage.phase)) {
+        log.devOnly(`drag refused: the rampage fires from here (${rampage.phase})`);
+        return;
+      }
       if (trip) endTrip(true); // picked up mid-trip
       endFist('drag');
       const cursor = screen.getCursorScreenPoint();
@@ -2605,7 +2610,7 @@ function start() {
 
   function startRampage(req) {
     const refuse = () => canSend() && win.webContents.send('buddy:rampage', { phase: null });
-    if (!win || win.isDestroyed() || quitting || paused || rampage || giant || !anchor || Date.now() - lastRampage < rampageLib.RAMPAGE.cooldownMs) {
+    if (!win || win.isDestroyed() || quitting || paused || rampage || giant || !anchor || drag || Date.now() - lastRampage < rampageLib.RAMPAGE.cooldownMs) {
       return refuse();
     }
     const here = placement.nearestDisplay(anchor, displays());
@@ -2619,7 +2624,8 @@ function start() {
     const plan = rampageLib.planRampage({ area, eyes: req.eyes.map(local), hatch: local(req.hatch), face: req.face, chase });
     lastRampage = Date.now();
     const ew = effectWindow(display, 'Perchbot effects');
-    const r = { ew, timers: [], started: false, aim: null };
+    // phase: the page's pose; 'charge' until the first beam (rampageLib.pinsBuddy: no drag meanwhile).
+    const r = { ew, timers: [], started: false, aim: null, phase: 'charge' };
     rampage = r;
     log.info(chase ? 'rampage: laser eyes and missiles, then after the cursor' : 'rampage: laser eyes and missiles');
     ew.on('closed', () => {
@@ -2657,6 +2663,7 @@ function start() {
             r.timers.push(
               setTimeout(() => {
                 if (rampage !== r) return;
+                r.phase = step.phase;
                 if (step.phase === null) endRampage('done');
                 else if (canSend()) win.webContents.send('buddy:rampage', { phase: step.phase });
               }, step.at),

@@ -282,4 +282,18 @@ class Streak {
   }
 }
 
-module.exports = { RAMPAGE, parseRampage, planRampage, toEffect, aimPoint, Streak };
+/**
+ * The phases that fire from where it stands: the beams leave its eyes and the
+ * missiles its hatch where they were when it began, so it cannot be dragged
+ * away meanwhile ('charge' is the glow before the first beam). Once all is
+ * fired ('smug', 'heal') it can be moved again. The page has the same list
+ * (renderer/lib/fun.js RAMPAGE_PINNED; a test keeps the two equal).
+ */
+const PINNED_PHASES = Object.freeze(['charge', 'laser', 'missile', 'chase']);
+
+/** True while the rampage keeps it where it stands (no drag). */
+function pinsBuddy(phase) {
+  return PINNED_PHASES.includes(phase);
+}
+
+module.exports = { RAMPAGE, PINNED_PHASES, parseRampage, planRampage, toEffect, aimPoint, Streak, pinsBuddy };

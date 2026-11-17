@@ -11,8 +11,8 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { Fury, FURY, TEMPER_MAX } = require('../app/renderer/lib/fun');
-const { RAMPAGE, parseRampage, planRampage, toEffect, aimPoint, Streak } = require('../app/rampage');
+const { Fury, FURY, TEMPER_MAX, RAMPAGE_PINNED, pinnedByRampage } = require('../app/renderer/lib/fun');
+const { RAMPAGE, PINNED_PHASES, parseRampage, planRampage, toEffect, aimPoint, Streak, pinsBuddy } = require('../app/rampage');
 const { DEMOS } = require('../app/validate');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -379,4 +379,39 @@ test('rampage on the page: the second blaze starts it instead of a flight; poses
   }
   const main = read('app', 'main.js');
   assert.ok(main.includes("'rampage', 'rampageFix'"), 'main sends the quips');
+});
+
+test('rampage pin: no dragging while it fires from where it stands, free again once all is fired', () => {
+  // The page and the main process hold the same list.
+  assert.deepEqual([...RAMPAGE_PINNED], [...PINNED_PHASES]);
+  // Every phase before 'smug' fires from its eyes / hatch as they were at the start: pinned.
+  for (const chase of [true, false]) {
+    for (let seed = 1; seed <= 10; seed += 1) {
+      const plan = planRampage({
+        area: { x: 0, y: 0, width: 1920, height: 1040 },
+        eyes: [{ x: 400, y: 600 }, { x: 426, y: 600 }],
+        hatch: { x: 413, y: 650 },
+        chase,
+        random: seeded(seed),
+      });
+      const names = plan.phases.map((p) => p.phase);
+      const smug = names.indexOf('smug');
+      assert.ok(smug > 0);
+      for (const phase of names.slice(0, smug)) assert.ok(pinsBuddy(phase) && pinnedByRampage(phase), `${phase} is pinned`);
+      for (const phase of names.slice(smug)) assert.ok(!pinsBuddy(phase) && !pinnedByRampage(phase), `${phase} lets it move`);
+    }
+  }
+  // The glow before the first beam is pinned too; no rampage (null) or work came in ('away'): free.
+  assert.ok(pinsBuddy('charge') && pinnedByRampage('charge'));
+  for (const free of [null, undefined, 'away', 'smug', 'heal']) assert.ok(!pinsBuddy(free) && !pinnedByRampage(free), String(free));
+
+  // The page does not start a drag meanwhile; main refuses one as a backstop and starts no rampage mid-drag.
+  const page = read('app', 'renderer', 'renderer.js');
+  assert.ok(page.includes('if (!drag.moved && !duel.active && !pinnedByRampage(raging) && Math.hypot('), 'page holds back the drag');
+  assert.match(page, /function goRampage\(\) \{\n\s+if \(raging \|\| [^\n]*\bdrag\b/, 'no rampage while the pointer holds it');
+  const main = read('app', 'main.js');
+  assert.ok(main.includes('if (rampage && rampageLib.pinsBuddy(rampage.phase)) {'), 'main refuses the drag');
+  assert.ok(main.includes("phase: 'charge' };"), "main starts at 'charge'");
+  assert.ok(main.includes('r.phase = step.phase;'), 'main follows the phases');
+  assert.match(main, /function startRampage\(req\) \{[\s\S]{0,200}\|\| drag \|\|/, 'no rampage mid-drag');
 });
