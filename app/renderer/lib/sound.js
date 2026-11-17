@@ -42,9 +42,13 @@
  *   yawn     sleepy, before a nap
  *   done / error / alert   work signals: finished, a tool failed, a question
  *
- * CUES says which sound plays when, in the buddy's own plays and in the cat's
- * routine (times match characters/robot/*.css). scheduleCues() sets the
- * timers, and sets none at all while the sound is off.
+ * CUES says which sound plays when, in the buddy's own plays, the cat's
+ * routine, the rampage, the work moments and the giant peek's knocks (times
+ * match characters/robot/*.css and renderer/overlay.css). scheduleCues() sets
+ * the timers, and sets none at all while the sound is off. The page decides
+ * who may be heard when (renderer.js): the user's own taps and the rampage
+ * they set off also at work, the buddy's own life not then, the work moments
+ * only with Work sounds on.
  */
 (function (root, factory) {
   const api = factory();
@@ -593,7 +597,8 @@
    * Which sound plays when (ms after the start). `play`: the buddy's ambient
    * plays (PLAYS in lib/fun.js; keyframes in characters/robot/robot.css).
    * `cat`: the cat's phases (lib/pet.js; characters/robot/cat.css). A play
-   * that is not listed stays silent (stretch, look, peek, moonwalk).
+   * that is not listed stays silent (stretch, look, peek). `moment`: the work
+   * moments (with Work sounds); `giant`: the giant peek's knocks.
    */
   const CUES = Object.freeze({
     play: Object.freeze({
@@ -632,6 +637,50 @@
       juggle: sheet([...every(750, 200, 3800, 'tick', [1.7, 1.55, 1.85]), cue(3950, 'whoosh', 1.5), cue(4500, 'bonk'), cue(5200, 'bounce', 1.3)]),
       // rb-where-* 5.8 s: three steps up to the glass, three knocks (2.6 / 2.92 / 3.24 s), the question.
       where: sheet([cue(750, 'tick', 1.4), cue(1330, 'tick', 1.4), cue(1910, 'tick', 1.4), cue(2600, 'tick', 0.6), cue(2920, 'tick', 0.6), cue(3240, 'tick', 0.6), cue(3450, 'chirp', 0.9)]),
+      // rb-mw-heel 0.8 s, the heels taking turns (left from 0, right from 0.4 s): a soft step at each lift.
+      moonwalk: sheet(every(400, 400, 3000, 'tick', [0.8, 0.95])),
+    }),
+    /**
+     * Work moments (renderer.js onMoment, TERMINAL_SHOWS; times match their
+     * overlay.css keyframes). They come with Claude Code's work, so they play
+     * only with Sound and Work sounds on, like the other work signals.
+     */
+    moment: Object.freeze({
+      // buddy-flag 2.6 s: up at 10 %, then it waves.
+      commit: sheet([cue(200, 'tick', 1.1), cue(520, 'sparkle', 1.1)]),
+      // buddy-rocket 1.9 s: it shakes, then lifts off at ~30 %.
+      push: sheet([cue(100, 'charge', 1.5), cue(480, 'launch', 1.1)]),
+      // buddy-pr-flap / buddy-pr-seal 2.3 s: the flap shuts (34 %), the seal pops (42 %), off it flies (55-62 %).
+      pr: sheet([cue(760, 'tick', 1.3), cue(940, 'tick', 1.7), cue(1300, 'whoosh', 1.3)]),
+      // buddy-plan-open: the blueprint unrolls.
+      plan: sheet([cue(0, 'whoosh', 1.6)]),
+      // buddy-plan-stamp 0.4 s: the stamp lands at 60 %.
+      planOk: sheet([cue(240, 'bonk', 0.65)]),
+      // buddy-plug-head / -led 2.6 s: the plug goes in (26 %), the light comes on (30 %).
+      plug: sheet([cue(660, 'tick', 0.8), cue(800, 'beep', 1.6)]),
+      // buddy-merge-a 2.2 s: the pieces meet at 40 %, the spark at 50 %.
+      merge: sheet([cue(880, 'tick', 1.25), cue(1080, 'sparkle', 1.2)]),
+      // buddy-clash-a 2.2 s: they knock together at 34 % and bounce apart; it scratches its head.
+      conflict: sheet([cue(750, 'bonk', 0.8), cue(1150, 'grumble', 1.1)]),
+      // buddy-branch-stem / -twig 2.6 s: the sapling shoots up, the new twig.
+      branch: sheet([cue(250, 'whoosh', 1.8), cue(1400, 'sparkle', 1.3)]),
+      // buddy-stash-in 1.8 s: the note flies in, into the pocket at ~80 %.
+      stash: sheet([cue(150, 'whoosh', 1.5), cue(1400, 'tick', 1.2)]),
+      // buddy-stash-out 1.8 s: out of the pocket and up.
+      unstash: sheet([cue(200, 'tick', 1.2), cue(450, 'whoosh', 1.5)]),
+      // buddy-pull-fish 2.4 s: the fish leaps (16-32 %), splashes into the bucket at 56 %.
+      pull: sheet([cue(380, 'whoosh', 1.3), cue(1340, 'bounce', 1.5), cue(1440, 'tick', 1.8)]),
+      // The siren (buddy-force-beam 0.6 s round): a two-tone whoop.
+      force: sheet(every(0, 300, 1500, 'beep', [1, 1.33])),
+      // buddy-rewind-long 2.2 s: the hands spin backwards from 10 to 80 %.
+      rewind: sheet(every(240, 180, 1700, 'tick', [1.3, 1.1])),
+      // buddy-install-drop 2.8 s: the parcel falls, lands at 28 %, the spark after it.
+      install: sheet([cue(80, 'whoosh', 1.2), cue(780, 'bounce', 0.9), cue(1500, 'sparkle', 1.15)]),
+    }),
+    /** The giant peek's knuckles on the glass (app/giant.js GIANT.knockHits / againHits): big and low. */
+    giant: Object.freeze({
+      knock: sheet([cue(495, 'tick', 0.45), cue(795, 'tick', 0.45), cue(1095, 'tick', 0.45)]),
+      again: sheet([cue(405, 'tick', 0.42), cue(705, 'tick', 0.42), cue(1005, 'tick', 0.42)]),
     }),
     /**
      * The rampage's phases (app/rampage.js: four launches 320 ms apart, the

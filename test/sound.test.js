@@ -150,7 +150,7 @@ test('sound cues: known sounds, and each one is over before its play ends', () =
     check(`play ${play}`, cues, PLAYS[play]);
   }
   const silent = Object.keys(PLAYS).filter((name) => !CUES.play[name]).sort();
-  assert.deepEqual(silent, ['look', 'moonwalk', 'peek', 'stretch'], 'the quiet plays stay quiet');
+  assert.deepEqual(silent, ['look', 'peek', 'stretch'], 'the quiet plays stay quiet');
   assert.deepEqual(Object.keys(CUES.cat).sort(), ['cuddle', 'enter', 'laser', 'nap', 'play']);
   check('cat laser', CUES.cat.laser, PET_TIMINGS.laserMs);
   // Petted: it purrs while it is petted (the walk up to the robot is short).
@@ -292,7 +292,87 @@ test('sound: work signals only with Sound and Work sounds on (a switch of its ow
   const page = fs.readFileSync(path.join(__dirname, '..', 'app', 'renderer', 'renderer.js'), 'utf8');
   assert.ok(page.includes("if (paused || settings.workSounds === false) return false;"));
   for (const piece of ["workSfx('done')", "workSfx('alert')", "workSfx('error')", "workSfx('holo')"]) assert.ok(page.includes(piece), piece);
-  assert.ok(page.includes('    if (BUSY.has(next.state)) sound.stopAll();\n    workSignals(previous, next);'), 'after the stop, so the signal is heard');
+  // Only when work starts (not on every event during work: the user's own sounds would be cut off).
+  assert.ok(page.includes('    if (BUSY.has(next.state) && !BUSY.has(previous.state)) sound.stopAll();\n    workSignals(previous, next);'), 'after the stop, so the signal is heard');
   const main = fs.readFileSync(path.join(__dirname, '..', 'app', 'main.js'), 'utf8');
   assert.ok(main.includes('workSounds: settings.workSounds !== false,'));
+});
+
+/** How long each sound rings (ms), measured with the fake context. */
+function soundLengths() {
+  const { b, clock } = board();
+  b.setEnabled(true);
+  const length = new Map();
+  for (const name of NAMES) {
+    clock.advance(5000);
+    b.play(name);
+    length.set(name, b.voices.at(-1).end - clock.now() - 30);
+  }
+  return length;
+}
+
+test('sound cues: the work moments and the giant peek, each one over before its picture is gone', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const { GIANT } = require('../app/giant');
+  const page = fs.readFileSync(path.join(__dirname, '..', 'app', 'renderer', 'renderer.js'), 'utf8');
+  const length = soundLengths();
+  // How long each picture stays (renderer.js FLAG_MS, ROCKET_MS, PLAN_STAMP_MS, PLUG_MS and
+  // TERMINAL_SHOWS ms; overlay.css buddy-pr 2.3 s; the blueprint stays up while the plan waits).
+  const constant = (name) => Number(new RegExp(`const ${name} = (\\d+);`).exec(page)[1]);
+  const limits = { commit: constant('FLAG_MS'), push: constant('ROCKET_MS'), pr: 2300, plan: 1500, planOk: constant('PLAN_STAMP_MS'), plug: constant('PLUG_MS') };
+  for (const m of page.matchAll(/^ {4}(\w+): \{ box: '[^']+', x: [\d.]+, y: [\d.]+, ms: (\d+),/gm)) limits[m[1]] = Number(m[2]);
+  assert.equal(Object.keys(limits).length, 15, 'six moments with a picture and nine terminal shows');
+  assert.deepEqual(Object.keys(CUES.moment).sort(), Object.keys(limits).sort(), 'one sheet for each of them');
+  for (const [kind, cues] of Object.entries(CUES.moment)) {
+    assert.ok(cues.length > 0, kind);
+    for (const c of cues) {
+      assert.ok(NAMES.includes(c.sound), `${kind}: ${c.sound}`);
+      assert.ok(c.pitch >= 0.25 && c.pitch <= 4, `${kind}: pitch ${c.pitch}`);
+      // A little ring after the picture fades is fine (it is removed 200 ms after its animation).
+      assert.ok(c.at >= 0 && c.at + length.get(c.sound) <= limits[kind] + 200, `${kind}: ${c.sound} at ${c.at} ms is over by ${limits[kind]} ms`);
+    }
+    assert.deepEqual(cues.map((c) => c.at), cues.map((c) => c.at).sort((x, y) => x - y), `${kind}: in order`);
+  }
+  // The knocks land when its knuckles hit the glass (app/giant.js).
+  assert.deepEqual(CUES.giant.knock.map((c) => c.at), [...GIANT.knockHits]);
+  assert.deepEqual(CUES.giant.again.map((c) => c.at), [...GIANT.againHits]);
+  for (const c of [...CUES.giant.knock, ...CUES.giant.again]) assert.equal(c.sound, 'tick');
+  assert.ok(CUES.giant.knock.every((c) => c.at + length.get('tick') <= GIANT.knockMs));
+  // Moonwalk: a soft step at each heel lift.
+  assert.ok(CUES.play.moonwalk.every((c) => c.sound === 'tick'));
+});
+
+test("sound on the page: the user's own taps and the rampage they set off are heard at work too; new little sounds", () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const page = fs.readFileSync(path.join(__dirname, '..', 'app', 'renderer', 'renderer.js'), 'utf8');
+  // sfx stays as it was: the buddy's own sounds are quiet at work and at rest.
+  assert.ok(page.includes('    if (paused || rest.resting || BUSY.has(view.state)) return false;\n    return sound.play(name, { pitch });'));
+  // ownSfx: only a pause (a locked screen) stops it.
+  assert.ok(page.includes('  function ownSfx(name, pitch = 1) {\n    if (paused) return false;\n    return sound.play(name, { pitch });'));
+  for (const piece of [
+    "if (whip && e) ownSfx('crack');",
+    "else if (verdict === 'flee') ownSfx('grumble');",
+    "else ownSfx('bonk', pitch);",
+    "else ownSfx('bonk', sound.tapPitch() * 1.45);",
+    "playCues('rampage-charge', CUES.rampage.charge, () => raging === 'charge', ownSfx);",
+    'CUES.rampage[phase], () => raging === phase, ownSfx);',
+    // A hover menu button; picked up, thrown, down again.
+    "rest.activity();\n        ownSfx('tick', 1.5);",
+    "ownSfx('boing', 1.5);\n      window.buddy.drag('start');",
+    "if (m.kind === 'fling' && m.mode !== 'settle') ownSfx('whoosh', 1.15);",
+    "if (m.kind === 'fling' && m.arrived) ownSfx('bounce', 1.1);",
+    "else if (m.kind === 'fall' && m.arrived) sfx('bounce', 0.85);",
+    // Work moments and the bug hunt: work sounds; the giant's knocks: its own life.
+    'playCues(`moment-${kind}`, cues, () => true, workSfx);',
+    "workSfx('clang', final ? 1.2 : 1.35);",
+    "workSfx('sparkle', 1.1);",
+    'playCues(`giant-${phase}`, CUES.giant[phase], () => giant === phase);',
+  ]) {
+    assert.ok(page.includes(piece), piece);
+  }
+  // Work sheets are scheduled only with Work sounds on too; every work moment asks for its sound.
+  assert.ok(page.includes('on: (settings.sound === true || soundDemo) && (play !== workSfx || settings.workSounds !== false),'));
+  assert.ok(page.includes("    trace(`moment: ${kind}`);\n    momentSound(kind);"));
 });

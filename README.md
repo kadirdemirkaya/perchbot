@@ -158,7 +158,10 @@ same by hand.
 - **Quiet mode** hides file names and commands: handy while you share your screen.
 - **Ambient life** (tray) lets it and its helpers roam your screens when idle; **Stay here** keeps it on its spot.
 - **Several accounts** (`CLAUDE_CONFIG_DIR`)? Tray > Account > *One buddy per account* gives each one its own robot.
-- **Sound** (tray, off by default): little robot sounds made in code, no audio files.
+- **Sound** (tray, off by default): little robot sounds made in code, no audio files. Your own clicks,
+  drags and throws, and the laser and missiles your taps set off, are heard even while the agent works.
+  With *Work sounds* on, commits, pushes, PRs, plans, MCP tools, the terminal shows and the bug hunt get
+  their own short sounds too.
 - **Hands** (Windows, tray, off by default): Chrome, tab and YouTube buttons in the chat panel. It presses
   them through Windows UI Automation; your mouse is not moved, tab titles and addresses are not read.
 - **Watch me type** (Windows, tray, off by default; needs ambient life): while you type in a terminal

@@ -212,6 +212,16 @@
     return sound.play(name, { pitch });
   }
 
+  /**
+   * A sound of something the user did (a tap, picking it up, a menu button, the rampage the
+   * taps set off): heard while it works too. sfx() stays quiet at work and at rest: those are
+   * the buddy's own sounds, and a work state must not make the user's own click silent.
+   */
+  function ownSfx(name, pitch = 1) {
+    if (paused) return false;
+    return sound.play(name, { pitch });
+  }
+
   /** A work signal (done, a failure, a question, focus mode): with Sound and Work sounds on. */
   function workSfx(name, pitch = 1) {
     if (paused || settings.workSounds === false) return false;
@@ -234,19 +244,20 @@
    * The sounds that go with a play or the cat's routine (BuddySound.CUES).
    * With the sound off this sets no timers at all; each one checks `still()`
    * when it fires, so a play cut short goes quiet. A little random wobble in
-   * pitch, so a repeated sound is never quite the same.
+   * pitch, so a repeated sound is never quite the same. `play`: sfx (the buddy's own life),
+   * ownSfx (what the user did) or workSfx (the work: only with Work sounds on too).
    */
-  function playCues(key, cues, still) {
+  function playCues(key, cues, still, play = sfx) {
     if (sound === SILENT_BOARD) return;
     window.BuddySound.scheduleCues(cues, {
-      on: settings.sound === true || soundDemo,
+      on: (settings.sound === true || soundDemo) && (play !== workSfx || settings.workSounds !== false),
       key: `cue-${key}`,
       later,
       still,
-      play: (name, pitch) => trace(`sound: ${name} (${key}) ${sfx(name, pitch * (0.97 + Math.random() * 0.06)) ? 'played' : 'skipped'}`),
+      play: (name, pitch) => trace(`sound: ${name} (${key}) ${play(name, pitch * (0.97 + Math.random() * 0.06)) ? 'played' : 'skipped'}`),
     });
   }
-  const CUES = window.BuddySound ? window.BuddySound.CUES : { play: {}, cat: {}, rampage: {} };
+  const CUES = window.BuddySound ? window.BuddySound.CUES : { play: {}, cat: {}, rampage: {}, moment: {}, giant: {} };
 
   // ---------------------------------------------------------------- character loading
 
@@ -393,7 +404,9 @@
       duel.stop();
       dropQuip();
     }
-    if (BUSY.has(next.state)) sound.stopAll();
+    // Work starts: the buddy's own sounds stop (not on every event during work: that would
+    // cut off the sounds of the user's own taps and of the rampage they set off).
+    if (BUSY.has(next.state) && !BUSY.has(previous.state)) sound.stopAll();
     workSignals(previous, next);
     if (!CALM.has(next.state)) {
       pet.interrupt();
@@ -873,6 +886,7 @@
       // Picked off the top edge: it lets go.
       flag('hang', null);
       flag('ledge', null);
+      ownSfx('boing', 1.5);
       window.buddy.drag('start');
     }
     if (drag.moved && !drag.frame) {
@@ -952,6 +966,7 @@
       button.addEventListener('mouseleave', hideTooltip);
       button.addEventListener('click', () => {
         rest.activity();
+        ownSfx('tick', 1.5);
         // The same button ends the duel it started (the page owns the duel).
         if (item.id === 'play' && duel.active) {
           trace('duel: stopped from the menu');
@@ -1455,6 +1470,7 @@
   const DUCK_BYE_MS = 1300;
   function onMoment(kind) {
     trace(`moment: ${kind}`);
+    momentSound(kind);
     if (kind === 'cube') {
       popCube();
       return;
@@ -1521,6 +1537,18 @@
       }
       quip(kind, 1500);
     }
+  }
+
+  /**
+   * The sound of a work moment (a flag, a rocket, an envelope, the stamp, a plug, the terminal
+   * shows), timed to its picture: only when the picture is shown, with Sound and Work sounds on.
+   * planOk: only when a blueprint is out to stamp.
+   */
+  function momentSound(kind) {
+    const cues = CUES.moment && Object.hasOwn(CUES.moment, kind) ? CUES.moment[kind] : null;
+    if (!cues || !motionAllowed() || !character) return;
+    if (kind === 'planOk' && !blueprint) return;
+    playCues(`moment-${kind}`, cues, () => true, workSfx);
   }
 
   /** The duck hops off (a jump, a spin, gone), then the view decides again. */
@@ -2113,9 +2141,10 @@
     trace(`tap: ${verdict}${busy ? ' (busy)' : ''}`);
     // A bonk that climbs with quick taps (a crack with the whip); "hmph" when it leaves.
     const pitch = sound.tapPitch();
-    if (whip && e) sfx('crack');
-    else if (verdict === 'flee') sfx('grumble');
-    else sfx('bonk', pitch);
+    // (The user's own click: heard while it works too.)
+    if (whip && e) ownSfx('crack');
+    else if (verdict === 'flee') ownSfx('grumble');
+    else ownSfx('bonk', pitch);
     if (verdict === 'boop') {
       if (whip) quip('ouch', 900);
       else boop();
@@ -2229,7 +2258,7 @@
     cancel('flee');
     flag('annoyed', TEMPER_MAX);
     flag('rampage', 'charge', true);
-    playCues('rampage-charge', CUES.rampage.charge, () => raging === 'charge');
+    playCues('rampage-charge', CUES.rampage.charge, () => raging === 'charge', ownSfx);
     dropCurious(true);
     quip('rampage', 2600);
     window.buddy.rampage({ eyes, hatch: centerOf(hatch), face: holder.dataset.face === 'left' ? 'left' : 'right' });
@@ -2250,7 +2279,7 @@
     trace(`rampage: ${phase}`);
     raging = phase;
     flag('rampage', phase);
-    if (CUES.rampage[phase]) playCues(`rampage-${phase}`, CUES.rampage[phase], () => raging === phase);
+    if (CUES.rampage[phase]) playCues(`rampage-${phase}`, CUES.rampage[phase], () => raging === phase, ownSfx);
     // All fired: it has blown off steam, the flames go out (and stop costing frames).
     if (phase === 'smug') flag('annoyed', null);
     if (phase === 'heal') {
@@ -2294,8 +2323,8 @@
       crew.react(id, 'ouch');
       armWhip();
     }
-    if (whip) sfx('crack');
-    else sfx('bonk', sound.tapPitch() * 1.45);
+    if (whip) ownSfx('crack');
+    else ownSfx('bonk', sound.tapPitch() * 1.45);
     if (!ambientOn()) {
       crew.react(id, 'boop');
       return;
@@ -2311,7 +2340,7 @@
       crew.react(id, 'annoyed');
     } else {
       crew.react(id, 'shoo');
-      sfx('grumble', 1.4);
+      ownSfx('grumble', 1.4);
     }
   }
 
@@ -2616,6 +2645,7 @@
     }
     flag('duel', phase);
     if (phase === 'win') {
+      workSfx('sparkle', 1.1);
       if (!NO_BUG_QUIP.has(view.state)) quip('bugFixed', BUG_QUIP_MS);
       burstConfetti(10, bugView.point());
       // The helpers cheer along.
@@ -2630,11 +2660,15 @@
       const at = bugView.point();
       if (!hit) {
         if (at) effect('swoosh', at.x, at.y - 10);
+        workSfx('whoosh', 1.35);
         return;
       }
       if (at) effect('spark', at.x, at.y);
-      if (final) bugView.squash();
-      else bugView.flinch();
+      workSfx('clang', final ? 1.2 : 1.35);
+      if (final) {
+        bugView.squash();
+        workSfx('bonk', 0.7);
+      } else bugView.flinch();
     });
   }
 
@@ -2656,6 +2690,7 @@
       cancel('warp-in');
       stage.classList.remove('warp-in');
       stage.classList.add('warping');
+      sfx('whoosh', 1.7);
       later('warp', motionAllowed() ? WARP_FADE_MS : 0, () => requestAnimationFrame(() => window.buddy.flipReady()));
     } else if (phase === 'show') {
       const warped = stage.classList.contains('warping');
@@ -2723,6 +2758,9 @@
       flag('face', m.face === 'left' ? 'left' : null);
       crew.setTravel(m.mode, m.face);
       pet.setTravel(m.mode, m.face);
+      // Thrown: air rushing past (a drop that only settles is quiet until it lands). Off a window: a drop.
+      if (m.kind === 'fling' && m.mode !== 'settle') ownSfx('whoosh', 1.15);
+      else if (m.kind === 'fall') sfx('whoosh', 0.75);
       trace(`trip: ${m.kind} (${m.mode})`);
     } else {
       moving = null;
@@ -2736,6 +2774,9 @@
       // (m.ledge: it sits down ON the edge instead, legs over the title bar: main sends data-ledge.)
       if (m.kind === 'perch' && m.arrived && !m.ledge && ambientOn() && CALM.has(view.state)) later('perch-sit', 350, () => ambient.run('sit'));
       if (m.kind === 'fall') quip('whoa', 1200);
+      // Down again after a throw, a drop or a fall: a soft landing.
+      if (m.kind === 'fling' && m.arrived) ownSfx('bounce', 1.1);
+      else if (m.kind === 'fall' && m.arrived) sfx('bounce', 0.85);
       crew.setTravel(null);
       pet.setTravel(null);
       if (m.kind === 'inspect' && m.arrived && motionAllowed() && m.lens) {
@@ -2839,6 +2880,7 @@
     trace(`giant: ${phase}`);
     cancel('giant-guard');
     giant = phase;
+    if (CUES.giant && Object.hasOwn(CUES.giant, phase)) playCues(`giant-${phase}`, CUES.giant[phase], () => giant === phase);
     // The giant is out (drawn right where it stands): the small one hides until it is back.
     stage.classList.add('giant-away');
   }
