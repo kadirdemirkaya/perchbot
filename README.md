@@ -32,11 +32,8 @@ The first `perchbot setup` also downloads Electron, the window the robot lives i
 Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows up with your next prompt.
 `perchbot demo` plays every state without an agent. From a clone: `npm install`, then `npm run setup`.
 
-**Updating:** `npm install -g perchbot` again is enough. A few seconds after it next starts, the robot adds
-any hook the new version listens to (e.g. `PostModelSwitch` for the model looks), backing up each file first.
-It only does this in accounts that already have this copy's hooks, and it leaves alone any account hooked
-to another copy. You can turn it off in the tray (*Keep hooks up to date*); `perchbot setup` still does the
-same by hand.
+**Updating:** run `npm install -g perchbot` again. On its next start the robot adds any new hooks by
+itself (backing up each file first), only in accounts that already use this copy. Tray: *Keep hooks up to date*.
 
 ## What it does
 
@@ -45,26 +42,26 @@ same by hand.
 | the agent thinks, reads, searches, edits or runs a command | takes a pose for each step and says what it is on ("Editing auth.js") |
 | the agent waits for you | nudges you, then knocks until you answer |
 | a turn ends | cheers, with a short summary ("Done! 4 steps in 12 s"); on Friday afternoons it dances |
-| a long turn ends while you look elsewhere | flies over to your cursor (even on another screen): "All done! Over to you.", then back |
-| sub-agents start | little helpers join in, work beside it, chat, play tag, build towers, poke your resting cursor and report back |
+| a long turn ends while you look elsewhere | flies over to your cursor: "All done! Over to you.", then back |
+| sub-agents start | little helpers join in, work beside it, play and report back |
 | a skill is in use | reads its skill book, the skill's name on a tag |
 | a test or check fails | a bug turns up and they fight until a check passes ("Bug fixed!") |
 | a commit, a push | plants a flag, launches a rocket |
 | a pull request (`gh pr create`) | seals an envelope and sends it flying |
 | a plan waits for your approval | unrolls a blueprint beside it; approved: a stamp on it |
 | an MCP tool runs | plugs a cable into a socket, the light blinks green |
-| git merge / rebase, a new branch, stash and stash pop, pull, force push, reset --hard, a package install | puzzle pieces click (or bounce apart in a conflict), a sapling grows a branch, a note goes into its pocket and comes back, a fish leaps into a bucket, a siren (it flinches), a clock spins backwards, a parcel drops in |
+| git merge, a new branch, stash, pull, force push, reset, a package install | puzzle pieces click, a sapling grows, a note goes into its pocket, a fish leaps into a bucket, a siren wails, a clock spins backwards, a parcel drops in |
 | checks keep failing | sweats, then "Phew!" when it is green again |
-| the work gets stuck (five steps fail in a row) | takes a rubber duck out of its pocket and explains it all to it; the duck sits on its head until something works: "Thanks, duck!" |
-| a command runs on and on | after 20 s it sits back with a bucket of popcorn, eyes on the command, until it is done |
-| the conversation is compacted | pumps a little press over a stack of paper; when it is done, a cube of paper pops out |
+| the work gets stuck (five fails in a row) | explains it all to a rubber duck, which sits on its head until something works |
+| a command runs on and on | sits back with a bucket of popcorn until it is done |
+| the conversation is compacted | pumps a little press; out pops a cube of paper |
 | the work gets intense | puts on a headband and codes on a screen of light |
-| the session runs Haiku, Sonnet, Opus or Fable | dresses for it, finer each step up: plain silver; orchid with a gleam; the classic lilac trimmed in gold with a star on its brow; midnight violet with a glowing bulb and fairy dust |
+| the session runs Haiku, Sonnet, Opus or Fable | dresses for the model: silver, orchid, lilac and gold, midnight violet |
 | you tap it | loves it, up to a point: then it fumes, catches fire and goes on a rampage across your screen |
 | you start a duel | a sword fight against your cursor, three hearts each |
-| it is idle | backflips, moonwalks, plays with a yo-yo, juggles (until a ball lands on its head), breathes on the glass and draws a heart in the fog, blows bubbles, throws paper planes, gets visitors, plays with its cat, flies off now and then and carries on wherever it lands, sits on top of a window with its legs dangling over the edge and rides along when it moves (Windows), has a coffee in the morning, walks up to the glass before a nap and knocks: "Where are you?" (hover it: "There you are!"; with *Giant peek* on it grows up to ten times its size on the way), naps (in a nightcap late at night) |
+| it is idle | backflips, moonwalks, juggles, draws a heart in the fog, blows bubbles, plays with its cat, gets visitors, flies around, perches on windows (Windows), has a morning coffee, knocks on the glass before a nap ("Where are you?"), naps |
 | the cursor rests somewhere | now and then it flies over for a look through its magnifier |
-| you type in a terminal, VS Code or another app (Windows, opt-in) | now and then it flies over, reads along above the line, and a light bulb goes on: got it! |
+| you type (Windows, opt-in) | now and then it flies over, reads along, and a light bulb goes on |
 | you open the chat | answers questions about the work; on Windows (opt-in) it opens Chrome, a tab or YouTube for you |
 
 ## See it in action
@@ -152,37 +149,22 @@ same by hand.
 
 ## Using it
 
-- **Hover** it for its menu, **drag** it anywhere, **right-click** it to walk, fly, duel or call the cat.
-  Everything else is in the tray icon. (While it fires its laser eyes and missiles, it stays put: it can
-  be dragged again once everything has been fired.)
+- **Hover** it for its menu, **drag** it anywhere (not while it fires its lasers), **right-click** it to
+  walk, fly, duel or call the cat. Everything else is in the tray icon.
 - **Quiet mode** hides file names and commands: handy while you share your screen.
-- **Ambient life** (tray) lets it and its helpers roam your screens when idle; **Stay here** keeps it on its spot.
-- **Several accounts** (`CLAUDE_CONFIG_DIR`)? Tray > Account > *One buddy per account* gives each one its own robot.
-- **Sound** (tray, off by default): little robot sounds made in code, no audio files. Your own clicks,
-  drags and throws, and the laser and missiles your taps set off, are heard even while the agent works.
-  With *Work sounds* on, commits, pushes, PRs, plans, MCP tools, the terminal shows and the bug hunt get
-  their own short sounds too.
-- **Hands** (Windows, tray, off by default): Chrome, tab and YouTube buttons in the chat panel. It presses
-  them through Windows UI Automation; your mouse is not moved, tab titles and addresses are not read.
-- **Watch me type** (Windows, tray, off by default; needs ambient life): while you type in a terminal
-  (Windows Terminal or the classic console), VS Code or another app that tells Windows where its text
-  cursor is, it comes over now and then (at most once a minute) to read along, then a light bulb goes on.
-  It only asks Windows where the text cursor is: never what you type.
-- **Follow Windows** (Windows, last button of the hover menu, off by default): when you delete a file or a
-  folder in Windows (it goes to the Recycle Bin), it comes over and slashes a ghost of it with its sword,
-  coloured by type. It deletes nothing itself. Shift+Delete and command-line deletes skip the Recycle Bin,
-  so it does not see those; while Claude Code is working it lets deletes go.
-- **Look by model** (tray and right-click menu, on by default): the robot dresses for the model your
-  session runs (Haiku, Sonnet, Opus, Fable); with several sessions open, the highest one wins. A new
-  session brings its model; for a switch mid-session (`/model`) setup adds a `PostModelSwitch` hook when
-  your Claude Code is 2.1.251 or newer (older ones: the look follows new sessions only). Off, or a model
-  it does not know: the classic lilac look.
-- **Giant peek** (last button of the hover menu, also in the tray, off by default; needs ambient life):
-  before a nap, instead of the small "Where are you?", it walks up to the glass from where it stands,
-  bigger with every step (up to ten times its size, peeking up from the bottom of the screen, on the
-  side where it stands), knocks and listens. Flying or up on a window, it comes down to the ground
-  first. Nobody there: it shrugs, walks back to its spot and naps. Move the pointer onto it:
-  "There you are!", and it runs back. At most every 10 minutes, never while you are away.
+- **Ambient life** lets it and its helpers roam your screens when idle; **Stay here** keeps it on its spot.
+- **Several accounts?** Tray > Account > *One buddy per account* gives each one its own robot.
+- **Sound** (off by default): little robot sounds made in code. *Work sounds* adds short ones for the work.
+- **Look by model** (on by default): it dresses for your session's model; with several sessions open,
+  the highest one wins. Following `/model` mid-session needs Claude Code 2.1.251 or newer.
+- **Giant peek** (off by default; needs ambient life): before a nap it walks up to the glass, growing up
+  to ten times its size, and knocks. Move the pointer onto it: "There you are!"
+- **Windows only**, off by default:
+  - **Hands**: Chrome, tab and YouTube buttons in the chat. Your mouse is not moved, tab titles are not read.
+  - **Watch me type** (needs ambient life): now and then it reads along while you type. It only asks
+    where the text cursor is.
+  - **Follow Windows**: delete a file and it slashes a ghost of it. It deletes nothing itself, and
+    Shift+Delete or command-line deletes are not seen.
 
 ## Commands
 
@@ -197,24 +179,21 @@ same by hand.
 
 ## Privacy
 
-Only the event, the tool name, a file name (not the path) and a shortened command (secrets masked)
-leave the hook, and only to `127.0.0.1`. Before a compaction it sends the event alone: never your
-compact instructions. For a plan up for approval it sends the tool name only: never the plan. Of the
-model it sends only its family (`haiku`, `sonnet`, `opus` or `fable`, for the robot's look): never the
-model id, never what a switch would cost. With ambient life on, the robot also looks at the system idle
-time, where the cursor is (its position only) and, on Windows, where windows are (frames only, never
-titles or contents). With *Watch me type* on, it also asks Windows where the text cursor of the window
-in front is: a position only, never the text, never your keys. Terminals say when a field is a password
-field and then give nothing; other apps (VS Code, browsers) do not say it, so there too it is a position
-only. It asks other apps through the caret Windows keeps for its Magnifier, not through their screen
-reader support, so they do not change their behaviour for it. With *Giant peek* on, while the giant
-is on screen (about 15 s) it looks at where the cursor is (its position only, kept in the app). With *Follow
-Windows* on, it watches your Recycle Bin for new deletes and takes only the type of each item (its
-extension, or that it was a folder): never its name or where it was. Nothing of it is stored or sent anywhere. With
-*Keep hooks up to date* on, once per start it runs `claude --version` and reads the Claude Code settings
-files to add its own missing hooks; it changes nothing else in them. Settings: `~/.perchbot/settings.json`.
-The only download is Electron itself: once, by `perchbot setup` (or `start` / `demo` while it is still
-missing), with Electron's own installer. The robot never goes online.
+Everything stays on your computer; the robot never goes online.
+
+- **From the hook** (to `127.0.0.1` only): the event, the tool name, a file name (not the path), a
+  shortened command (secrets masked) and the model family (`haiku`, `sonnet`, `opus`, `fable`).
+  Never your prompts, plans, compact instructions or file contents.
+- **Ambient life:** the system idle time, where the cursor is and, on Windows, where windows are
+  (frames only, never titles or contents).
+- **Watch me type:** where the text cursor is, never the text or your keys.
+- **Giant peek:** where the cursor is, only while the giant is on screen.
+- **Follow Windows:** only the type of each deleted item, never its name or where it was.
+- **Keep hooks up to date:** once per start it runs `claude --version` and adds its own missing hooks
+  to your Claude Code settings; nothing else in them changes.
+
+Nothing is stored or sent anywhere. Settings: `~/.perchbot/settings.json`. The only download is
+Electron, once, by `perchbot setup` (or `start` / `demo` while it is still missing).
 
 ## Development
 
