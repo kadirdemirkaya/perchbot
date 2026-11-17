@@ -89,14 +89,15 @@ test('plan: it starts (and ends) on the small one\'s feet, at its size, so the t
     assert.ok(Math.abs(feetX - from.x) < 0.2, `x ${feetX} vs ${from.x}`);
     assert.ok(Math.abs(feetY - from.y) < 0.2, `y ${feetY} vs ${from.y}`);
   }
-  // From the right it walks left (towards the middle), back to the right; from the left the other way.
+  // Right by the right edge it steps in a little (its body stays on the screen): facing left, back
+  // facing right; by the left edge the other way round.
   const right = planGiant({ area, from: { x: 1800, y: 1018 } });
   assert.equal(right.face, 'left');
   assert.equal(right.backFace, 'right');
   const left = planGiant({ area, from: { x: 140, y: 1018 } });
   assert.equal(left.face, 'right');
   assert.equal(left.backFace, 'left');
-  // Right below the middle: it keeps the way the small one faced.
+  // Anywhere else it walks straight up to you: it keeps the way the small one faced.
   assert.equal(planGiant({ area, from: { x: 965, y: 1018 }, face: 'left' }).face, 'left');
   assert.equal(planGiant({ area, from: { x: 965, y: 1018 }, face: 'right' }).backFace, 'right');
   // Off the screen (a stale point): kept inside the work area.
@@ -105,6 +106,76 @@ test('plan: it starts (and ends) on the small one\'s feet, at its size, so the t
   // Words come as given (already translated by main), never anything else.
   const said = planGiant({ area, say: { listen: 'Neredesin?', shrug: 42, found: 'Buradasın!' } }).say;
   assert.deepEqual(said, { listen: 'Neredesin?', shrug: '', found: 'Buradasın!' });
+});
+
+test('plan: big right where it stands (never over to the middle), only moved in as far as its body needs', () => {
+  const along = (p) => p.left + p.size * SHAPE.axis;
+  const body = (p) => ({ from: p.left + p.size * SHAPE.left, to: p.left + p.size * SHAPE.right });
+  for (const [width, height] of SCREENS) {
+    // A second screen to the right, and a taskbar on the left: the work area does not start at 0.
+    for (const x0 of [0, 1920, 48]) {
+      const area = { x: x0, y: 0, width, height };
+      for (const share of [0, 0.05, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95, 1]) {
+        const feetX = x0 + width * share;
+        const p = planGiant({ area, from: { x: feetX, y: height - 22 }, face: 'left' });
+        const b = body(p);
+        assert.ok(b.from >= x0 - 0.2 && b.to <= x0 + width + 0.2, `${width}x${height} at ${share}: its body stays on the screen`);
+        // Above its feet, or as close to them as the screen lets it be.
+        const lo = x0 + p.size * (SHAPE.axis - SHAPE.left);
+        const hi = x0 + width - p.size * (SHAPE.right - SHAPE.axis);
+        const want = Math.min(hi, Math.max(lo, feetX));
+        assert.ok(Math.abs(along(p) - want) < 0.3, `${width}x${height} at ${share}: ${along(p)} vs ${want}`);
+        // The rest of the screen, on the side it stands: more of it there than on the other side.
+        if (share <= 0.2) assert.ok(along(p) < x0 + width / 2 + 0.3, 'on the left: big on the left');
+        if (share >= 0.8) assert.ok(along(p) > x0 + width / 2 - 0.3, 'on the right: big on the right');
+      }
+    }
+  }
+  // Where there is room on both sides, it grows right above its feet: no step sideways at all.
+  const wide = { x: 0, y: 0, width: 2400, height: 1300 };
+  for (const x of [900, 1200, 1500]) {
+    const p = planGiant({ area: wide, from: { x, y: 1278 }, face: 'right' });
+    assert.ok(Math.abs(p.far.x) < 0.2, `at ${x}: ${p.far.x}`);
+    assert.equal(p.face, 'right');
+    assert.equal(p.backFace, 'right');
+  }
+  // On the left, it is not over on the right (as it was when it always went to the middle).
+  const hd = { x: 0, y: 0, width: 1920, height: 1040 };
+  const leftOne = planGiant({ area: hd, from: { x: 140, y: 1018 } });
+  const rightOne = planGiant({ area: hd, from: { x: 1800, y: 1018 } });
+  assert.ok(along(leftOne) < along(rightOne) - 200, `${along(leftOne)} vs ${along(rightOne)}`);
+  assert.ok(Math.abs(body(leftOne).from) < 0.3, 'by the left edge: its body starts at the edge');
+  assert.ok(Math.abs(body(rightOne).to - 1920) < 0.3, 'by the right edge: its body ends at the edge');
+  // The pointer's box goes with it.
+  assert.ok(Math.abs(leftOne.hit.x - body(leftOne).from) < 0.3);
+});
+
+test('it starts on its feet on the ground: down out of the air or off a window first (the story and the demo)', () => {
+  const main = read('app', 'main.js');
+  const start = main.slice(main.indexOf('function startGiant('), main.indexOf('function showGiant('));
+  assert.ok(start.includes("if (perching || pendingPerch || ledgeSink || flight.airborne) return refuse('not on the ground');"));
+  // The page learns it is up on a window (standing, or sitting on the edge).
+  assert.ok(main.includes('if (perched) next.perched = true;'));
+  assert.ok(main.includes('Boolean(next.perched) === Boolean(flight.perched)'), 'sent when that changes');
+  const page = read('app', 'renderer', 'renderer.js');
+  assert.ok(page.includes("perched: next.perched === true && next.airborne !== true,"));
+  // The story's beat: out of the air (as the small one does), off a window, then the giant.
+  const beat = page.slice(page.indexOf("if (name === 'where') {"), page.indexOf("if (big && startGiant()) return 'busy';"));
+  const landing = beat.indexOf("if (landFirst()) return 'later';");
+  const offWindow = beat.indexOf("if (big && offTheWindow()) return 'later';");
+  assert.ok(landing > 0 && offWindow > landing, 'out of the air, then off the window');
+  assert.ok(offWindow < beat.indexOf('whereAt = Date.now();'), 'not counted as asked before it is down');
+  const off = page.slice(page.indexOf('function offTheWindow()'), page.indexOf('function offTheWindow()') + 300);
+  assert.ok(off.includes('if (!flight.perched && !flight.ledge) return false;'));
+  assert.ok(off.includes("window.buddy.fun('land');"));
+  // The demo comes down first too, then asks.
+  const demo = page.slice(page.indexOf('function demoGiant('), page.indexOf('function stopGiant('));
+  assert.ok(demo.includes('const up = flight.airborne || flight.perched || flight.ledge;'));
+  assert.ok(demo.includes("if (up && !moving) window.buddy.fun('land');"));
+  assert.ok(demo.includes("if (!startGiant(true)) trace('giant: not now');"));
+  assert.ok(page.includes("} else if (name === 'giant') {\n      // The giant peek right now, whatever its switch says (normally the idle story's finale).\n      demoGiant();"));
+  // A landing is a trip off the window ('land' is a fun action; a trip ends the perch).
+  assert.ok(main.includes("if (perching || pendingPerch) stopPerch();"));
 });
 
 test('the pointer: on the giant, moved, while it is up at the glass', () => {
@@ -254,7 +325,8 @@ test('the giant\'s page: strict CSP, the SVG cleaned, words as text, poses for e
   // The small one hides while the giant is out, and the story's beat uses it only with the switch on.
   assert.ok(read('app', 'renderer', 'overlay.css').includes('.stage.giant-away .buddy-character {\n  visibility: hidden;\n}'));
   const renderer = read('app', 'renderer', 'renderer.js');
-  assert.ok(renderer.includes("if (settings.giantPeek && crewCount === 0 && startGiant()) return 'busy';"));
+  assert.ok(renderer.includes('const big = settings.giantPeek && crewCount === 0;'));
+  assert.ok(renderer.includes("if (big && startGiant()) return 'busy';"));
   assert.ok(renderer.includes("story.done({ soonMs: GIANT_SLEEPY_MS });"), 'no answer: it naps right there');
   assert.ok(renderer.includes('story.finish();'), 'found: no nap');
   assert.ok(DEMOS.has('giant'));

@@ -1521,6 +1521,8 @@ function start() {
     const perched = Boolean(perching && !boost && point && point.x === perching.anchor.x && point.y === perching.anchor.y);
     const airborne = !perched && placement.isAirborne(altitude, scale(), settings.hoverMode);
     const next = { airborne, boost: airborne && boost, tilt: airborne ? Math.round(tilt * 100) / 100 : 0 };
+    // Up on a window (the giant peek comes down off it first).
+    if (perched) next.perched = true;
     // Sitting ON the edge, legs over the title bar (the page draws that with data-ledge).
     if (perched && perching.drop > 0) next.ledge = true;
     return next;
@@ -1530,7 +1532,7 @@ function start() {
   function updateFlight(next) {
     const same =
       next.airborne === flight.airborne && next.boost === flight.boost && Math.abs(next.tilt - flight.tilt) < 0.08 &&
-      Boolean(next.ledge) === Boolean(flight.ledge);
+      Boolean(next.ledge) === Boolean(flight.ledge) && Boolean(next.perched) === Boolean(flight.perched);
     if (same && !(next.tilt === 0 && flight.tilt !== 0)) return;
     if (next.airborne !== flight.airborne) log.devOnly(`flight: ${next.airborne ? 'hover' : 'ground'}`);
     flight = next;
@@ -2690,8 +2692,9 @@ function start() {
    * walking back to its spot, its own size again (the phases go to both pages: the small one
    * hides while the giant is out). Meanwhile only where the cursor is gets looked at, and only
    * here: on it while it is up at the glass is an answer ('found': a happy hop, "There you
-   * are!", then it runs back). Over: { phase: null, found } to the page. Refused
-   * (switched off, too soon, the screen too small, something else going on):
+   * are!", then it runs back). Over: { phase: null, found } to the page. It starts from
+   * the ground only: up on a window or in the air, the page brings it down first. Refused
+   * (switched off, too soon, the screen too small, not on the ground, something else going on):
    * { phase: null, refused: true }, and the page plays the small "Where are you?" instead.
    * One at a time; work coming in ends it at once. (Its state, giant / lastGiant, is declared
    * up top with the others: the first event may come in before this point.)
@@ -2704,6 +2707,8 @@ function start() {
     };
     if (!win || win.isDestroyed() || quitting || paused || !anchor || !pageLayout) return refuse('no window');
     if (giant || rampage || fist || trip || drag || warping || flipping || typingVisit || handsBusy || chatOpen) return refuse('busy');
+    // Right where it stands, on its feet: never from a window's title bar or from the air.
+    if (perching || pendingPerch || ledgeSink || flight.airborne) return refuse('not on the ground');
     if (!demo && (!settings.giantPeek || !settings.ambientLife)) return refuse('switched off');
     if (!demo && Date.now() - lastGiant < giantLib.GIANT.cooldownMs) return refuse('too soon');
     if (!CALM_STATES.has(core.snapshot().state)) return refuse('at work');

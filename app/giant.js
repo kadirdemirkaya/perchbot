@@ -131,17 +131,22 @@ function planGiant({ area, from = null, face = 'right', say = {} } = {}, o = GIA
   const cut = Math.min(SHAPE.maxCut, SHAPE.top + room / size);
   const bottom = area.y + area.height;
   const middle = area.x + area.width / 2;
-  const left = middle - size * SHAPE.axis;
-  const top = bottom - size * cut;
   // Where it starts and ends: the small one's feet, at its size.
   const scale = BOX / size;
   const feetX = clamp(from && finite(from.x) ? from.x : middle, area.x, area.x + area.width);
   const feetY = clamp(from && finite(from.y) ? from.y : bottom, area.y + BOX * SHAPE.feet, bottom);
+  // Big right where it stands (it walks straight up to you, never over to the middle): its feet's
+  // axis stays above the small one's, only moved in as far as its body needs to stay on the screen.
+  const lo = area.x + size * (SHAPE.axis - SHAPE.left);
+  const hi = area.x + area.width - size * (SHAPE.right - SHAPE.axis);
+  const axisX = lo <= hi ? clamp(feetX, lo, hi) : middle;
+  const left = axisX - size * SHAPE.axis;
+  const top = bottom - size * cut;
   // The box scales about its bottom edge at the feet's axis: shift it so the feet land there.
   const farX = feetX - (left + size * SHAPE.axis);
   const farY = feetY - (top + size) + size * (1 - SHAPE.feet) * scale;
-  // Walking up, it faces the way it goes (sideways at least a little), else the way it faced;
-  // walking back, the other way round.
+  // Walking up, it faces the way it goes (sideways at least a little: right by a screen's edge),
+  // else the way it faced; walking back, the other way round.
   const sideways = Math.abs(farX) > BOX * 0.2;
   const way = sideways ? (farX > 0 ? 'left' : 'right') : face === 'left' ? 'left' : 'right';
   const hitTop = top + size * SHAPE.top;

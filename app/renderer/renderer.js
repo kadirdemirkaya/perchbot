@@ -1818,7 +1818,14 @@
     if (!next) return;
     const wasAirborne = flight.airborne;
     const wasLedge = flight.ledge;
-    flight = { airborne: next.airborne === true, boost: next.boost === true, tilt: Number(next.tilt) || 0, ledge: next.ledge === true && next.airborne !== true };
+    flight = {
+      airborne: next.airborne === true,
+      boost: next.boost === true,
+      tilt: Number(next.tilt) || 0,
+      ledge: next.ledge === true && next.airborne !== true,
+      // Up on a window's title bar (standing or sitting on its edge).
+      perched: next.perched === true && next.airborne !== true,
+    };
     if (flight.airborne !== wasAirborne) trace(`flight: ${flight.airborne ? 'hover' : 'ground'}`);
     if (flight.ledge !== Boolean(wasLedge)) trace(`flight: ${flight.ledge ? 'on the ledge' : 'off the ledge'}`);
     flag('fly', flight.airborne ? (flight.boost ? 'boost' : 'hover') : null);
@@ -2772,8 +2779,9 @@
 
   /**
    * Giant peek ("Giant peek" switch, off by default): the idle story's "Where are you?" comes
-   * big. The page asks the main process (with where its feet are); in a click-through window of
-   * its own it walks up to the glass from right here, bigger with every step, knocks, listens,
+   * big. In the air or up on a window it comes down to the ground first. The page asks the main
+   * process (with where its feet are); in a click-through window of its own it walks up to the
+   * glass from right here (and stays above this spot), bigger with every step, knocks, listens,
    * knocks again, waits, and walks back here, its own size again (main.js sends the phases here
    * too: meanwhile the small one is hidden). Over with the pointer on it (found: "There you
    * are!" was said up there): a happy hop here, and no nap at the end of this story. Over with
@@ -2791,6 +2799,9 @@
   const GIANT_GLEE_MS = 200;
   /** No answer: the yawn this long after it is back. */
   const GIANT_SLEEPY_MS = 700;
+  /** The demo waits for it to come down this often, at most this many times. */
+  const GIANT_DEMO_RETRY_MS = 500;
+  const GIANT_DEMO_TRIES = 12;
 
   function startGiant(demo = false) {
     if (giant) return false;
@@ -2819,6 +2830,18 @@
     giant = phase;
     // The giant is out (drawn right where it stands): the small one hides until it is back.
     stage.classList.add('giant-away');
+  }
+
+  /** The demo: as in the story, down to the ground first (out of the air, off a window), then the giant. */
+  function demoGiant(tries = 0) {
+    const up = flight.airborne || flight.perched || flight.ledge;
+    if (up || moving) {
+      if (up && !moving) window.buddy.fun('land');
+      if (tries < GIANT_DEMO_TRIES) later('giant-demo', GIANT_DEMO_RETRY_MS, () => demoGiant(tries + 1));
+      else trace('giant: not now (not on the ground)');
+      return;
+    }
+    if (!startGiant(true)) trace('giant: not now');
   }
 
   /** Something else needs it (work, ambient life off, a lock): the giant goes, the small one is back. */
@@ -2961,10 +2984,13 @@
       if (!whereDue({ now: Date.now(), lastAt: whereAt, away: userAway })) return 'skip';
       // Up to the glass on its own feet.
       if (landFirst()) return 'later';
+      const big = settings.giantPeek && crewCount === 0;
+      // The giant starts right where it stands, on the ground: off a window's title bar first.
+      if (big && offTheWindow()) return 'later';
       whereAt = Date.now();
       // "Giant peek" on (no helpers about): it walks up to the glass, bigger with every step (see
       // "the giant peek"). The main process may refuse: then the small one below after all.
-      if (settings.giantPeek && crewCount === 0 && startGiant()) return 'busy';
+      if (big && startGiant()) return 'busy';
       storyPlay = name;
       ambient.run(name);
       return 'busy';
@@ -3014,6 +3040,14 @@
   function landFirst() {
     if (!flight.airborne) return false;
     trace('story: down to the ground first');
+    window.buddy.fun('land');
+    return true;
+  }
+
+  /** Up on a window: down to the ground right below it, the way it lands (true: it asked to). */
+  function offTheWindow() {
+    if (!flight.perched && !flight.ledge) return false;
+    trace('giant: down off the window first');
     window.buddy.fun('land');
     return true;
   }
@@ -3722,7 +3756,7 @@
       });
     } else if (name === 'giant') {
       // The giant peek right now, whatever its switch says (normally the idle story's finale).
-      if (!startGiant(true)) trace('giant: not now');
+      demoGiant();
     } else if (name === 'late') {
       quip('lateNight', 2400);
     } else if (name === 'friday') {

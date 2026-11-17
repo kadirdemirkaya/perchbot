@@ -163,8 +163,9 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
   so it does not see those; while Claude Code is working it lets deletes go.
 - **Giant peek** (last button of the hover menu, also in the tray, off by default; needs ambient life):
   before a nap, instead of the small "Where are you?", it walks up to the glass from where it stands,
-  bigger with every step (up to ten times its size, peeking up from the bottom of the screen), knocks
-  and listens. Nobody there: it shrugs, walks back to its spot and naps. Move the pointer onto it:
+  bigger with every step (up to ten times its size, peeking up from the bottom of the screen, on the
+  side where it stands), knocks and listens. Flying or up on a window, it comes down to the ground
+  first. Nobody there: it shrugs, walks back to its spot and naps. Move the pointer onto it:
   "There you are!", and it runs back. At most every 10 minutes, never while you are away.
 
 ## Commands
