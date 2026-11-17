@@ -62,6 +62,8 @@ contextBridge.exposeInMainWorld('buddy', {
   onGuest: on('buddy:guest'),
   /** The giant peek (app/giant.js): its phases ({ phase }; null: over, with found / refused). */
   onGiant: on('buddy:giant'),
+  /** The model look (robot.css data-model): 'haiku' | 'sonnet' | 'opus' | 'fable', or null (classic). */
+  onLook: on('buddy:look'),
   ready: () => ipcRenderer.send('buddy:ready'),
   capture: (wanted) => ipcRenderer.send('buddy:capture', wanted === true),
   drag: (phase) => {

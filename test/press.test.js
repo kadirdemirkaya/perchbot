@@ -116,7 +116,7 @@ test('chat: "what are you doing?" during the press', () => {
 
 test('perchbot status: an install from before PreCompact says what to add', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'perchbot-press-'));
-  const env = { ...process.env, HOME: dir, USERPROFILE: dir, PERCHBOT_HOME: path.join(dir, '.perchbot'), INIT_CWD: dir };
+  const env = { ...process.env, HOME: dir, USERPROFILE: dir, PERCHBOT_HOME: path.join(dir, '.perchbot'), INIT_CWD: dir, PERCHBOT_CLAUDE_VERSION: 'none' };
   delete env.CLAUDE_CONFIG_DIR;
   const fake = path.join(dir, 'fake-claude');
   fs.mkdirSync(fake);

@@ -68,11 +68,12 @@ function hookState(file) {
   const current = cli.readSettings(file);
   if (!current.exists) return 'no settings file yet: not installed';
   if (current.error) return `cannot check (${current.error})`;
-  if (hooks.isInstalled(current.data, SEND_JS)) return 'installed';
+  const claude = cli.claudeVersion();
+  if (hooks.isInstalled(current.data, SEND_JS, claude)) return 'installed';
   // Every hook of this copy is there except newer ones (e.g. PreCompact, 0.6.0): it works, minus those.
-  const missing = hooks.missingEvents(current.data, SEND_JS);
+  const missing = hooks.missingEvents(current.data, SEND_JS, claude);
   const ours = hooks.countOurHandlers(current.data);
-  if (missing.length && ours > 0 && ours === hooks.HOOK_SPECS.length - missing.length) {
+  if (missing.length && ours > 0 && ours === hooks.buildGroups(SEND_JS, claude).length - missing.length) {
     return `installed (new hooks missing: ${missing.join(', ')}): run "perchbot setup" to add them`;
   }
   if (ours > 0) return 'installed by another or an older copy (e.g. from before the rename): run "perchbot setup" to update';

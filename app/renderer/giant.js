@@ -4,7 +4,7 @@
  * The giant peek (app/giant.js plans it, main.js opens this click-through
  * window over the buddy's screen and sends the phases). This page only
  * listens (giant-preload.js):
- *   init   { plan, character: { svgUrl, cssUrl } }   draw it where the small one stands, at its size
+ *   init   { plan, character: { svgUrl, cssUrl }, look }   draw it where the small one stands, at its size
  *   phase  { phase }   walk | knock | listen | again | wait | shrug | back | found | dash
  *   stop   cut short: gone at once (the window closes right after)
  * The character's own CSS poses it (data-giant on its wrapper, data-glee when
@@ -53,6 +53,9 @@
     return document.importNode(svg, true);
   }
 
+  /** Model looks (robot.css data-model), as in renderer.js. */
+  const LOOKS = new Set(['haiku', 'sonnet', 'opus', 'fable']);
+
   const set = (name, value) => {
     if (value === null || value === undefined || value === false) delete char.dataset[name];
     else char.dataset[name] = String(value);
@@ -80,6 +83,8 @@
     body.style.transform = farTransform();
     rings.style.setProperty('--ring', px(plan.size * 0.11));
     set('face', plan.face);
+    // The same model look as the small one (robot.css data-model).
+    set('model', LOOKS.has(msg.look) ? msg.look : null);
     // Its CSS first (unstyled, every prop of the SVG would show for a moment).
     const link = document.createElement('link');
     link.rel = 'stylesheet';

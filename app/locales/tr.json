@@ -72,7 +72,8 @@
     "volume_high": "Yüksek",
     "hands": "Eller: Chrome",
     "typingPeek": "Yazarken izlesin",
-    "giantPeek": "Uyumadan önce dev bakış"
+    "giantPeek": "Uyumadan önce dev bakış",
+    "modelLook": "Modele göre görünüm (Haiku, Sonnet, Opus, Fable)"
   },
   "hover": {
     "hideBubble": "Baloncuğu gizle",

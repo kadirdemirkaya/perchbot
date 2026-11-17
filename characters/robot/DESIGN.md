@@ -52,6 +52,24 @@ highlight stroke (upper left). No gradients, no filters: cheap to render.
 | Happy | greeting, done, goodbye, a click | squinting arcs, open grin, brows up |
 | Resting | a quiet minute | eyes half closed, brows down, lights dimmed |
 
+### Model looks
+
+Robo dresses for the model the user's sessions run (`data-model`, see robot.css). Each step up
+is a little finer than the one before; the silhouette, the face and every pose stay the same, so
+it is always Robo. No Anthropic visuals: no terracotta or orange, no starburst, no logos.
+
+| Family | Body | Accents | Details |
+|---|---|---|---|
+| (classic) | lilac `#8C7BEA` | mint | none |
+| Haiku | brushed silver `#AEB4C8`, slate legs | mint | none: plain |
+| Sonnet | orchid `#B76DCB` | mint | a white gleam on the head and the body |
+| Opus | the classic lilac | gold `#F2C14E` | the gleam, a small gold **four-point** star on the brow |
+| Fable | midnight violet `#5443A6`, deep legs | gold `#F5C842` | the gleam, the star, a soft glow round the antenna bulb and three little four-point sparkles twinkling round it |
+
+The sparkles and the glow rest with Robo (`data-rest`) and keep out of the way of the head's
+other guests (the fire, the duck, the radio waves, the headband, the rampage). The helpers keep
+their own colours: a sub-agent's model is not known.
+
 ### Skill book
 
 A small open book with cream pages and a mint cover. It lives in the stitched pocket and

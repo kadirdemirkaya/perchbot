@@ -24,8 +24,10 @@
  *     skill?: string,           // skill / slash-command name (PreToolUse of Skill, UserPromptExpansion)
  *     account?: string,         // Claude config folder name, e.g. "claude-work" (any event)
  *     pid?:    number,          // SessionStart: process id of Claude Code (liveness check)
+ *     tier?:   string,          // SessionStart / PostModelSwitch: model family (TIERS), for the look
  *   }
- *   SubagentStart / SubagentStop / UserPromptExpansion are also accepted, and
+ *   SubagentStart / SubagentStop / UserPromptExpansion are also accepted,
+ *   PostModelSwitch (with its tier, nothing else), and
  *   Demo ({ demo: one of DEMOS }) from the simulator.
  */
 
@@ -43,6 +45,8 @@ const EVENTS = new Set([
   'UserPromptExpansion',
   // The conversation is about to be compacted (nothing else comes with it).
   'PreCompact',
+  // The session's model changed: only its family comes with it (the robot's look).
+  'PostModelSwitch',
   // Not a hook event: the simulator (scripts/simulate.js) asks for one of the
   // character's own behaviours. hooks/send.js never sends it.
   'Demo',
@@ -201,6 +205,8 @@ const AGENT_RE = /^[a-f0-9]{6,16}$/;
 const AGENT_TYPE_RE = /^[A-Za-z0-9 _.:/-]{1,40}$/;
 const SKILL_RE = /^[A-Za-z0-9_.:/-]{1,24}$/;
 const ACCOUNT_RE = /^[A-Za-z0-9._-]{1,40}$/;
+/** Model families with a look of their own, lowest first (hooks/send.js TIERS; a test keeps them equal). */
+const TIERS = Object.freeze(['haiku', 'sonnet', 'opus', 'fable']);
 
 // C0/C1 control characters plus Unicode bidi overrides, which could make a
 // bubble render misleading text.
@@ -250,6 +256,10 @@ function validateEvent(raw) {
     if (source) evt.source = source;
     if (Number.isInteger(raw.pid) && raw.pid > 0 && raw.pid <= 0xffffffff) evt.pid = raw.pid;
   }
+  if (raw.event === 'SessionStart' || raw.event === 'PostModelSwitch') {
+    if (TIERS.includes(raw.tier)) evt.tier = raw.tier;
+    else if (raw.event === 'PostModelSwitch') return null;
+  }
   if (raw.event === 'SessionEnd') {
     const reason = pick(raw.reason, WORD_RE);
     if (reason) evt.reason = reason;
@@ -275,4 +285,4 @@ function validateEvent(raw) {
   return evt;
 }
 
-module.exports = { validateEvent, cleanText, EVENTS, DEMOS, MAX_BODY_BYTES, ACCOUNT_RE };
+module.exports = { validateEvent, cleanText, EVENTS, DEMOS, MAX_BODY_BYTES, ACCOUNT_RE, TIERS };

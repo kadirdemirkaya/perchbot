@@ -78,6 +78,12 @@ const DEFAULTS = Object.freeze({
    * pointer on it is an answer. Only the cursor position is looked at, while it lasts. Off until the user turns it on.
    */
   giantPeek: false,
+  /**
+   * Model looks: the robot dresses for the model its session runs (Haiku, Sonnet, Opus,
+   * Fable: robot.css data-model). Only the model's family comes from the hook. On by default;
+   * off: always the classic look.
+   */
+  modelLook: true,
   /** Little robot sounds made in code (taps, the duel, the ball, the cat, the rampage, a visitor). */
   sound: false,
   soundVolume: 'low',
@@ -141,6 +147,7 @@ function normalizeSettings(raw) {
   if (typeof raw.typingPeek === 'boolean') s.typingPeek = raw.typingPeek;
   if (typeof raw.followWindows === 'boolean') s.followWindows = raw.followWindows;
   if (typeof raw.giantPeek === 'boolean') s.giantPeek = raw.giantPeek;
+  if (typeof raw.modelLook === 'boolean') s.modelLook = raw.modelLook;
   if (typeof raw.sound === 'boolean') s.sound = raw.sound;
   if (SOUND_VOLUMES.includes(raw.soundVolume)) s.soundVolume = raw.soundVolume;
   if (typeof raw.workSounds === 'boolean') s.workSounds = raw.workSounds;

@@ -12,7 +12,9 @@
  *    (registered async, so Claude Code does not wait) finding Claude Code's
  *    process id adds up to 1.5 s (about 0.4 s on Windows, a few ms elsewhere).
  *  - Forwards only a small whitelisted summary of the event (see buildPayload):
- *    no file contents, no prompts, no full commands, no tool output.
+ *    no file contents, no prompts, no full commands, no tool output. Of the
+ *    model (SessionStart, PostModelSwitch) only its family: haiku, sonnet,
+ *    opus or fable.
  *
  * On SessionStart it also looks for the process id of Claude Code among its
  * ancestors (see findClaudePid; only names and parent ids are read, and only
@@ -76,6 +78,8 @@ const EVENTS = new Set([
   'UserPromptExpansion',
   // Nothing of its input leaves (its trigger and custom_instructions are dropped): the event only.
   'PreCompact',
+  // The session's model changed (/model, a fallback, a resume): only its family leaves (modelTier).
+  'PostModelSwitch',
 ]);
 const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse', 'PostToolUseFailure']);
 const AGENT_EVENTS = new Set(['SubagentStart', 'SubagentStop']);
@@ -116,6 +120,7 @@ const PAYLOAD_FIELDS = Object.freeze({
   skill: 'skill name',
   account: 'Claude config folder name, e.g. "claude-personal" (never a full path)',
   pid: 'SessionStart only: process id of Claude Code, a number (nothing else about the process)',
+  tier: 'SessionStart / PostModelSwitch: the model family only (haiku, sonnet, opus or fable), never the model id',
 });
 
 /** Copy only allowlisted string / number fields. */
@@ -299,6 +304,22 @@ function skillLabel(value) {
   return text ? text.slice(0, SKILL_MAX) : undefined;
 }
 
+/** Model families the overlay has a look for (characters/robot/robot.css data-model). */
+const TIERS = Object.freeze(['haiku', 'sonnet', 'opus', 'fable']);
+const TIER_RES = TIERS.map((tier) => [tier, new RegExp(`(^|[^a-z])${tier}([^a-z]|$)`)]);
+
+/**
+ * The model family of a model id ("claude-opus-5-5[1m]" -> "opus",
+ * "us.anthropic.claude-sonnet-5-5-v1:0" -> "sonnet"), or undefined for any other
+ * id. Only this one word ever leaves the hook, never the id itself.
+ */
+function modelTier(value) {
+  if (typeof value !== 'string' || value.length > 200) return undefined;
+  const id = value.toLowerCase();
+  const hit = TIER_RES.find(([, re]) => re.test(id));
+  return hit ? hit[0] : undefined;
+}
+
 /**
  * Which Claude account (config folder) this hook runs for: the folder NAME of
  * CLAUDE_CONFIG_DIR without leading dots ("C:/Users/x/.claude-work" ->
@@ -345,6 +366,13 @@ function buildPayload(input, fallbackEvent, now = Date.now(), extra = {}) {
     payload.source = src.source;
   }
   if (event === 'SessionStart' && validPid(extra.pid)) payload.pid = extra.pid;
+  // The model's family, for the robot's look: the session's model (SessionStart; Claude Code
+  // leaves it out now and then, e.g. after /clear), or the one it switched to.
+  if (event === 'SessionStart' || event === 'PostModelSwitch') {
+    const tier = modelTier(event === 'SessionStart' ? src.model : src.to_model);
+    if (tier) payload.tier = tier;
+    else if (event === 'PostModelSwitch') return null; // a model without a look: nothing to tell
+  }
   if (event === 'SessionEnd' && typeof src.reason === 'string' && WORD_RE.test(src.reason)) {
     payload.reason = src.reason;
   }
@@ -855,6 +883,8 @@ module.exports = {
   agentHash,
   agentTypeLabel,
   skillLabel,
+  modelTier,
+  TIERS,
   hostOf,
   readConfig,
   isMuted,

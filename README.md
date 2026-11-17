@@ -53,6 +53,7 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 | a command runs on and on | after 20 s it sits back with a bucket of popcorn, eyes on the command, until it is done |
 | the conversation is compacted | pumps a little press over a stack of paper; when it is done, a cube of paper pops out |
 | the work gets intense | puts on a headband and codes on a screen of light |
+| the session runs Haiku, Sonnet, Opus or Fable | dresses for it, finer each step up: plain silver; orchid with a gleam; the classic lilac trimmed in gold with a star on its brow; midnight violet with a glowing bulb and fairy dust |
 | you tap it | loves it, up to a point: then it fumes, catches fire and goes on a rampage across your screen |
 | you start a duel | a sword fight against your cursor, three hearts each |
 | it is idle | backflips, moonwalks, plays with a yo-yo, juggles (until a ball lands on its head), breathes on the glass and draws a heart in the fog, blows bubbles, throws paper planes, gets visitors, plays with its cat, flies off now and then and carries on wherever it lands, sits on top of a window with its legs dangling over the edge and rides along when it moves (Windows), has a coffee in the morning, walks up to the glass before a nap and knocks: "Where are you?" (hover it: "There you are!"; with *Giant peek* on it grows up to ten times its size on the way), naps (in a nightcap late at night) |
@@ -161,6 +162,11 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
   folder in Windows (it goes to the Recycle Bin), it comes over and slashes a ghost of it with its sword,
   coloured by type. It deletes nothing itself. Shift+Delete and command-line deletes skip the Recycle Bin,
   so it does not see those; while Claude Code is working it lets deletes go.
+- **Look by model** (tray and right-click menu, on by default): the robot dresses for the model your
+  session runs (Haiku, Sonnet, Opus, Fable); with several sessions open, the highest one wins. A new
+  session brings its model; for a switch mid-session (`/model`) setup adds a `PostModelSwitch` hook when
+  your Claude Code is 2.1.251 or newer (older ones: the look follows new sessions only). Off, or a model
+  it does not know: the classic lilac look.
 - **Giant peek** (last button of the hover menu, also in the tray, off by default; needs ambient life):
   before a nap, instead of the small "Where are you?", it walks up to the glass from where it stands,
   bigger with every step (up to ten times its size, peeking up from the bottom of the screen, on the
@@ -183,7 +189,9 @@ Restart open sessions (VS Code: *Developer: Reload Window*) and the robot shows 
 
 Only the event, the tool name, a file name (not the path) and a shortened command (secrets masked)
 leave the hook, and only to `127.0.0.1`. Before a compaction it sends the event alone: never your
-compact instructions. For a plan up for approval it sends the tool name only: never the plan. With ambient life on, the robot also looks at the system idle
+compact instructions. For a plan up for approval it sends the tool name only: never the plan. Of the
+model it sends only its family (`haiku`, `sonnet`, `opus` or `fable`, for the robot's look): never the
+model id, never what a switch would cost. With ambient life on, the robot also looks at the system idle
 time, where the cursor is (its position only) and, on Windows, where windows are (frames only, never
 titles or contents). With *Watch me type* on, it also asks Windows where the text cursor of the window
 in front is: a position only, never the text, never your keys. Terminals say when a field is a password
@@ -198,7 +206,7 @@ missing), with Electron's own installer. The robot never goes online.
 
 ## Development
 
-`npm test` · `npm run dev` · `npm run simulate [-- bug | life | chat | duck | popcorn | press | plan | pr | mcp | terminal]` · `npm pack`.
+`npm test` · `npm run dev` · `npm run simulate [-- bug | life | chat | duck | popcorn | press | plan | pr | mcp | terminal | looks]` · `npm pack`.
 Make your own character: [characters/README.md](https://github.com/kadirdemirkaya/perchbot/blob/main/characters/README.md).
 
 MIT, see [LICENSE](https://github.com/kadirdemirkaya/perchbot/blob/main/LICENSE) and [THIRD_PARTY_NOTICES.md](https://github.com/kadirdemirkaya/perchbot/blob/main/THIRD_PARTY_NOTICES.md).

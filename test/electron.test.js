@@ -52,7 +52,7 @@ function copyOfPerchbot() {
 function setup(root, args) {
   const home = tmp('home');
   const cfg = path.join(home, 'cfg');
-  const env = { ...process.env, HOME: home, USERPROFILE: home, PERCHBOT_HOME: path.join(home, '.perchbot'), CLAUDE_CONFIG_DIR: cfg };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, PERCHBOT_HOME: path.join(home, '.perchbot'), CLAUDE_CONFIG_DIR: cfg, PERCHBOT_CLAUDE_VERSION: 'none' };
   const r = spawnSync(process.execPath, [path.join(root, 'setup.js'), '--config-dir', cfg, ...args], { env, encoding: 'utf8', input: '' });
   const file = path.join(cfg, 'settings.json');
   const ours = fs.existsSync(file) ? hooks.countOurHandlers(JSON.parse(fs.readFileSync(file, 'utf8'))) : 0;
@@ -158,7 +158,7 @@ test('setup: hooks already in place but Electron missing -> setup still download
   const root = copyOfPerchbot();
   const home = tmp('home');
   const cfg = path.join(home, 'cfg');
-  const env = { ...process.env, HOME: home, USERPROFILE: home, PERCHBOT_HOME: path.join(home, '.perchbot'), CLAUDE_CONFIG_DIR: cfg };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, PERCHBOT_HOME: path.join(home, '.perchbot'), CLAUDE_CONFIG_DIR: cfg, PERCHBOT_CLAUDE_VERSION: 'none' };
   const run = () => spawnSync(process.execPath, [path.join(root, 'setup.js'), '--config-dir', cfg, '--yes'], { env, encoding: 'utf8', input: '' });
   const first = run(); // no electron package yet: hooks written, download impossible
   assert.equal(first.status, 1, first.stdout + first.stderr);
@@ -192,7 +192,7 @@ test('setup: with Electron in place nothing about it is printed (the repo itself
   if (!send.electronBinary()) return; // a clone without the binary yet
   const home = tmp('home');
   const cfg = path.join(home, 'cfg');
-  const env = { ...process.env, HOME: home, USERPROFILE: home, PERCHBOT_HOME: path.join(home, '.perchbot'), CLAUDE_CONFIG_DIR: cfg };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, PERCHBOT_HOME: path.join(home, '.perchbot'), CLAUDE_CONFIG_DIR: cfg, PERCHBOT_CLAUDE_VERSION: 'none' };
   const r = spawnSync(process.execPath, [path.join(ROOT, 'setup.js'), '--config-dir', cfg, '--dry-run'], { env, encoding: 'utf8', input: '' });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.doesNotMatch(r.stdout + r.stderr, /Electron/);

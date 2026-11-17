@@ -50,6 +50,10 @@
  *                                       with nobody answering it shrugs and walks back to its spot
  *                                       (move the pointer onto it meanwhile: "There you are!" and
  *                                       it runs back)
+ *   npm run simulate -- looks           the model looks: a session on Haiku (plain silver), then
+ *                                       /model to Sonnet (orchid), Opus (gold trim, a star) and
+ *                                       Fable (midnight violet, a glowing bulb, fairy dust); a turn
+ *                                       on Fable, then back to Haiku. Only the family leaves the hook
  *   npm run simulate -- --fast          shorter pauses
  *   npm run simulate -- --keep          skip the final SessionEnd (overlay stays open)
  */
@@ -575,6 +579,37 @@ async function giantScenario() {
   if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
 }
 
+/** /model to `to` (from `from`): PostModelSwitch as Claude Code sends it; only the family leaves the hook. */
+function modelSwitch(s, from, to, requested) {
+  return base(s, 'PostModelSwitch', {
+    from_model: from,
+    to_model: to,
+    requested_model: requested,
+    source: 'command',
+    context_tokens: 18234,
+    prompt_cache_warm: true,
+    cache_ttl: '5m',
+    estimated_cache_write_usd: 0.11,
+    pricing: 'catalog',
+  });
+}
+
+/** The model looks: Haiku, Sonnet, Opus, Fable (a turn on it), then back to Haiku. */
+async function looksScenario() {
+  const s = `sim-looks-${randomId()}`;
+  console.log(`Session ${s}\n`);
+  await step('greeting, haiku: plain silver', base(s, 'SessionStart', { source: 'startup', model: 'claude-haiku-5-5' }), 4500);
+  await step('sonnet: orchid, a gleam', modelSwitch(s, 'claude-haiku-5-5', 'claude-sonnet-5-5', 'sonnet'), 4500);
+  await step('opus: gold trim, a star', modelSwitch(s, 'claude-sonnet-5-5', 'claude-opus-5-5', 'opus'), 4500);
+  await step('fable: midnight, fairy dust', modelSwitch(s, 'claude-opus-5-5', 'claude-fable-5-2', 'fable'), 5000);
+  await step('thinking (fable)', base(s, 'UserPromptSubmit', { prompt: '(simulated prompt)' }), 1500);
+  await step('typing (fable)', base(s, 'PreToolUse', { tool_name: 'Edit', tool_use_id: 'looks-1', tool_input: { file_path: `${ROOT}/app/core.js` } }), 2000);
+  await step('tool done', base(s, 'PostToolUse', { tool_name: 'Edit', tool_use_id: 'looks-1' }), 1500);
+  await step('done (fable)', base(s, 'Stop', { stop_hook_active: false }), 4000);
+  await step('back to haiku', modelSwitch(s, 'claude-fable-5-2', 'claude-haiku-5-5', 'haiku'), 3500);
+  if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
+}
+
 /** A compaction (PreCompact, then SessionStart with source "compact"): the press, the squeeze, a cube. */
 async function pressScenario() {
   const s = `sim-press-${randomId()}`;
@@ -711,8 +746,9 @@ async function chatScenario() {
   else if (scenario === 'mcp') await mcpScenario();
   else if (scenario === 'terminal') await terminalScenario();
   else if (scenario === 'giant') await giantScenario();
+  else if (scenario === 'looks') await looksScenario();
   else {
-    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life", "lifecycle", "chat", "bug", "popcorn", "duck", "press", "plan", "pr", "mcp", "terminal" or "giant".`);
+    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life", "lifecycle", "chat", "bug", "popcorn", "duck", "press", "plan", "pr", "mcp", "terminal", "giant" or "looks".`);
     process.exitCode = 1;
   }
 })();

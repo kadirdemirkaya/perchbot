@@ -43,7 +43,7 @@ function describeHandler({ event, group }) {
 }
 
 /** Look at one settings file: what would change. Prints its part of the report. */
-function plan({ file, why }) {
+function plan({ file, why }, claude = null) {
   console.log(`\n  Settings file : ${file}  (${why})`);
   const current = cli.readSettings(file);
   if (current.error) {
@@ -58,13 +58,13 @@ function plan({ file, why }) {
   if (current.data.disableAllHooks === true) {
     console.log('  Note: this file sets "disableAllHooks": true, so Claude Code will not run any hooks until you remove it.');
   }
-  if (hooks.isInstalled(current.data, SEND_JS)) {
+  if (hooks.isInstalled(current.data, SEND_JS, claude)) {
     console.log('  Perchbot hooks are already installed and up to date. Nothing to do.');
     return { file, none: true };
   }
   let result;
   try {
-    result = hooks.addHooks(current.data, SEND_JS);
+    result = hooks.addHooks(current.data, SEND_JS, claude);
   } catch (err) {
     console.error(`  Stopped: ${err.message}`);
     return { file, error: true };
@@ -104,13 +104,20 @@ async function main(argv = process.argv.slice(2)) {
   console.log('Perchbot setup\n');
   console.log(`  Hook script   : ${SEND_JS}`);
   if (targets.length > 1) console.log(`  Accounts      : ${targets.length} found`);
+  // Some hooks need a recent Claude Code (lib/hooks-config.js VERSIONED_SPECS).
+  const claude = cli.claudeVersion();
+  const later = hooks.VERSIONED_SPECS.filter((spec) => !hooks.versionAtLeast(claude, spec.since));
+  console.log(`  Claude Code   : ${claude || 'version not found'}`);
+  for (const spec of later) {
+    console.log(`  Skipped       : ${spec.event} (needs Claude Code ${spec.since}+; run setup again after an update)`);
+  }
 
   const [major] = process.versions.node.split('.').map(Number);
   if (major < 20) console.log(`\n  Warning: Node.js ${process.versions.node} found; Perchbot is tested with Node 20+.`);
   const needsElectron = !electronBinary();
   if (needsElectron) console.log(`\n  Electron      : not downloaded yet; setup downloads it once (${electron.SIZE})`);
 
-  const plans = targets.map(plan);
+  const plans = targets.map((target) => plan(target, claude));
   if (plans.some((p) => p.error)) {
     console.error('\n  Nothing was written: the files were NOT changed. Fix the file above (or move it away) and run setup again.');
     return 1;

@@ -5172,6 +5172,165 @@
   100% { transform: none; }
 }
 
+/* ------------------------------------------------------------ model looks (data-model) */
+
+/*
+ * The robot dresses for the model its Claude Code sessions run (app/core.js
+ * updateLook; only the model's family comes from the hook):
+ *
+ *   data-model="haiku"   brushed silver, mint accents: plain
+ *   data-model="sonnet"  orchid, mint accents, a gleam on the head and the body
+ *   data-model="opus"    the classic lilac trimmed in gold, a gold star on the brow
+ *   data-model="fable"   midnight violet trimmed in gold, the star, and a glowing
+ *                        bulb with fairy dust round it
+ *
+ * Without data-model (no session told its model, or the switch is off): the
+ * classic look, exactly as robot.svg draws it. Colours and a few small details
+ * only: every group, pivot, pose and animation stays as it is.
+ *
+ * The robot's own parts carry rb-c-* classes and take their colour from the
+ * variables below, falling back to the colour robot.svg draws them in.
+ * :where() keeps these rules at zero specificity, so every other rule in this
+ * file (the led, the antenna bulb, ...) still wins as it did over the attribute.
+ */
+
+:where(.rb-c-body) {
+  fill: var(--rb-body, #8C7BEA);
+}
+
+:where(.rb-c-shade) {
+  fill: var(--rb-shade, #7462D6);
+}
+
+:where(.rb-c-hi) {
+  stroke: var(--rb-hi, #B3A8F7);
+}
+
+:where(.rb-c-accent) {
+  fill: var(--rb-accent, #4FD6B4);
+}
+
+:where(.rb-c-leg) {
+  fill: var(--rb-leg, #4A4380);
+}
+
+:where(.rb-c-boot) {
+  fill: var(--rb-boot, #3A3566);
+}
+
+:where(.rb-c-boot-hi) {
+  stroke: var(--rb-boot-hi, #6E66A8);
+}
+
+.buddy-character[data-model='haiku'] {
+  --rb-body: #AEB4C8;
+  --rb-shade: #9097AF;
+  --rb-hi: #D9DDE8;
+  --rb-leg: #575D7A;
+  --rb-boot: #464B65;
+  --rb-boot-hi: #7D839F;
+}
+
+.buddy-character[data-model='sonnet'] {
+  --rb-body: #B76DCB;
+  --rb-shade: #9B55B0;
+  --rb-hi: #DDAAE8;
+}
+
+.buddy-character[data-model='opus'] {
+  --rb-accent: #F2C14E;
+}
+
+.buddy-character[data-model='fable'] {
+  --rb-body: #5443A6;
+  --rb-shade: #42338C;
+  --rb-hi: #9282EC;
+  --rb-accent: #F5C842;
+  --rb-leg: #3A3275;
+  --rb-boot: #2E2865;
+  --rb-boot-hi: #6A60B0;
+}
+
+/* The details: hidden in the classic look and in the looks below theirs. */
+.rb-tier-gleam,
+.rb-tier-star,
+.rb-tier-glow,
+.rb-tier-dust {
+  display: none;
+}
+
+.buddy-character:is([data-model='sonnet'], [data-model='opus'], [data-model='fable']) .rb-tier-gleam {
+  display: inline;
+  opacity: 0.8;
+}
+
+.buddy-character:is([data-model='opus'], [data-model='fable']) .rb-tier-star {
+  display: inline;
+}
+
+.buddy-character[data-model='fable'] :is(.rb-tier-glow, .rb-tier-dust) {
+  display: inline;
+}
+
+/* The glow breathes and the dust twinkles, both at a few changes per second. */
+.rb-tier-glow {
+  opacity: 0.3;
+}
+
+.buddy-character[data-model='fable'] .rb-tier-glow {
+  animation: rb-tier-glow 3.2s steps(8) infinite;
+}
+
+.rb-dust {
+  opacity: 0;
+}
+
+.rb-dust-1 {
+  transform-origin: 74.5px 9px;
+}
+
+.rb-dust-2 {
+  transform-origin: 102.5px 6px;
+}
+
+.rb-dust-3 {
+  transform-origin: 106px 19px;
+}
+
+.buddy-character[data-model='fable'] .rb-dust {
+  animation: rb-tier-twinkle 2.8s steps(7) infinite;
+}
+
+.buddy-character[data-model='fable'] .rb-dust-2 {
+  animation-delay: -0.95s;
+}
+
+.buddy-character[data-model='fable'] .rb-dust-3 {
+  animation-delay: -1.9s;
+}
+
+/*
+ * Out of the way: resting (nothing loops under data-rest), the head on fire, the
+ * rampage, the duck on its head, the radio waves of the web, and focus mode.
+ */
+.buddy-character[data-model='fable']:is([data-rest], [data-annoyed='2'], [data-annoyed='3'], [data-rampage], [data-duck], [data-task='web'], [data-holo]) :is(.rb-tier-glow, .rb-tier-dust) {
+  display: none;
+  animation: none;
+}
+
+@keyframes rb-tier-glow {
+  0%,
+  100% { opacity: 0.22; }
+  50% { opacity: 0.45; }
+}
+
+@keyframes rb-tier-twinkle {
+  0% { opacity: 0; transform: scale(0.3); }
+  30% { opacity: 1; transform: scale(1); }
+  60% { opacity: 0; transform: scale(0.4); }
+  100% { opacity: 0; transform: scale(0.3); }
+}
+
 /* ------------------------------------------------------------ reduced motion */
 
 @media (prefers-reduced-motion: reduce) {

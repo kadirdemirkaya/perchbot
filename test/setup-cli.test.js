@@ -27,6 +27,8 @@ function sandbox() {
     CLAUDE_CONFIG_DIR: path.join(dir, 'claude-config'),
     PERCHBOT_HOME: path.join(dir, '.perchbot'),
     INIT_CWD: dir,
+    // The hooks for every Claude Code version only (lib/hooks-config.js VERSIONED_SPECS), whatever is installed here.
+    PERCHBOT_CLAUDE_VERSION: 'none',
   };
   return { dir, env };
 }

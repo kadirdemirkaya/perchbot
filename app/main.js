@@ -376,6 +376,12 @@ function start() {
     else refreshTray();
   });
 
+  // Model looks: the robot dresses for the model its sessions run (robot.css data-model).
+  core.on('look', (look) => {
+    log.info(`look: ${look}${settings.modelLook === false ? ' (switched off: classic)' : ''}`);
+    sendLook();
+  });
+
   // A commit, a push, a failure streak over, a compaction: a little show on the page.
   core.on('moment', (kind) => {
     log.devOnly(`moment: ${kind}`);
@@ -2751,7 +2757,7 @@ function start() {
     g.ew.webContents.once('did-finish-load', () => {
       if (giant !== g || !g.ew) return;
       g.ew.webContents.setZoomFactor(s);
-      g.ew.webContents.send('giant:init', { plan, character: { svgUrl: payload.svgUrl, cssUrl: payload.cssUrl } });
+      g.ew.webContents.send('giant:init', { plan, character: { svgUrl: payload.svgUrl, cssUrl: payload.cssUrl }, look: lookNow() });
       // Drawn where the small one stands, at its size: then it shows and the small one hides.
       g.timers.push(setTimeout(() => showGiant(g, plan.phases), giantLib.GIANT.loadMs));
     });
@@ -3116,6 +3122,7 @@ function start() {
       crew,
       pet: petOn,
       bug: bugPayload(),
+      look: lookNow(),
       paused,
       dev: isDev,
       perf: PERF,
@@ -3148,6 +3155,15 @@ function start() {
 
   function sendView() {
     if (canSend()) win.webContents.send('buddy:view', viewPayload());
+  }
+
+  /** The look the page shows: the sessions' model family (app/core.js updateLook), null (classic) with the switch off. */
+  function lookNow() {
+    return settings.modelLook !== false ? core.look : null;
+  }
+
+  function sendLook() {
+    if (canSend()) win.webContents.send('buddy:look', lookNow());
   }
 
   function sendSettings() {
@@ -3434,6 +3450,8 @@ function start() {
       updateSettings({ giantPeek }, () => {
         if (!giantPeek) endGiant('switched off');
       }),
+    // Model looks: off, the classic look at once; on, the sessions' model again.
+    setModelLook: (modelLook) => updateSettings({ modelLook }, sendLook),
     backToCorner: () => {
       roamAnchor = null;
       updateSettings(withPlace(null), placeWindow);

@@ -597,8 +597,12 @@ test('allowlist: unknown fields from a future Claude Code never reach the output
     api_key: 'LEAK-5',
     prompt: 'LEAK-6',
     nested: { deep: 'LEAK-7' },
+    model: 'claude-opus-5-5-LEAK-8',
+    to_model: 'claude-sonnet-5-5-LEAK-9',
+    from_model: 'LEAK-10',
+    requested_model: 'LEAK-11',
   };
-  for (const event of ['PreToolUse', 'PostToolUse', 'Notification', 'SessionStart', 'SessionEnd', 'Stop', 'UserPromptSubmit', 'SubagentStart', 'SubagentStop']) {
+  for (const event of ['PreToolUse', 'PostToolUse', 'Notification', 'SessionStart', 'SessionEnd', 'Stop', 'UserPromptSubmit', 'SubagentStart', 'SubagentStop', 'PostModelSwitch']) {
     const payload = send.buildPayload({ ...future, agent_id: 'agent-1', agent_type: 'Explore', hook_event_name: event });
     for (const key of Object.keys(payload)) assert.ok(key in send.PAYLOAD_FIELDS, `${event}: unexpected key ${key}`);
     assert.ok(!JSON.stringify(payload).includes('LEAK'), `${event}: ${JSON.stringify(payload)}`);
@@ -622,7 +626,7 @@ test('allowlist: the final filter drops anything not listed, objects and non-fin
   assert.deepEqual(out, { v: 1, event: 'Stop', session: 's', ts: 5, detail: 'ok' });
   assert.deepEqual(
     Object.keys(send.PAYLOAD_FIELDS),
-    ['v', 'event', 'session', 'ts', 'tool', 'id', 'detail', 'kind', 'source', 'reason', 'agent', 'agentType', 'skill', 'account', 'pid'],
+    ['v', 'event', 'session', 'ts', 'tool', 'id', 'detail', 'kind', 'source', 'reason', 'agent', 'agentType', 'skill', 'account', 'pid', 'tier'],
   );
 });
 

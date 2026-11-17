@@ -354,6 +354,16 @@
 
   /** What it can show it works on (robot.css data-task). */
   const TASKS = new Set(['book', 'search', 'web', 'popcorn', 'compact']);
+  /** Model looks (robot.css data-model): the family of the model its sessions run. */
+  const LOOKS = new Set(['haiku', 'sonnet', 'opus', 'fable']);
+
+  /** It dresses for the model: colours and a few details only, every pose and animation stays. */
+  function applyLook(look) {
+    const next = LOOKS.has(look) ? look : null;
+    if ((holder.dataset.model || null) === next) return;
+    flag('model', next);
+    trace(`look: ${next || 'classic'}`);
+  }
 
   function applyView(next) {
     const previous = view;
@@ -3986,9 +3996,11 @@
     crew.setAgents(data.crew);
     pet.setOn(data.pet);
     applyBug(data.bug || null);
+    applyLook(data.look);
   });
 
   window.buddy.onView((next) => applyView(next));
+  window.buddy.onLook((look) => applyLook(look));
   window.buddy.onLayout((next) => applyLayout(next));
   window.buddy.onMenuItems((items) => renderMenu(items));
   window.buddy.onPaused((value) => setPaused(value));

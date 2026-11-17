@@ -17,6 +17,8 @@
  *  - Remember the skill the main session is using until its turn ends.
  *  - Show one Claude account only, if the user picked one (setAccountFilter):
  *    events of other accounts are ignored, apart from noting the account.
+ *  - Remember each session's model family (SessionStart, PostModelSwitch: tier)
+ *    for the robot's look: the highest family any live session runs (look).
  *
  * Emits
  *  - 'state' ({ state, message, mood, skill, duck })  whenever the view changes.
@@ -28,6 +30,7 @@
  *  - 'crew'  (agents)              whenever the list of sub-agents changes (see app/agents.js).
  *  - 'account' (name)              the first event of an account in this run.
  *  - 'gone'  (session, why)        a session closed because its process is gone.
+ *  - 'look'  (tier)                the look changed: 'haiku' | 'sonnet' | 'opus' | 'fable'.
  *  - 'quit'  (reason)              when the app should exit.
  *
  * Ordering: hooks run as separate async processes, so events can arrive slightly
@@ -45,6 +48,8 @@ const { LivenessWatch } = require('./liveness');
 const { BugWatch } = require('./bugs');
 
 const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse', 'PostToolUseFailure']);
+/** Model families with a look of their own, lowest first (app/validate.js TIERS). */
+const TIERS = Object.freeze(['haiku', 'sonnet', 'opus', 'fable']);
 
 const DEFAULT_TIMINGS = Object.freeze({
   /** How long a tool state stays after the tool finished. */
@@ -156,6 +161,8 @@ class BuddyCore extends EventEmitter {
     this.lastDoneAt = null;
     /** The latest notification: { kind } (notification_type, may be undefined). */
     this.lastNotice = null;
+    /** The look (a model family, see updateLook), or null while no session told its model. */
+    this.look = null;
     /** Second safety net: the Claude Code process of a session died without SessionEnd. */
     this.liveness = options.liveness
       ? new LivenessWatch({
@@ -266,6 +273,7 @@ class BuddyCore extends EventEmitter {
         dropped = true;
       }
     }
+    if (dropped) this.updateLook();
     if (dropped && !this.leaving) this.showFallback();
   }
 
@@ -331,6 +339,10 @@ class BuddyCore extends EventEmitter {
 
     switch (evt.event) {
       case 'SessionStart':
+        if (evt.tier) {
+          session.tier = evt.tier;
+          this.updateLook();
+        }
         session.turnActive = false;
         this.show('greeting', { key: 'greeting' }, this.timings.greetingMs, owner);
         for (const moment of this.moments.sessionStart(evt.source, owner)) this.emit('moment', moment);
@@ -398,6 +410,12 @@ class BuddyCore extends EventEmitter {
         this.scheduleRevert(this.timings.holdMs);
         break;
 
+      case 'PostModelSwitch':
+        // Only the look changes: no greeting, the view stays as it is.
+        session.tier = evt.tier;
+        this.updateLook();
+        break;
+
       case 'PreCompact':
         // Manual /compact or auto: it pumps the press over its stack of paper (robot.css
         // data-task="compact"); SessionStart (source "compact") ends it with a cube.
@@ -446,6 +464,7 @@ class BuddyCore extends EventEmitter {
 
   onSessionEnd(evt) {
     const known = this.sessions.delete(evt.session);
+    if (known) this.updateLook();
     if (this.liveness) this.liveness.untrack(evt.session);
     this.ended.delete(evt.session);
     this.ended.add(evt.session);
@@ -550,10 +569,25 @@ class BuddyCore extends EventEmitter {
   touch(id, account = null) {
     let session = this.sessions.get(id);
     if (!session) {
-      session = { turnActive: false, inflight: new Set(), anonymous: 0, finished: new Set(), stopTs: 0, account };
+      session = { turnActive: false, inflight: new Set(), anonymous: 0, finished: new Set(), stopTs: 0, account, tier: null };
       this.sessions.set(id, session);
     }
     return session;
+  }
+
+  /**
+   * The look: the highest model family any live session runs. When none of them told
+   * its model (Claude Code leaves it out now and then, e.g. after /clear), or the last
+   * one ended, the robot keeps the look it has: no flicker back to the classic one.
+   * Emits 'look' when it changes.
+   */
+  updateLook() {
+    let best = -1;
+    for (const session of this.sessions.values()) best = Math.max(best, TIERS.indexOf(session.tier));
+    const look = best >= 0 ? TIERS[best] : this.look;
+    if (look === this.look) return;
+    this.look = look;
+    this.emit('look', look);
   }
 
   anyTurnActive() {

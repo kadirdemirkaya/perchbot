@@ -72,7 +72,8 @@
     "volume_high": "High",
     "hands": "Hands: Chrome",
     "typingPeek": "Watch me type",
-    "giantPeek": "Giant peek before a nap"
+    "giantPeek": "Giant peek before a nap",
+    "modelLook": "Look by model (Haiku, Sonnet, Opus, Fable)"
   },
   "hover": {
     "hideBubble": "Hide speech bubble",
