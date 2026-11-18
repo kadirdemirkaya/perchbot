@@ -1,6 +1,6 @@
 {
   "name": "perchbot",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "A tiny animated desktop companion that reacts to what your coding agent is doing, driven by Claude Code hooks.",
   "license": "MIT",
   "repository": {
