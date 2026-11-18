@@ -79,6 +79,18 @@ const DEFAULTS = Object.freeze({
    */
   giantPeek: false,
   /**
+   * While you were away (app/away.js): back at the computer after a while, and things happened
+   * (turns done, commits, pushes, a question waiting, a check still failing), a giant of it holds
+   * up a board with them. Only counts from the hook events it already had, in memory. On by default.
+   */
+  awayBoard: true,
+  /**
+   * Stretch breaks (app/breaks.js): after about fifty minutes at the computer without a pause, a
+   * giant of it stretches with the user, then twenty seconds for the eyes. Only the system's idle
+   * time is looked at. Off until the user turns it on.
+   */
+  breakCoach: false,
+  /**
    * Model looks: the robot dresses for the model its session runs (Haiku, Sonnet, Opus,
    * Fable: robot.css data-model). Only the model's family comes from the hook. On by default;
    * off: always the classic look.
@@ -152,6 +164,8 @@ function normalizeSettings(raw) {
   if (typeof raw.typingPeek === 'boolean') s.typingPeek = raw.typingPeek;
   if (typeof raw.followWindows === 'boolean') s.followWindows = raw.followWindows;
   if (typeof raw.giantPeek === 'boolean') s.giantPeek = raw.giantPeek;
+  if (typeof raw.awayBoard === 'boolean') s.awayBoard = raw.awayBoard;
+  if (typeof raw.breakCoach === 'boolean') s.breakCoach = raw.breakCoach;
   if (typeof raw.modelLook === 'boolean') s.modelLook = raw.modelLook;
   if (typeof raw.sound === 'boolean') s.sound = raw.sound;
   if (SOUND_VOLUMES.includes(raw.soundVolume)) s.soundVolume = raw.soundVolume;

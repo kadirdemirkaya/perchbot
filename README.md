@@ -43,6 +43,8 @@ itself (backing up each file first), only in accounts that already use this copy
 | the agent waits for you | nudges you, then knocks until you answer |
 | a turn ends | cheers, with a short summary ("Done! 4 steps in 12 s"); on Friday afternoons it dances |
 | a long turn ends while you look elsewhere | flies over to your cursor: "All done! Over to you.", then back |
+| you come back and things happened meanwhile | a big one of it holds up a board: "While you were away (18 min): 2 tasks done, Claude is waiting for you" |
+| you have been at it for 50 minutes without a pause (opt-in) | stretches with you, then counts 20 seconds while you look far away |
 | sub-agents start | little helpers join in, work beside it, play and report back |
 | a skill is in use | reads its skill book, the skill's name on a tag |
 | a test or check fails | a bug turns up and they fight until a check passes ("Bug fixed!") |
@@ -159,6 +161,11 @@ itself (backing up each file first), only in accounts that already use this copy
   the highest one wins. Following `/model` mid-session needs Claude Code 2.1.251 or newer.
 - **Giant peek** (off by default; needs ambient life): before a nap it walks up to the glass, growing up
   to ten times its size, and knocks. Move the pointer onto it: "There you are!"
+- **While you were away** (on by default): back at the computer and things happened, a big robot holds
+  up a board: tasks done, commits and pushes, a question waiting, a test still red. Pointer on it: it goes.
+- **Stretch breaks** (off by default): after about 50 minutes at the computer without a pause, it
+  stretches with you, then counts 20 seconds while you look far away, and goes back to the work.
+  Pointer on it: "Okay, later!" (it asks again in 15 minutes).
 - **Windows only**, off by default:
   - **Hands**: Chrome, tab and YouTube buttons in the chat. Your mouse is not moved, tab titles are not read.
   - **Watch me type** (needs ambient life): now and then it reads along while you type. It only asks
@@ -187,7 +194,8 @@ Everything stays on your computer; the robot never goes online.
 - **Ambient life:** the system idle time, where the cursor is and, on Windows, where windows are
   (frames only, never titles or contents).
 - **Watch me type:** where the text cursor is, never the text or your keys.
-- **Giant peek:** where the cursor is, only while the giant is on screen.
+- **Giant peek, the board, stretch breaks:** where the cursor is, only while the big robot is on screen.
+  The board counts only what the hook already sent, in memory; breaks use only the system idle time.
 - **Follow Windows:** only the type of each deleted item, never its name or where it was.
 - **Keep hooks up to date:** once per start it runs `claude --version` and adds its own missing hooks
   to your Claude Code settings; nothing else in them changes.
@@ -197,7 +205,7 @@ Electron, once, by `perchbot setup` (or `start` / `demo` while it is still missi
 
 ## Development
 
-`npm test` · `npm run dev` · `npm run simulate [-- bug | life | chat | duck | popcorn | press | plan | pr | mcp | terminal | looks]` · `npm pack`.
+`npm test` · `npm run dev` · `npm run simulate [-- bug | life | chat | duck | popcorn | press | plan | pr | mcp | terminal | giant | board | break | looks]` · `npm pack`.
 Make your own character: [characters/README.md](https://github.com/kadirdemirkaya/perchbot/blob/main/characters/README.md).
 
 MIT, see [LICENSE](https://github.com/kadirdemirkaya/perchbot/blob/main/LICENSE) and [THIRD_PARTY_NOTICES.md](https://github.com/kadirdemirkaya/perchbot/blob/main/THIRD_PARTY_NOTICES.md).

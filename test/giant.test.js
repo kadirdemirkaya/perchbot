@@ -168,11 +168,12 @@ test('it starts on its feet on the ground: down out of the air or off a window f
   const off = page.slice(page.indexOf('function offTheWindow()'), page.indexOf('function offTheWindow()') + 300);
   assert.ok(off.includes('if (!flight.perched && !flight.ledge) return false;'));
   assert.ok(off.includes("window.buddy.fun('land');"));
-  // The demo comes down first too, then asks.
-  const demo = page.slice(page.indexOf('function demoGiant('), page.indexOf('function stopGiant('));
+  // The demo comes down first too, then asks (as do the board and the stretch break).
+  const demo = page.slice(page.indexOf('function demoGiant('), page.indexOf('function giantNotNow('));
+  assert.ok(demo.includes("giantWhenDown('peek', true);"));
   assert.ok(demo.includes('const up = flight.airborne || flight.perched || flight.ledge;'));
   assert.ok(demo.includes("if (up && !moving) window.buddy.fun('land');"));
-  assert.ok(demo.includes("if (!startGiant(true)) trace('giant: not now');"));
+  assert.ok(demo.includes("if (!startGiant(demo, mode)) giantNotNow(mode, 'giant: not now');"));
   assert.ok(page.includes("} else if (name === 'giant') {\n      // The giant peek right now, whatever its switch says (normally the idle story's finale).\n      demoGiant();"));
   // A landing is a trip off the window ('land' is a fun action; a trip ends the perch).
   assert.ok(main.includes("if (perching || pendingPerch) stopPerch();"));
@@ -275,14 +276,15 @@ test('main.js: a click-through window that only listens; the cursor read only wh
     'g.ew.webContents.setZoomFactor(s);',
     'g.poll = setInterval(() => watchGiant(g), giantLib.GIANT.pollMs);',
     'const cursor = screen.getCursorScreenPoint();',
-    'giantLib.pointerFound({ phase: g.phase, cursor, hit: g.hit, moved: g.moved })',
+    'giantLib.pointerFound({ phase: g.phase, cursor, hit: g.hit, moved: g.moved, mode: g.mode, inPhaseMs: Date.now() - g.phaseAt })',
   ]) {
     assert.ok(body.includes(piece), piece);
   }
   // The cursor's position never leaves main: neither page gets it.
   assert.ok(!/send\([^)]*cursor/.test(body), 'no cursor sent anywhere');
   assert.ok(main.includes('const req = giantLib.parseGiantRequest(msg);'), 'the request is checked again');
-  assert.ok(main.includes("if (giant && !CALM_STATES.has(snap.state)) endGiant('work came in');"));
+  // Work ends the peek only (the board and the stretch break stay: see test/away-break.test.js).
+  assert.ok(main.includes("if (giant && giant.mode === 'peek' && !CALM_STATES.has(snap.state)) endGiant('work came in');"));
   for (const why of ['paused', 'quit', 'renderer gone', 'window closed']) assert.ok(main.includes(`endGiant('${why}')`), why);
   assert.ok(main.includes("case 'giant':\n        actions.setGiantPeek(!settings.giantPeek);"));
   assert.ok(main.includes('giantPeek: Boolean(settings.giantPeek),'), 'the page knows the switch');
@@ -296,7 +298,8 @@ test('main.js: a click-through window that only listens; the cursor read only wh
   assert.ok(!/\.send\(|invoke\(/.test(bridge), 'the giant page cannot send anything');
   const preload = read('app', 'preload.js');
   assert.ok(preload.includes("onGiant: on('buddy:giant'),"));
-  assert.ok(preload.includes("if ((op !== 'start' && op !== 'demo') || !feet || !num(feet.x) || !num(feet.y)) return;"));
+  assert.ok(preload.includes("const GIANT_OPS = new Set(['start', 'demo', 'board', 'break']);"));
+  assert.ok(preload.includes('if (!GIANT_OPS.has(op) || !feet || !num(feet.x) || !num(feet.y)) return;'));
 });
 
 test('the giant\'s page: strict CSP, the SVG cleaned, words as text, poses for every phase', () => {

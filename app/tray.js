@@ -156,6 +156,8 @@ function lifeToggles(settings, t, on) {
     box('hands', Boolean(settings.hands), on.setHands),
     box('typingPeek', Boolean(settings.typingPeek), on.setTypingPeek),
     box('giantPeek', Boolean(settings.giantPeek), on.setGiantPeek),
+    box('awayBoard', settings.awayBoard !== false, on.setAwayBoard),
+    box('breakCoach', Boolean(settings.breakCoach), on.setBreakCoach),
     box('modelLook', settings.modelLook !== false, on.setModelLook),
   ];
 }

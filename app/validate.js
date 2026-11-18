@@ -78,6 +78,10 @@ const DEMOS = new Set([
   // It asks "What's this?" (with answers to click); the user is back after a while.
   'curious',
   'welcome',
+  // Back after a while and things happened: a giant of it holds up a board ("While you were away");
+  // a stretch break (arms up, a lean, the neck, twenty seconds for the eyes).
+  'board',
+  'break',
   // The pose it presses a button with (hands); nothing is pressed.
   'press',
   // Hands for real, but only on a test overlay (--dev): open / close Chrome (no "Are you sure?"),

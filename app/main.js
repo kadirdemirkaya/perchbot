@@ -65,6 +65,8 @@ const chat = require('./chat');
 const { taskFor } = require('./tools');
 const { greetingKey } = require('./moments');
 const { PresenceWatch, PRESENCE } = require('./presence');
+const { AwayLog, boardLines, awayMinutesMs } = require('./away');
+const { BreakWatch } = require('./breaks');
 const perchLib = require('./perch');
 const { createScanner } = require('./winscan');
 const { createHands } = require('./hands');
@@ -236,11 +238,23 @@ function start() {
   let trip = null;
   /** On the way to another screen, faded out: { point, then, timer } (see warpTo). */
   let warping = null;
-  /** The giant peek on screen: { ew, timers, poll, phase, found, first, moved, hit } (see startGiant). */
+  /**
+   * The giant on screen: { mode, demo, ew, timers, poll, phase, phaseAt, found, first, moved, hit } (see
+   * startGiant). mode: 'peek' (before a nap), 'board' (while you were away), 'break' (stretch break).
+   */
   let giant = null;
   let lastGiant = -Infinity;
   /** The giant's window stays this long after the small one is back (no gap between the two). */
   const GIANT_HANDOVER_MS = 150;
+  /** "While you were away" (app/away.js): what happened, in memory only (counts and times). */
+  const awayLog = new AwayLog();
+  /** The last turn done that awayLog noted (core.lastDoneAt). */
+  let awayDoneAt = null;
+  /** The board's words, ready for the page's 'board' request: { board, at } (taken once, soon). */
+  let pendingBoard = null;
+  const BOARD_FRESH_MS = 60000;
+  /** Stretch breaks (app/breaks.js): the system's idle time and locks only. */
+  const breakWatch = new BreakWatch();
   /** Where a trip left the character (this run only); null = at home. */
   let roamAnchor = null;
   /** Where it hangs from the top edge (a 'hang' trip); it hangs while roamAnchor is still there. */
@@ -311,8 +325,14 @@ function start() {
       endTrip(true);
       placeWindow();
     }
-    // The giant peek gives way to work at once (the small one comes back).
-    if (giant && !CALM_STATES.has(snap.state)) endGiant('work came in');
+    // A turn was done: noted for "While you were away" (only when, nothing else).
+    if (core.lastDoneAt !== null && core.lastDoneAt !== awayDoneAt) {
+      awayDoneAt = core.lastDoneAt;
+      awayLog.note('done');
+    }
+    // The giant peek gives way to work at once (the small one comes back); the board and the
+    // stretch break do not (the small one shows the work again when it is back).
+    if (giant && giant.mode === 'peek' && !CALM_STATES.has(snap.state)) endGiant('work came in');
     // Hanging from the top edge when work comes in: it lets go and drops into view (the bubble shows the work).
     if (isHanging() && !CALM_STATES.has(snap.state)) dropFromEdge();
     // Reading along as the user types: the prompt went off (from idle or done to thinking), or
@@ -389,6 +409,7 @@ function start() {
   // A commit, a push, a failure streak over, a compaction: a little show on the page.
   core.on('moment', (kind) => {
     log.devOnly(`moment: ${kind}`);
+    if (kind === 'commit' || kind === 'push') awayLog.note(kind);
     if (canSend()) win.webContents.send('buddy:moment', kind);
   });
 
@@ -641,13 +662,18 @@ function start() {
     ]) {
       powerMonitor.on(name, () => {
         setPaused(value);
+        if (value) breakWatch.locked();
+        else breakWatch.unlocked();
         sendPresence(value ? presence.locked() : presence.unlocked());
       });
     }
-    // Is the user at the computer? Only the system's idle time (app/presence.js).
+    // Is the user at the computer? Only the system's idle time (app/presence.js), which also
+    // times the stretch breaks (app/breaks.js, with their switch on).
     presenceTimer = setInterval(() => {
       try {
-        sendPresence(presence.feed(powerMonitor.getSystemIdleTime()));
+        const idle = powerMonitor.getSystemIdleTime();
+        sendPresence(presence.feed(idle));
+        if (settings.breakCoach && breakWatch.feed(idle)) offerBreak();
       } catch {
         // not available on this system
       }
@@ -1257,11 +1283,65 @@ function start() {
   const presence = new PresenceWatch();
   let presenceTimer = null;
 
-  /** Away, or back (welcome back!): the page decides what it shows. */
+  /**
+   * Away, or back (welcome back!): the page decides what it shows. Back, and things happened
+   * meanwhile ("While you were away" on): { board: true, summary } too (summary: the first lines
+   * in one, for the small bubble if no giant fits); the board's words wait here for the page's
+   * 'board' request (they never come from the page).
+   */
   function sendPresence(change) {
     if (!change) return;
     log.devOnly(`presence: ${change.kind}${change.awayMs ? ` after ${Math.round(change.awayMs / 1000)} s` : ''}`);
-    if (canSend()) win.webContents.send('buddy:presence', change);
+    let msg = change;
+    if (change.kind === 'back' && settings.awayBoard !== false) {
+      const now = Date.now();
+      const board = awayBoard(awayLog.summary({ since: now - change.awayMs, now, state: core.state, bug: Boolean(bug && bug.phase === 'open') }), change.awayMs);
+      if (board) {
+        pendingBoard = { board, at: now };
+        msg = { ...change, board: true, summary: board.short };
+        log.devOnly(`away: a board of ${board.lines.length} line(s)`);
+      }
+    }
+    if (canSend()) win.webContents.send('buddy:presence', msg);
+  }
+
+  /** The board in the user's words (app/away.js), or null. */
+  function awayBoard(summary, awayMs) {
+    if (!summary) return null;
+    const chatT = (key, vars) => translate(settings.language, 'chat', key, vars);
+    const time = chat.formatDuration(awayMinutesMs(awayMs), chatT);
+    return boardLines(summary, (key, vars) => translate(settings.language, 'quip', key, vars), time);
+  }
+
+  /** The board's words for the page's request, if they are fresh (taken once). */
+  function takeBoard() {
+    const p = pendingBoard;
+    pendingBoard = null;
+    return p && Date.now() - p.at <= BOARD_FRESH_MS ? p.board : null;
+  }
+
+  /** The simulator: as if the user were back after 18 minutes and two turns, a push, and a question waiting. */
+  function demoBoard() {
+    const board = awayBoard({ awayMs: 18 * 60000, done: 2, commits: 1, pushes: 1, waiting: true, bug: false, working: false }, 18 * 60000);
+    pendingBoard = { board, at: Date.now() };
+    if (canSend()) win.webContents.send('buddy:presence', { kind: 'back', awayMs: 18 * 60000, board: true, summary: board.short, demo: true });
+  }
+
+  /** Free for a stretch break: nothing else of its own going on (the page checks its side too). */
+  function breakFree() {
+    return Boolean(
+      win && !win.isDestroyed() && anchor && pageLayout && !paused && !quitting && !drag && !trip && !warping && !flipping && !rampage && !giant && !fist && !handsBusy && !typingVisit && !chatOpen,
+    );
+  }
+
+  /** About fifty minutes at it without a pause: ask the page (it may be busy: then again in a minute). */
+  function offerBreak({ demo = false } = {}) {
+    if (!demo && !breakFree()) {
+      log.devOnly('break: not now (busy)');
+      return;
+    }
+    log.devOnly(`break: time for a stretch${demo ? ' (demo)' : ''}`);
+    if (canSend()) win.webContents.send('buddy:break', { demo });
   }
 
   /** No network, no permissions, no spellchecker downloads. */
@@ -2738,7 +2818,7 @@ function start() {
     if (canSend()) win.webContents.send('buddy:rampage', { phase: null });
   }
 
-  // ------------------------------------------------------------------ the giant peek (app/giant.js)
+  // ------------------------------------------------------------------ the giant (app/giant.js)
 
   /**
    * Giant peek ("Giant peek" switch): the idle story's "Where are you?", big. The page asks
@@ -2754,20 +2834,39 @@ function start() {
    * { phase: null, refused: true }, and the page plays the small "Where are you?" instead.
    * One at a time; work coming in ends it at once. (Its state, giant / lastGiant, is declared
    * up top with the others: the first event may come in before this point.)
+   *
+   * The same window for two more jobs (mode): 'board' ("While you were away": the words come
+   * from here, takeBoard, never from the page; the pointer on it once it was read sends it off)
+   * and 'break' (stretch breaks: the pointer on it skips it, and it asks again later). Neither
+   * gives way to work.
    */
-  function startGiant({ op = 'start', feet, face = 'right' } = {}) {
-    const demo = op === 'demo';
+  function startGiant({ op = 'start', feet, face = 'right', mode = 'peek', demo: asDemo = false } = {}) {
+    const demo = op === 'demo' || asDemo === true;
     const refuse = (why) => {
-      log.devOnly(`giant: not now (${why})`);
+      log.devOnly(`giant: not now (${why}${mode === 'peek' ? '' : `, ${mode}`})`);
       if (canSend()) win.webContents.send('buddy:giant', { phase: null, refused: true });
     };
     if (!win || win.isDestroyed() || quitting || paused || !anchor || !pageLayout) return refuse('no window');
     if (giant || rampage || fist || trip || drag || warping || flipping || typingVisit || handsBusy || chatOpen) return refuse('busy');
     // Right where it stands, on its feet: never from a window's title bar or from the air.
     if (perching || pendingPerch || ledgeSink || flight.airborne) return refuse('not on the ground');
-    if (!demo && (!settings.giantPeek || !settings.ambientLife)) return refuse('switched off');
-    if (!demo && Date.now() - lastGiant < giantLib.GIANT.cooldownMs) return refuse('too soon');
-    if (!CALM_STATES.has(core.snapshot().state)) return refuse('at work');
+    const t = (key) => translate(settings.language, 'quip', key);
+    let say;
+    let board = null;
+    if (mode === 'board') {
+      if (!demo && settings.awayBoard === false) return refuse('switched off');
+      board = takeBoard();
+      if (!board) return refuse('nothing to show');
+      say = { hello: t('welcomeBack') };
+    } else if (mode === 'break') {
+      if (!demo && !settings.breakCoach) return refuse('switched off');
+      say = { reach: t('breakReach'), lean: t('breakLean'), neck: t('breakNeck'), eyes: t('breakEyes'), cheer: t('breakCheer'), skip: t('breakSkip') };
+    } else {
+      if (!demo && (!settings.giantPeek || !settings.ambientLife)) return refuse('switched off');
+      if (!demo && Date.now() - lastGiant < giantLib.GIANT.cooldownMs) return refuse('too soon');
+      if (!CALM_STATES.has(core.snapshot().state)) return refuse('at work');
+      say = { listen: t('whereAreYou'), shrug: t('giantHmm'), found: t('hereYouAre') };
+    }
     const payload = characterPayload();
     if (!payload) return refuse('no character');
     const here = placement.nearestDisplay(anchor, displays());
@@ -2782,20 +2881,27 @@ function start() {
       width: display.workArea.width / s,
       height: display.workArea.height / s,
     };
-    const t = (key) => translate(settings.language, 'quip', key);
     // Its feet (the buddy's page px) -> the giant's page px.
     const at = rampageLib.toEffect(feet, win.getBounds(), s, origin);
-    const plan = giantLib.planGiant({
-      area,
-      from: { x: at.x / s, y: at.y / s },
-      face,
-      say: { listen: t('whereAreYou'), shrug: t('giantHmm'), found: t('hereYouAre') },
-    });
+    const plan = giantLib.planGiant({ area, from: { x: at.x / s, y: at.y / s }, face, say, mode, board });
     if (!plan) return refuse('screen too small');
     lastGiant = Date.now();
-    const g = { ew: null, timers: [], poll: null, phase: null, found: false, first: null, moved: false, hit: giantLib.toScreen(plan.hit, origin, s) };
+    const g = {
+      mode: plan.mode,
+      demo,
+      ew: null,
+      timers: [],
+      poll: null,
+      phase: null,
+      phaseAt: 0,
+      found: false,
+      first: null,
+      moved: false,
+      hit: giantLib.toScreen(plan.hit, origin, s),
+    };
     giant = g;
-    log.info(`giant: peeking in, ${plan.factor} times its size${demo ? ' (demo)' : ''}`);
+    const what = { peek: 'peeking in', board: 'holding up the board', break: 'a stretch break' }[g.mode];
+    log.info(`giant: ${what}, ${plan.factor} times its size${demo ? ' (demo)' : ''}`);
     g.ew = effectWindow(display, 'Perchbot giant', 'giant-preload.js');
     g.ew.on('closed', () => {
       g.ew = null;
@@ -2825,10 +2931,11 @@ function start() {
   function giantPhase(g, phase) {
     if (giant !== g) return;
     if (phase === null) {
-      endGiant(g.found ? 'found' : 'no answer');
+      endGiant(g.found ? 'found' : g.mode === 'peek' ? 'no answer' : 'over');
       return;
     }
     g.phase = phase;
+    g.phaseAt = Date.now();
     if (g.ew && !g.ew.isDestroyed() && !g.ew.webContents.isDestroyed()) g.ew.webContents.send('giant:phase', { phase });
     if (canSend()) win.webContents.send('buddy:giant', { phase });
   }
@@ -2839,21 +2946,23 @@ function start() {
     const cursor = screen.getCursorScreenPoint();
     if (!g.first) g.first = cursor;
     else if (cursor.x !== g.first.x || cursor.y !== g.first.y) g.moved = true;
-    if (!giantLib.pointerFound({ phase: g.phase, cursor, hit: g.hit, moved: g.moved })) return;
+    if (!giantLib.pointerFound({ phase: g.phase, cursor, hit: g.hit, moved: g.moved, mode: g.mode, inPhaseMs: Date.now() - g.phaseAt })) return;
     g.found = true;
     clearInterval(g.poll);
     g.poll = null;
-    log.devOnly('giant: the pointer is on it: there you are');
-    // The rest of the plan gives way: a happy hop, then back at once.
+    log.devOnly({ peek: 'giant: the pointer is on it: there you are', board: 'giant: the board was read', break: 'giant: break skipped (later)' }[g.mode]);
+    // The rest of the plan gives way: a happy hop, then back at once (the board: back at once;
+    // the break: "Okay, later!", then back).
     for (const t of g.timers) clearTimeout(t);
-    const steps = giantLib.foundTimeline();
+    const steps = g.mode === 'peek' ? giantLib.foundTimeline() : giantLib.answerTimeline(g.mode);
     g.timers = steps.map((step) => setTimeout(() => giantPhase(g, step.phase), step.at));
     g.timers.push(setTimeout(() => endGiant('time'), steps[steps.length - 1].at + giantLib.GIANT.graceMs));
   }
 
   /**
    * Over, or cut short (work came in, the page, screen locked, quitting): the small one is back
-   * first, then the window goes (a moment later, so there is no gap between the two).
+   * first, then the window goes (a moment later, so there is no gap between the two). A stretch
+   * break that ran to its end was taken; skipped or cut short, it asks again later.
    */
   function endGiant(why) {
     const g = giant;
@@ -2862,12 +2971,17 @@ function start() {
     for (const t of g.timers) clearTimeout(t);
     if (g.poll) clearInterval(g.poll);
     log.devOnly(`giant: over (${why})`);
+    if (g.mode === 'break' && !g.demo) {
+      if (why === 'over') breakWatch.done();
+      else breakWatch.snooze();
+    }
     if (canSend()) win.webContents.send('buddy:giant', { phase: null, found: g.found });
     const ew = g.ew;
     g.ew = null;
     if (!ew || ew.isDestroyed()) return;
     // Cut short: the giant goes at once (at the end of its walk back it stands where the small one is).
-    if (why !== 'no answer' && why !== 'found' && !ew.webContents.isDestroyed()) ew.webContents.send('giant:stop');
+    const ranOut = why === 'no answer' || why === 'found' || why === 'over';
+    if (!ranOut && !ew.webContents.isDestroyed()) ew.webContents.send('giant:stop');
     const close = () => !ew.isDestroyed() && ew.destroy();
     if (quitting || why === 'window closed') close();
     else setTimeout(close, GIANT_HANDOVER_MS);
@@ -2978,6 +3092,10 @@ function start() {
     else if (name === 'fist' && isDev) runHands('newtab', { confirmed: true, fist: true });
     // A rampage with the chase for sure (whatever Streak is set to).
     else if (name === 'rampage-chase') demoRampageChase();
+    // "While you were away": as if the user were back and things had happened (whatever its switch says).
+    else if (name === 'board') demoBoard();
+    // A stretch break right now (whatever its switch says).
+    else if (name === 'break') offerBreak({ demo: true });
     else if (canSend()) win.webContents.send('buddy:fun', { action: 'demo', name });
   }
 
@@ -3503,7 +3621,19 @@ function start() {
     // Giant peek: the page reads it at the end of the idle story (switched off: a giant on screen goes).
     setGiantPeek: (giantPeek) =>
       updateSettings({ giantPeek }, () => {
-        if (!giantPeek) endGiant('switched off');
+        if (!giantPeek && giant && giant.mode === 'peek') endGiant('switched off');
+      }),
+    // "While you were away": the board when the user is back (switched off: a board on screen goes).
+    setAwayBoard: (awayBoard) =>
+      updateSettings({ awayBoard }, () => {
+        if (!awayBoard) pendingBoard = null;
+        if (!awayBoard && giant && giant.mode === 'board') endGiant('switched off');
+      }),
+    // Stretch breaks: switched on, the fifty minutes start now; off, a break on screen goes.
+    setBreakCoach: (breakCoach) =>
+      updateSettings({ breakCoach }, () => {
+        if (breakCoach) breakWatch.restart();
+        else if (giant && giant.mode === 'break') endGiant('switched off');
       }),
     // Model looks: off, the classic look at once; on, the sessions' model again.
     setModelLook: (modelLook) => updateSettings({ modelLook }, sendLook),

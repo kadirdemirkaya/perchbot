@@ -102,6 +102,12 @@ html.column-left body {
   visibility: hidden;
 }
 
+/* The board and the stretch break come during work too: what goes with it (the bubble, the
+   steps, the skill tag, its effects) waits until it is back. */
+.stage.giant-away :is(.bubble, .trail, .skill-tag, .account-tag, .fx) {
+  visibility: hidden;
+}
+
 .slot {
   position: absolute;
   top: 0;

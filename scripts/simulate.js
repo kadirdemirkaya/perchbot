@@ -50,6 +50,14 @@
  *                                       with nobody answering it shrugs and walks back to its spot
  *                                       (move the pointer onto it meanwhile: "There you are!" and
  *                                       it runs back)
+ *   npm run simulate -- board           "While you were away" (whatever its switch says): as if
+ *                                       you were back after 18 minutes, a giant of it walks up
+ *                                       with a board (2 tasks done, a commit and a push, Claude
+ *                                       waiting), holds it up and walks back (the pointer on it
+ *                                       after 3 s: back at once)
+ *   npm run simulate -- break           a stretch break (whatever its switch says): arms up, a
+ *                                       lean to each side, the neck, 20 s for the eyes, a cheer,
+ *                                       then the work again (the pointer on it: "Okay, later!")
  *   npm run simulate -- looks           the model looks: a session on Haiku (plain silver), then
  *                                       /model to Sonnet (orchid), Opus (gold trim, a star) and
  *                                       Fable (midnight violet, a glowing bulb, fairy dust); a turn
@@ -579,6 +587,27 @@ async function giantScenario() {
   if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
 }
 
+/** "While you were away" (app/away.js), as a demo: normally when the user is back and things happened. */
+async function boardScenario() {
+  const s = `sim-board-${randomId()}`;
+  console.log(`Session ${s}\n`);
+  await step('greeting', base(s, 'SessionStart', { source: 'startup' }), 3000);
+  await act(s, 'board', 'back after 18 min: the board', 16000);
+  if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
+}
+
+/** A stretch break (app/breaks.js), as a demo, while Claude Code works: back to the work after it. */
+async function breakScenario() {
+  const s = `sim-break-${randomId()}`;
+  console.log(`Session ${s}\n`);
+  await step('greeting', base(s, 'SessionStart', { source: 'startup' }), 3000);
+  await step('prompt', base(s, 'UserPromptSubmit', { prompt: 'refactor the parser' }), 1500);
+  await step('reading   parser.js', base(s, 'PreToolUse', { tool_name: 'Read', tool_use_id: 'b1', tool_input: { file_path: '/repo/parser.js' } }), 1500);
+  await act(s, 'break', 'a stretch break (about 42 s)', 44000);
+  await step('done', base(s, 'Stop', { stop_hook_active: false }), 3500);
+  if (!KEEP) await step('session ends (goodbye)', base(s, 'SessionEnd', { reason: 'other' }), 3500);
+}
+
 /** /model to `to` (from `from`): PostModelSwitch as Claude Code sends it; only the family leaves the hook. */
 function modelSwitch(s, from, to, requested) {
   return base(s, 'PostModelSwitch', {
@@ -746,9 +775,11 @@ async function chatScenario() {
   else if (scenario === 'mcp') await mcpScenario();
   else if (scenario === 'terminal') await terminalScenario();
   else if (scenario === 'giant') await giantScenario();
+  else if (scenario === 'board') await boardScenario();
+  else if (scenario === 'break') await breakScenario();
   else if (scenario === 'looks') await looksScenario();
   else {
-    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life", "lifecycle", "chat", "bug", "popcorn", "duck", "press", "plan", "pr", "mcp", "terminal", "giant" or "looks".`);
+    console.error(`Unknown scenario "${scenario}". Use "tour", "two-sessions", "playground", "life", "lifecycle", "chat", "bug", "popcorn", "duck", "press", "plan", "pr", "mcp", "terminal", "giant", "board", "break" or "looks".`);
     process.exitCode = 1;
   }
 })();

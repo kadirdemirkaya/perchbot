@@ -17,7 +17,10 @@ param(
   # With -Windows: watch this folder instead of the real Recycle Bin (drop test $I records in it).
   [string]$RecycleDir,
   # Giant peek (before a nap it walks up to the glass, up to ten times its size; needs -Fun too): off unless -Giant.
-  [switch]$Giant
+  [switch]$Giant,
+  # Stretch breaks (after about fifty minutes at the computer without a pause): off unless -Break.
+  # ("While you were away" is on as by default; the demos `board` / `break` play whatever the switches say.)
+  [switch]$Break
 )
 # Starts an ISOLATED overlay for interactive tests: its own port and its own
 # settings folder, so the hooks of a live Claude Code session (which talk to
@@ -40,7 +43,7 @@ $busy = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Silentl
 if ($busy) { throw "port $Port is already in use (pid $($busy.OwningProcess)); stop that process first, e.g. an older test overlay" }
 
 New-Item -ItemType Directory -Force $TestHome | Out-Null
-$settings = @{ quiet = $false; ambientLife = [bool]$Fun; playMode = [bool]$Fun; cat = [bool]$Fun; hands = [bool]$Hands; stayPut = [bool]$StayPut; typingPeek = [bool]$Typing; followWindows = [bool]$Windows; giantPeek = [bool]$Giant }
+$settings = @{ quiet = $false; ambientLife = [bool]$Fun; playMode = [bool]$Fun; cat = [bool]$Fun; hands = [bool]$Hands; stayPut = [bool]$StayPut; typingPeek = [bool]$Typing; followWindows = [bool]$Windows; giantPeek = [bool]$Giant; breakCoach = [bool]$Break }
 if ($X -or $Y) { $settings.position = @{ x = $X; y = $Y } }
 $settings | ConvertTo-Json -Compress | Out-File -Encoding ascii (Join-Path $TestHome 'settings.json')
 

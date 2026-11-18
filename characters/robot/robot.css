@@ -3031,6 +3031,140 @@
   opacity: 1;
 }
 
+/* ------------------------------------------------------------ the board and the stretch break (the same giant)
+
+   The giant's window has two more jobs (app/giant.js modes); its page sets data-giant
+   phase by phase, as for the peek (walk and back as above):
+     board   "While you were away": it holds up a board at its chest (text the page draws
+             over it). data-board is on the wrapper the whole time: the laptop is put away
+             and its forearms reach in under the board while it carries it there and back.
+     reach   stretch break: both arms up, up on its toes, eyes shut with pleasure
+     lean    arms still up, a lean to one side, then the other (from the hips)
+     neck    arms down, its head tilts to one side, then the other
+     eyes    the near arm out, pointing far away, looking there (the page counts
+             twenty seconds down for the user's eyes)
+     cheer   done: the page adds data-glee (a happy hop)
+     skip    the pointer on it: a little wave ("Okay, later!"), then back */
+.buddy-character[data-board] .rb-laptop,
+.buddy-character:is([data-giant='reach'], [data-giant='lean'], [data-giant='neck'], [data-giant='eyes'], [data-giant='cheer'], [data-giant='skip']) .rb-laptop {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.buddy-character[data-board]:is([data-giant='walk'], [data-giant='board'], [data-giant='back']) .rb-arm-back {
+  animation: none;
+  transform: rotate(-24deg);
+}
+
+.buddy-character[data-board]:is([data-giant='walk'], [data-giant='board'], [data-giant='back']) .rb-forearm-back {
+  transform: rotate(-70deg);
+}
+
+.buddy-character[data-board]:is([data-giant='walk'], [data-giant='board'], [data-giant='back']) .rb-arm-front {
+  animation: none;
+  transform: rotate(24deg);
+}
+
+.buddy-character[data-board]:is([data-giant='walk'], [data-giant='board'], [data-giant='back']) .rb-forearm-front {
+  transform: rotate(70deg);
+}
+
+/* reach / lean: both arms up (raised slowly), forearms straight */
+.buddy-character:is([data-giant='reach'], [data-giant='lean']) .rb-arm-back {
+  transform: rotate(168deg);
+  transition-duration: 0.9s;
+}
+
+.buddy-character:is([data-giant='reach'], [data-giant='lean']) .rb-arm-front {
+  transform: rotate(-168deg);
+  transition-duration: 0.9s;
+}
+
+.buddy-character:is([data-giant='reach'], [data-giant='lean']) :is(.rb-forearm-back, .rb-forearm-front) {
+  transform: none;
+}
+
+.buddy-character[data-giant='reach'] .rb-figure {
+  animation: rb-giant-tiptoe 4.2s ease-in-out both;
+}
+
+@keyframes rb-giant-tiptoe {
+  0%, 20% { transform: none; }
+  45%, 72% { transform: translateY(-5px); }
+  100% { transform: none; }
+}
+
+/* Eyes shut with pleasure while it stretches. */
+.buddy-character:is([data-giant='reach'], [data-giant='neck']) :is(.rb-eyes, .rb-mouth, .rb-mouth-o, .rb-mouth-worry) {
+  opacity: 0;
+}
+
+.buddy-character:is([data-giant='reach'], [data-giant='neck']) :is(.rb-eyes-happy, .rb-mouth-grin) {
+  opacity: 1;
+}
+
+.buddy-character[data-giant='lean'] .rb-torso {
+  animation: rb-giant-lean 5s ease-in-out both;
+}
+
+@keyframes rb-giant-lean {
+  0%, 8% { transform: none; }
+  28%, 42% { transform: rotate(-11deg); }
+  62%, 76% { transform: rotate(11deg); }
+  94%, 100% { transform: none; }
+}
+
+.buddy-character[data-giant='neck'] .rb-head {
+  animation: rb-giant-neck 4.4s ease-in-out both;
+}
+
+@keyframes rb-giant-neck {
+  0%, 10% { transform: none; }
+  28%, 44% { transform: rotate(-16deg); }
+  62%, 78% { transform: rotate(16deg); }
+  96%, 100% { transform: none; }
+}
+
+/* eyes: the near arm points far away, it looks there and sways a little */
+.buddy-character[data-giant='eyes'] .rb-arm-front {
+  transform: rotate(-98deg);
+}
+
+.buddy-character[data-giant='eyes'] .rb-forearm-front {
+  transform: rotate(-6deg);
+}
+
+.buddy-character[data-giant='eyes'] .rb-head {
+  transform: rotate(4deg);
+}
+
+.buddy-character[data-giant='eyes'] .rb-face {
+  transform: translate(5px, -1px);
+}
+
+.buddy-character[data-giant='eyes'] .rb-figure {
+  animation: rb-giant-sway 4s ease-in-out infinite;
+}
+
+@keyframes rb-giant-sway {
+  0%, 100% { transform: none; }
+  50% { transform: rotate(1.2deg); }
+}
+
+/* skip: a little wave */
+.buddy-character[data-giant='skip'] .rb-arm-front {
+  transform: rotate(-150deg);
+}
+
+.buddy-character[data-giant='skip'] .rb-forearm-front {
+  animation: rb-giant-wave 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes rb-giant-wave {
+  from { transform: rotate(-25deg); }
+  to { transform: rotate(20deg); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .buddy-character[data-giant] * {
     animation: none !important;

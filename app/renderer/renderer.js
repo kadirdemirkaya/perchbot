@@ -516,6 +516,12 @@
   function quip(key, ms = 1300) {
     const text = settings.strings && settings.strings.quips && settings.strings.quips[key];
     if (!text) return;
+    sayLine(text, ms);
+  }
+
+  /** A line main.js put into words already (the board's summary), shown like a quip (as text). */
+  function sayLine(text, ms = 1300) {
+    if (typeof text !== 'string' || !text) return;
     quipText = text;
     renderBubble();
     later('quip', ms, () => {
@@ -1446,10 +1452,16 @@
   /** The user is away from the computer (no one to see "Where are you?", see the idle story). */
   let userAway = false;
 
-  /** Back at the computer after a while: it wakes up and says hello again. */
+  /**
+   * Back at the computer after a while: it wakes up and says hello again. Things happened
+   * meanwhile ("While you were away", main.js sends board: true with a summary): a giant of it
+   * holds up a board instead (main.js has its words); no room for a giant, or something else
+   * going on: the summary in the bubble.
+   */
   function onPresence(change) {
     if (change && (change.kind === 'away' || change.kind === 'back')) userAway = change.kind === 'away';
     if (!change || change.kind !== 'back') return;
+    if (change.board === true && showBoard(change)) return;
     if (!ambientOn() || !CALM.has(view.state)) return;
     rest.activity();
     updateFun();
@@ -2088,8 +2100,10 @@
   function updateFun() {
     // Follow Windows: something else took the character (a duel, a drag, a trip...): the cut stops.
     if (slashing && slashTakenOver()) slash.stop();
-    // The giant peek gives way to work, ambient life switched off, a lock (main ends it too).
-    if (giant && (!CALM.has(view.state) || paused || (!giantDemo && !ambientOn()))) stopGiant('interrupted');
+    // The giant peek gives way to work, ambient life switched off, a lock (main ends it too); the
+    // board and the stretch break only to a lock.
+    if (giant && giantMode === 'peek' && (!CALM.has(view.state) || paused || (!giantDemo && !ambientOn()))) stopGiant('interrupted');
+    else if (giant && giantMode !== 'peek' && paused) stopGiant('interrupted');
     syncRest();
     // Helpers may roam the screen: ambient life on (with motion), awake, not paused.
     crew.setRoam(ambientOn() && !rest.resting);
@@ -2827,7 +2841,7 @@
   /** When it last asked "Where are you?" (the story's finale, see storyBeat). */
   let whereAt = 0;
 
-  // ---------------------------------------------------------------- the giant peek (app/giant.js, main.js)
+  // ---------------------------------------------------------------- the giant (app/giant.js, main.js)
 
   /**
    * Giant peek ("Giant peek" switch, off by default): the idle story's "Where are you?" comes
@@ -2840,30 +2854,46 @@
    * no answer: it naps right here (the story's last beat, at once). Refused (the screen too
    * small, something else going on): the small "Where are you?" instead. Work, ambient life
    * switched off, a lock: it ends at once and the small one is back.
+   *
+   * The same giant for two more jobs (giantMode): 'board' ("While you were away", see
+   * onPresence: it holds up a board with what happened; main.js has the words; refused: the
+   * summary in the bubble) and 'break' (a stretch break, see onBreak: a happy hop when it is
+   * back from a whole one). Neither gives way to work (only to a lock): the small one shows
+   * the work again when it is back. Neither while something else holds the character.
    */
   /** null, 'asking', or the phase main.js sent last ('walk', 'knock', 'listen', ...). */
   let giant = null;
   /** The giant peek is a demo (not the story's beat): nothing of the story at its end. */
   let giantDemo = false;
+  /** Which giant: 'peek' (the story's "Where are you?"), 'board' (while you were away), 'break'. */
+  let giantMode = 'peek';
+  /** The board's summary (main.js put it into words), for the bubble if no giant comes. */
+  let boardSummary = null;
   /** A backstop: the main process never answered. */
   const GIANT_GUARD_MS = 4000;
   /** Found: the happy hop this long after it is back. */
   const GIANT_GLEE_MS = 200;
   /** No answer: the yawn this long after it is back. */
   const GIANT_SLEEPY_MS = 700;
-  /** The demo waits for it to come down this often, at most this many times. */
+  /** It waits for it to come down this often, at most this many times. */
   const GIANT_DEMO_RETRY_MS = 500;
   const GIANT_DEMO_TRIES = 12;
+  /** The board's summary in the bubble (no giant): this long. */
+  const BOARD_BUBBLE_MS = 5000;
+  const GIANT_ASKS = Object.freeze({ peek: 'to peek in big', board: 'to hold up the board', break: 'for a stretch break' });
 
-  function startGiant(demo = false) {
+  function startGiant(demo = false, mode = 'peek') {
     if (giant) return false;
     giant = 'asking';
     giantDemo = demo;
-    trace(`giant: asking to peek in big${demo ? ' (demo)' : ''}`);
+    giantMode = mode;
+    trace(`giant: asking ${GIANT_ASKS[mode] || GIANT_ASKS.peek}${demo ? ' (demo)' : ''}`);
     // The giant starts right where its feet are, facing the same way.
     const r = holder.getBoundingClientRect();
     const feet = { x: r.left + r.width * 0.49, y: r.top + r.height * 0.91 };
-    window.buddy.giant(demo ? 'demo' : 'start', feet, holder.dataset.face === 'left' ? 'left' : 'right');
+    const face = holder.dataset.face === 'left' ? 'left' : 'right';
+    if (mode === 'peek') window.buddy.giant(demo ? 'demo' : 'start', feet, face);
+    else window.buddy.giant(mode, feet, face, demo);
     later('giant-guard', GIANT_GUARD_MS, () => giant === 'asking' && endGiant({ refused: true }));
     updateFun();
     return true;
@@ -2886,15 +2916,82 @@
   }
 
   /** The demo: as in the story, down to the ground first (out of the air, off a window), then the giant. */
-  function demoGiant(tries = 0) {
+  function demoGiant() {
+    giantWhenDown('peek', true);
+  }
+
+  /** Down to the ground first (out of the air, off a window), then the giant of this mode. */
+  function giantWhenDown(mode, demo, tries = 0) {
     const up = flight.airborne || flight.perched || flight.ledge;
     if (up || moving) {
       if (up && !moving) window.buddy.fun('land');
-      if (tries < GIANT_DEMO_TRIES) later('giant-demo', GIANT_DEMO_RETRY_MS, () => demoGiant(tries + 1));
-      else trace('giant: not now (not on the ground)');
+      if (tries < GIANT_DEMO_TRIES) later('giant-down', GIANT_DEMO_RETRY_MS, () => giantWhenDown(mode, demo, tries + 1));
+      else giantNotNow(mode, 'giant: not now (not on the ground)');
       return;
     }
-    if (!startGiant(true)) trace('giant: not now');
+    if (!startGiant(demo, mode)) giantNotNow(mode, 'giant: not now');
+  }
+
+  /** No giant after all: the board's summary goes into the bubble. */
+  function giantNotNow(mode, why) {
+    trace(why);
+    if (mode === 'board') boardInBubble();
+  }
+
+  /** Free for the board or a stretch break: nothing else holds the character (main.js checks its side too). */
+  function giantFree() {
+    return (
+      !giant &&
+      motionAllowed() &&
+      !duel.active &&
+      !hunt.active &&
+      !drag &&
+      !crew.isPressing() &&
+      !chatOpen &&
+      !raging &&
+      !lasering &&
+      !fisting &&
+      !slashing &&
+      !typingLook &&
+      !guest &&
+      !guestPending &&
+      !cuddling
+    );
+  }
+
+  /** Back, and things happened meanwhile: the board (or its summary in the bubble). */
+  function showBoard(change) {
+    boardSummary = typeof change.summary === 'string' ? change.summary : null;
+    const demo = change.demo === true;
+    rest.activity();
+    if (!giantFree()) {
+      boardInBubble();
+      return true;
+    }
+    trace(`board: things happened while the user was away${demo ? ' (demo)' : ''}`);
+    giantWhenDown('board', demo);
+    return true;
+  }
+
+  /** No giant: hello and the summary in the bubble, for a few seconds. */
+  function boardInBubble() {
+    const text = boardSummary;
+    boardSummary = null;
+    if (!text) return;
+    trace('board: in the bubble instead');
+    sayLine(`${quipString('welcomeBack')} ${text}`, BOARD_BUBBLE_MS);
+  }
+
+  /** Time for a stretch break (main.js, app/breaks.js). Busy now: main.js asks again a little later. */
+  function onBreak(msg) {
+    const demo = Boolean(msg && msg.demo === true);
+    if (!giantFree()) {
+      trace('break: not now (busy)');
+      return;
+    }
+    trace(`break: time for a stretch${demo ? ' (demo)' : ''}`);
+    rest.activity();
+    giantWhenDown('break', demo);
   }
 
   /** Something else needs it (work, ambient life off, a lock): the giant goes, the small one is back. */
@@ -2911,8 +3008,21 @@
     cancel('giant-guard');
     stage.classList.remove('giant-away');
     const demo = giantDemo;
+    const mode = giantMode;
     giantDemo = false;
+    giantMode = 'peek';
     updateFun();
+    if (mode === 'board') {
+      // No room for the giant (or something came up meanwhile): the summary in the bubble.
+      if (refused) boardInBubble();
+      boardSummary = null;
+      return;
+    }
+    if (mode === 'break') {
+      // A whole break (not skipped, not refused): a happy hop now that it is back.
+      if (!refused && !found && motionAllowed()) later('giant-glee', GIANT_GLEE_MS, () => glee.trigger());
+      return;
+    }
     if (found) {
       trace('giant: there you are');
       if (motionAllowed()) later('giant-glee', GIANT_GLEE_MS, () => glee.trigger());
@@ -4081,6 +4191,7 @@
   window.buddy.onBug((bug) => applyBug(bug));
   window.buddy.onRampage((msg) => onRampage(msg));
   window.buddy.onGiant((msg) => onGiant(msg));
+  window.buddy.onBreak((msg) => onBreak(msg));
   window.buddy.onFollow((msg) => onFollow(msg));
   window.buddy.onTyping((msg) => onTyping(msg));
   window.buddy.onFind((msg) => onFind(msg));

@@ -8,7 +8,7 @@
  * the screen, or the right-click menu), a rampage (where its eyes are), "a frame was drawn" during a trip
  * (the window then moves in step with the display), "hidden" while switching
  * sides, and a chat request: open / close the panel, or a question (or a
- * hands command) as one of the chat's intents, and the giant peek (start / stop). The panel has buttons only:
+ * hands command) as one of the chat's intents, and the giant (the peek, the board, a stretch break: start / stop). The panel has buttons only:
  * no text crosses this bridge.
  * The main process validates every value again.
  */
@@ -20,6 +20,8 @@ const DRAG_PHASES = new Set(['start', 'move', 'end', 'cancel']);
 const AGENT_ID_RE = /^[a-f0-9]{6,16}$/;
 const FUN_ACTIONS = new Set(['context', 'flee', 'stroll', 'hop', 'inspect', 'home', 'whip-off', 'cruise', 'hang', 'loop', 'perch', 'peek', 'cat', 'cat-away', 'guest', 'guest-away', 'typing', 'land', 'find', 'slash', 'slash-here']);
 const CHAT_OPS = new Set(['open', 'close', 'ask']);
+/** The giant's ops (app/giant.js parseGiantRequest checks them again). */
+const GIANT_OPS = new Set(['start', 'demo', 'board', 'break']);
 /** The hands commands (app/chat.js HAND_INTENTS; a test keeps the two lists equal). */
 const HAND_INTENTS = new Set(['openchrome', 'closechrome', 'newtab', 'closetab', 'youtube']);
 const INTENT_RE = /^[a-z]{2,12}$/;
@@ -60,8 +62,10 @@ contextBridge.exposeInMainWorld('buddy', {
   onFind: on('buddy:find'),
   onWindows: on('buddy:windows'),
   onGuest: on('buddy:guest'),
-  /** The giant peek (app/giant.js): its phases ({ phase }; null: over, with found / refused). */
+  /** The giant (app/giant.js): its phases ({ phase }; null: over, with found / refused). */
   onGiant: on('buddy:giant'),
+  /** Stretch breaks (app/breaks.js): time for one ({ demo }). */
+  onBreak: on('buddy:break'),
   /** The model look (robot.css data-model): 'haiku' | 'sonnet' | 'opus' | 'fable', or null (classic). */
   onLook: on('buddy:look'),
   ready: () => ipcRenderer.send('buddy:ready'),
@@ -76,17 +80,19 @@ contextBridge.exposeInMainWorld('buddy', {
     if (FUN_ACTIONS.has(action)) ipcRenderer.send('buddy:fun', action);
   },
   /**
-   * The giant peek: 'start' (the idle story) or 'demo' (whatever the switch says), with where
-   * its feet are (page px) and which way it faces, so the giant starts right there; or 'stop'.
+   * The giant: the peek, 'start' (the idle story) or 'demo' (whatever the switch says); 'board'
+   * ("While you were away": main.js has the words) or 'break' (a stretch break), each maybe a
+   * demo; with where its feet are (page px) and which way it faces, so the giant starts right
+   * there; or 'stop'.
    */
-  giant: (op, feet, face) => {
+  giant: (op, feet, face, demo) => {
     if (op === 'stop') {
       ipcRenderer.send('buddy:giant', { op });
       return;
     }
     const num = (v) => typeof v === 'number' && Number.isFinite(v);
-    if ((op !== 'start' && op !== 'demo') || !feet || !num(feet.x) || !num(feet.y)) return;
-    ipcRenderer.send('buddy:giant', { op, feet: { x: feet.x, y: feet.y }, face: face === 'left' ? 'left' : 'right' });
+    if (!GIANT_OPS.has(op) || !feet || !num(feet.x) || !num(feet.y)) return;
+    ipcRenderer.send('buddy:giant', { op, feet: { x: feet.x, y: feet.y }, face: face === 'left' ? 'left' : 'right', demo: demo === true });
   },
   tripFrame: () => ipcRenderer.send('buddy:trip-frame'),
   flipReady: () => ipcRenderer.send('buddy:flip-ready'),

@@ -6,7 +6,11 @@
  * listens (giant-preload.js):
  *   init   { plan, character: { svgUrl, cssUrl }, look }   draw it where the small one stands, at its size
  *   phase  { phase }   walk | knock | listen | again | wait | shrug | back | found | dash
+ *                      (the board: walk | board | back; the stretch break: walk | reach | lean |
+ *                      neck | eyes | cheer | skip | back, see app/giant.js)
  *   stop   cut short: gone at once (the window closes right after)
+ * The board ("While you were away") is text in a box it holds at its chest; the stretch
+ * break's seconds for the eyes are counted down here (plan.count), one a second.
  * The character's own CSS poses it (data-giant on its wrapper, data-glee when
  * it is found); this page moves it (from the small one's spot up to the glass,
  * bigger with every step, and back), draws rings where its knuckles hit the
@@ -22,6 +26,10 @@
   const rings = document.getElementById('rings');
   const bubble = document.getElementById('bubble');
   const bubbleText = bubble.querySelector('span');
+  const boardEl = document.getElementById('board');
+  const countEl = document.getElementById('count');
+  /** The board's signs (renderer/giant.css); anything else is not drawn. */
+  const BOARD_KINDS = new Set(['done', 'git', 'waiting', 'bug', 'working']);
 
   /** The plan from app/giant.js (page px). */
   let plan = null;
@@ -82,6 +90,9 @@
     body.style.height = px(plan.size);
     body.style.transform = farTransform();
     rings.style.setProperty('--ring', px(plan.size * 0.11));
+    // The board's sizes are shares of its box (renderer/giant.css --u).
+    body.style.setProperty('--u', px(plan.size / 100));
+    if (plan.mode === 'board' && plan.board) fillBoard(plan.board);
     set('face', plan.face);
     // The same model look as the small one (robot.css data-model).
     set('model', LOOKS.has(msg.look) ? msg.look : null);
@@ -123,13 +134,57 @@
     body.style.transition = 'none';
     body.classList.add('gone');
     bubble.classList.remove('show');
+    countEl.classList.remove('show');
   });
+
+  /** "While you were away": the title and the lines, as text (each line with its sign). */
+  function fillBoard(board) {
+    boardEl.querySelector('.giant-board-title').textContent = typeof board.title === 'string' ? board.title : '';
+    const list = boardEl.querySelector('.giant-board-lines');
+    list.replaceChildren();
+    for (const line of Array.isArray(board.lines) ? board.lines : []) {
+      if (!line || !BOARD_KINDS.has(line.kind) || typeof line.text !== 'string') continue;
+      const li = document.createElement('li');
+      li.className = line.kind;
+      const span = document.createElement('span');
+      span.textContent = line.text;
+      li.appendChild(span);
+      list.appendChild(li);
+    }
+    boardEl.hidden = false;
+    // It carries the board (robot.css data-board: no laptop, no arm swing).
+    set('board', true);
+  }
 
   function onPhase(phase) {
     for (const t of phaseTimers) clearTimeout(t);
     phaseTimers = [];
     set('glee', null);
     set('giant', phase);
+    // The seconds for the eyes show only while it looks far away.
+    if (phase !== 'eyes') countEl.classList.remove('show');
+    if (phase === 'board') {
+      // Held up: hello beside its head for a moment, the board stays.
+      boardEl.classList.add('up');
+      say(plan.say.hello);
+      later(2600, () => say(null));
+      return;
+    }
+    if (phase === 'reach' || phase === 'lean' || phase === 'neck') {
+      say(plan.say[phase]);
+      return;
+    }
+    if (phase === 'eyes') {
+      say(plan.say.eyes);
+      countDown(plan.count);
+      return;
+    }
+    if (phase === 'cheer' || phase === 'skip') {
+      // Done (a happy hop) or skipped ("Okay, later!").
+      if (phase === 'cheer') set('glee', true);
+      say(plan.say[phase]);
+      return;
+    }
     if (phase === 'walk') {
       // From where the small one stands, at its size: it walks up to the glass, bigger and
       // bigger with every step (slowly at first, as when someone walks up to you).
@@ -162,6 +217,7 @@
       // It turns round and walks back to its spot (found: runs), smaller and smaller, until it is
       // its own size again right where the small one stands (the window closes then).
       later(phase === 'dash' ? 150 : 250, () => say(null));
+      boardEl.classList.remove('up');
       const ms = phase === 'dash' ? plan.dashMs || 1500 : lasts('back');
       set('face', plan.backFace);
       body.style.transition = `transform ${ms}ms cubic-bezier(0.2, 0.45, 0.5, 1)`;
@@ -208,6 +264,27 @@
     bubble.style.left = px(Math.min(window.innerWidth - w - 8, Math.max(8, x)));
     bubble.style.top = px(Math.min(window.innerHeight - h - 8, Math.max(8, y)));
     bubble.classList.add('show');
+  }
+
+  /** Stretch break: twenty seconds for the eyes, one a second, below what it says. */
+  function countDown(count) {
+    const from = count && Number.isInteger(count.from) && count.from > 0 && count.from <= 60 ? count.from : 20;
+    const lead = count && Number.isFinite(count.leadMs) ? count.leadMs : 500;
+    for (let i = 0; i < from; i += 1) later(lead + i * 1000, () => showCount(from - i));
+  }
+
+  function showCount(n) {
+    countEl.textContent = String(n);
+    // Below the bubble, on the side it faces (the bubble is placed by say()).
+    const w = countEl.offsetWidth;
+    const shown = bubble.classList.contains('show');
+    const x = shown ? bubble.offsetLeft + bubble.offsetWidth / 2 - w / 2 : plan.left + plan.size * (char.dataset.face === 'left' ? 0.1 : 0.78);
+    const y = shown ? bubble.offsetTop + bubble.offsetHeight + 14 : plan.top + plan.size * 0.24;
+    countEl.style.left = px(Math.min(window.innerWidth - w - 8, Math.max(8, x)));
+    countEl.style.top = px(Math.min(window.innerHeight - countEl.offsetHeight - 8, Math.max(8, y)));
+    countEl.classList.remove('tick');
+    void countEl.offsetWidth;
+    countEl.classList.add('tick', 'show');
   }
 
   /** It blinks now and then, as in the main page. */
